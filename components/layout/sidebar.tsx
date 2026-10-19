@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import Image from "next/image"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
   BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, Target, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
@@ -255,7 +255,9 @@ export function Sidebar() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-[220px] shrink-0 min-h-screen border-r bg-[hsl(var(--background))]">
         {logoBlock}
-        <NavContent />
+        <Suspense fallback={null}>
+          <NavContent />
+        </Suspense>
       </aside>
 
       {/* Mobile hamburger */}
@@ -276,7 +278,9 @@ export function Sidebar() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <NavContent onNavigate={() => setMobileOpen(false)} />
+            <Suspense fallback={null}>
+              <NavContent onNavigate={() => setMobileOpen(false)} />
+            </Suspense>
           </aside>
         </div>
       )}
