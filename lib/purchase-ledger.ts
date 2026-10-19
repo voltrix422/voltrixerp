@@ -454,7 +454,10 @@ export function consolidatePaymentsBySupplier(
   for (const payment of payments) {
     const groupId = payment.supplierGroupId?.trim()
     const nameKey = normalizeSupplierKey(payment.supplierName)
-    const key = groupId || (nameKey ? `name:${nameKey}` : "")
+    const supplierKey = groupId || (nameKey ? `name:${nameKey}` : "")
+    const dateKey = String(payment.date || "").trim()
+    // Same supplier + same date can be overflow splits. Different dates are real separate payments.
+    const key = supplierKey ? `${supplierKey}::${dateKey}` : ""
     if (!key) {
       passthrough.push(payment)
       continue
@@ -471,16 +474,17 @@ export function consolidatePaymentsBySupplier(
       continue
     }
 
-    const groupId = key.startsWith("name:") ? list.find(p => p.supplierGroupId)?.supplierGroupId : key
+    const supplierKey = key.split("::")[0]
+    const groupId = supplierKey.startsWith("name:")
+      ? list.find(p => p.supplierGroupId)?.supplierGroupId
+      : supplierKey
     const group = groupId ? groupById.get(groupId) : undefined
     const groupNameKey = normalizeSupplierKey(group?.supplierName || list[0].supplierName)
     const total = list.reduce((sum, p) => sum + Math.max(0, Number(p.amount) || 0), 0)
+    const proofs = list.filter(p => p.proofUrl)
     const proof =
-      [...list].reverse().find(p =>
-        p.proofUrl
-        && normalizeSupplierKey(p.supplierName) === groupNameKey
-      )
-      || [...list].reverse().find(p => p.proofUrl)
+      [...proofs].find(p => normalizeSupplierKey(p.supplierName) === groupNameKey)
+      || proofs[0]
       || list[0]
     const dates = list.map(p => p.date).filter(Boolean).sort()
     const creators = list.map(p => p.createdBy).filter(Boolean)
@@ -492,12 +496,26 @@ export function consolidatePaymentsBySupplier(
       date: dates[0] || list[0].date,
       proofUrl: proof.proofUrl || "",
       proofName: proof.proofName || "",
-      notes: `Combined payment${group?.supplierName || list[0].supplierName ? ` · ${group?.supplierName || list[0].supplierName}` : ""}`,
+      notes: list.length > 1 && list.some(p => p.id.endsWith("-rest"))
+        ? `Combined payment${group?.supplierName || list[0].supplierName ? ` · ${group?.supplierName || list[0].supplierName}` : ""}`
+        : list[0].notes,
       createdAt: list[0].createdAt,
       createdBy: proof.createdBy || creators[creators.length - 1] || list[0].createdBy,
       supplierGroupId: group?.id || list[0].supplierGroupId,
       supplierName: group?.supplierName || list[0].supplierName,
     })
+
+    const seen = new Set<string>(proof.proofUrl ? [proof.proofUrl] : [])
+    for (const extra of proofs) {
+      if (!extra.proofUrl || seen.has(extra.proofUrl)) continue
+      seen.add(extra.proofUrl)
+      merged.push({
+        ...extra,
+        id: `${extra.id}-proof`,
+        amount: 0,
+        notes: extra.notes || extra.proofName || "Payment proof",
+      })
+    }
   }
 
   return [...merged, ...passthrough]

@@ -156,12 +156,16 @@ function appendProofPayments(
 ): PurchaseLedgerPayment[] {
   if (attachments.length === 0) return payments
   const next = [...payments]
-  const first = attachments[0]
+  const existingUrls = new Set(next.map(p => p.proofUrl).filter(Boolean))
+  const fresh = attachments.filter(att => att.url && !existingUrls.has(att.url))
+  if (fresh.length === 0) return payments
+
+  const first = fresh[0]
   let attached = false
   for (let i = next.length - 1; i >= 0; i--) {
     const p = next[i]
     const sameGroup = !meta.supplierGroupId || p.supplierGroupId === meta.supplierGroupId
-    if (sameGroup) {
+    if (sameGroup && !p.proofUrl) {
       next[i] = { ...p, proofUrl: first.url, proofName: first.name }
       attached = true
       break
@@ -181,8 +185,8 @@ function appendProofPayments(
       supplierName: meta.supplierName,
     })
   }
-  for (let i = 1; i < attachments.length; i++) {
-    const att = attachments[i]
+  for (let i = 1; i < fresh.length; i++) {
+    const att = fresh[i]
     next.push({
       id: `${Date.now()}-proof-${i}-${Math.random().toString(36).slice(2, 7)}`,
       amount: 0,
