@@ -68,6 +68,7 @@ import {
 } from "@/lib/purchase-ledger-export"
 import { purchaseScopeLabel } from "@/lib/purchase-scopes"
 import { listFuelAllotments, type FuelAllotment } from "@/lib/fuel-petrol"
+import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -1514,6 +1515,20 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     }
   }
 
+  async function exportApprovalPdf() {
+    setExporting(true)
+    try {
+      await downloadMoneyApprovalPdf({
+        ledgerDues: filtered,
+        scopeLabel: `${purchaseScopeLabel(purchaseScopeId)} (${purchaseScopeId})`,
+      })
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not download approval PDF.")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   async function exportEntryPdf(entry: PurchaseLedgerEntry) {
     await downloadPurchaseLedgerEntryPDF(entry)
   }
@@ -1577,6 +1592,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             onClick={() => void exportFilteredPdf()}
           >
             <Download className="h-3.5 w-3.5" /> PDF
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            disabled={exporting}
+            onClick={() => void exportApprovalPdf()}
+          >
+            <FileText className="h-3.5 w-3.5" /> Approval PDF
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" asChild>
             <Link href="/petrol">

@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText, FileDown } from "lucide-react"
-import { downloadPendingPettyCashPdf } from "@/lib/generate-petty-cash-pending-pdf"
+import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
   allocationBelongsToUser,
@@ -369,7 +369,7 @@ export function PettyCashDashboard() {
                 onClick={async () => {
                   setPendingPdfBusy(true)
                   try {
-                    await downloadPendingPettyCashPdf(pendingRequests)
+                    await downloadMoneyApprovalPdf({ pendingRequests })
                   } catch (error) {
                     toast({
                       title: "PDF failed",
