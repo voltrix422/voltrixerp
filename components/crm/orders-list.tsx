@@ -550,7 +550,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   }
 
   // Payment stats — shared logic with Finance overview (lib/order-payment-stats).
-  // When a date range is set, "Money received" uses payments dated in that range
+  // Date range filters orders by created date. "Money received" still uses payments dated in that range
   // (so credit collections show only the amount received then, not the full order).
   const paymentStats = aggregateOrderPaymentStats(filtered)
   const periodBounds = crmPeriodBounds(fromDate, toDate)
