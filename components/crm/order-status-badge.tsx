@@ -10,7 +10,7 @@ export function OrderStatusBadge({ status, className }: Props) {
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium leading-tight",
+        "inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium leading-tight whitespace-nowrap",
         STATUS_COLORS[status] || "bg-gray-50 text-gray-600 border-gray-200",
         className
       )}

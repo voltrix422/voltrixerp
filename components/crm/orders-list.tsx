@@ -1018,21 +1018,21 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block rounded-lg border overflow-hidden">
-          <table className="w-full">
+          <div className="hidden md:block rounded-lg border overflow-x-auto">
+          <table className="w-full min-w-[1120px] table-fixed">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order #</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Source</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-                <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
-                <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
-                <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Paid</th>
-                <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Credit</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Payment</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Actions</th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[7%]">Order #</th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[11%]">Source</th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[14%]">Client</th>
+                <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[5%]">Qty</th>
+                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Total</th>
+                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Paid</th>
+                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Credit</th>
+                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%] whitespace-nowrap">Payment</th>
+                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[10%] whitespace-nowrap">Status</th>
+                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[8%]">Date</th>
+                <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -1045,13 +1045,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 const returned = isOrderReturned(order)
                 return (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
-                    <span>{order.orderNumber || "—"}</span>
+                  <td className="px-3 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
+                    <span className="whitespace-nowrap">{order.orderNumber || "—"}</span>
                   </td>
-                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-3 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
                     <OrderSourceBadge order={order} />
                   </td>
-                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-3 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
                       {order.warrantyHolderName?.trim() && (
@@ -1062,42 +1062,42 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
                     {returned ? (
                       <span className="text-[hsl(var(--muted-foreground))]">0</span>
                     ) : (
                       <CrmItemsQtyCell items={order.items} />
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 text-xs text-right font-semibold whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
                     {formatOrderPkr(netTotal)}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-right tabular-nums text-emerald-700 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 text-xs text-right tabular-nums text-emerald-700 whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
                     {formatOrderPkr(paid)}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-right tabular-nums text-amber-700 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 text-xs text-right tabular-nums text-amber-700 whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
                     {formatOrderPkr(due)}
                   </td>
-                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 cursor-pointer whitespace-nowrap" onClick={() => setSelected(order)}>
                     {onCredit ? (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
                         On Credit
                       </span>
                     ) : notCredit ? (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                         Not Credit
                       </span>
                     ) : (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 whitespace-nowrap">
                         Paid
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2.5 cursor-pointer whitespace-nowrap" onClick={() => setSelected(order)}>
                     <OrderStatusBadge status={order.status} />
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-2.5 text-center">
+                  <td className="px-2 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-2 py-2.5 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={(e) => void handleListDownloadPdf(order, e)}

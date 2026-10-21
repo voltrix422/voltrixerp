@@ -36,7 +36,7 @@ export default function CRMPage() {
       <Topbar title="Customer relationship management" />
       
       <div className="flex-1 overflow-auto">
-        <div className="p-3 sm:p-6 max-w-6xl">
+        <div className={`p-3 sm:p-6 w-full min-w-0 ${tab === "orders" ? "max-w-[1400px]" : "max-w-6xl"}`}>
           {/* Tabs */}
           <div className="flex items-center gap-1 border-b mb-4 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none">
             <button
