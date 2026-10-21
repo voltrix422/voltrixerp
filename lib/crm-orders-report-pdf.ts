@@ -2,6 +2,7 @@ import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import {
   crmOrdersReportMoney,
   crmPeriodBounds,
+  orderCreditAsAt,
   orderLastPaymentInPeriod,
   orderPeriodPaymentLines,
   orderReceivedInPeriod,
@@ -66,11 +67,14 @@ function fullItems(items: OrderItem[] | undefined) {
     .join("; ")
 }
 
-function paymentLabel(order: Order) {
+function paymentLabel(order: Order, creditOverride?: number) {
   if (order.status === "payment_added") return "Pend"
   if (order.status === "returned") return "Ret"
+  const credit =
+    typeof creditOverride === "number" ? creditOverride : getOrderCreditBalance(order)
+  if (credit > 0.004) return "Credit"
   if (hasOutstandingCredit(order)) return "Credit"
-  if (!isOrderOnCredit(order) || getOrderCreditBalance(order) <= 0.004) return "Paid"
+  if (!isOrderOnCredit(order) || credit <= 0.004) return "Paid"
   return "Paid"
 }
 
@@ -199,7 +203,7 @@ export async function downloadCrmOrdersReportPdf(
       { header: "Credit", align: "right", width: 16, minWidth: 14 },
     ],
     rows: orders.map((order) => {
-      const credit = getOrderCreditBalance(order)
+      const credit = bounds ? orderCreditAsAt(order, bounds.end) : getOrderCreditBalance(order)
       const by = order.createdBy?.trim()
       const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
       const paymentDate = bounds ? orderLastPaymentInPeriod(order, bounds.start, bounds.end) : null
@@ -208,7 +212,7 @@ export async function downloadCrmOrdersReportPdf(
         order.orderNumber || "—",
         client,
         fullItems(order.items),
-        paymentLabel(order),
+        paymentLabel(order, credit),
         amt(getOrderNetSalesValue(order)),
         paidWithDates(order, opts?.dateFrom, opts?.dateTo),
         amt(credit),

@@ -6,6 +6,11 @@ function creditOf(total: number, paid: number) {
   return Math.max(0, (Number(total) || 0) - (Number(paid) || 0))
 }
 
+function crmRowCredit(r: FinanceOrderRow) {
+  if (typeof r.creditOutstanding === "number") return Math.max(0, Number(r.creditOutstanding) || 0)
+  return creditOf(r.total, r.paidTotal)
+}
+
 function itemsLine(items: FinanceOrderRow["items"] | FinancePosRow["items"]) {
   if (!items?.length) return ""
   return items
@@ -61,7 +66,7 @@ export async function downloadFinanceSalesReportExcel(
     (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
     0,
   )
-  const crmCredit = crm.reduce((s, r) => s + creditOf(r.total, r.paidTotal), 0)
+  const crmCredit = crm.reduce((s, r) => s + crmRowCredit(r), 0)
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
   const posReceived = pos.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
@@ -165,7 +170,7 @@ export async function downloadFinanceSalesReportExcel(
     )
     for (const r of crm) {
       const received = Number(r.receivedInPeriod) || Number(r.paidTotal) || 0
-      const credit = creditOf(r.total, r.paidTotal)
+      const credit = crmRowCredit(r)
       const row = ws.addRow([
         r.date || "",
         r.orderNumber || "",

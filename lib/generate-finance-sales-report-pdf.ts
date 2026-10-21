@@ -14,6 +14,11 @@ function creditOf(total: number, paid: number) {
   return Math.max(0, (Number(total) || 0) - (Number(paid) || 0))
 }
 
+function crmCredit(r: FinanceOrderRow) {
+  if (typeof r.creditOutstanding === "number") return Math.max(0, Number(r.creditOutstanding) || 0)
+  return creditOf(r.total, r.paidTotal)
+}
+
 function shortItems(items: FinanceOrderRow["items"] | FinancePosRow["items"]) {
   if (!items?.length) return "—"
   return items
@@ -44,7 +49,7 @@ export async function downloadFinanceSalesReportPdf(
     (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
     0,
   )
-  const crmCredit = crm.reduce((s, r) => s + creditOf(r.total, r.paidTotal), 0)
+  const crmCreditTotal = crm.reduce((s, r) => s + crmCredit(r), 0)
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
   const posReceived = pos.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
@@ -54,7 +59,7 @@ export async function downloadFinanceSalesReportPdf(
   const combinedReceived =
     (opts.includeCrm ? crmReceived : 0) + (opts.includePos ? posReceived : 0)
   const combinedCredit =
-    (opts.includeCrm ? crmCredit : 0) + (opts.includePos ? posCredit : 0)
+    (opts.includeCrm ? crmCreditTotal : 0) + (opts.includePos ? posCredit : 0)
 
   const sources = [
     opts.includeCrm ? "CRM orders" : null,
@@ -89,7 +94,7 @@ export async function downloadFinanceSalesReportPdf(
           ? [
               ["CRM · order value", pkr(crmTotal)],
               ["CRM · received", pkr(crmReceived)],
-              ["CRM · credit / outstanding", pkr(crmCredit)],
+              ["CRM · credit / outstanding", pkr(crmCreditTotal)],
               ["CRM · orders", String(crm.length)],
             ]
           : []),
@@ -127,11 +132,11 @@ export async function downloadFinanceSalesReportPdf(
             shortItems(r.items),
             pkr(r.total),
             pkr(r.receivedInPeriod || r.paidTotal),
-            pkr(creditOf(r.total, r.paidTotal)),
+            pkr(crmCredit(r)),
           ])
         : [["No CRM orders in this period", "", "", "", "", "", "", ""]],
       foot: crm.length
-        ? ["", "", String(crm.length), "", "", pkr(crmTotal), pkr(crmReceived), pkr(crmCredit)]
+        ? ["", "", String(crm.length), "", "", pkr(crmTotal), pkr(crmReceived), pkr(crmCreditTotal)]
         : undefined,
     })
   }

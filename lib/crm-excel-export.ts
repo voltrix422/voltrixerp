@@ -17,6 +17,7 @@ import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import {
   crmOrdersReportMoney,
   crmPeriodBounds,
+  orderCreditAsAt,
   orderLastPaymentInPeriod,
   orderPeriodPaymentLines,
   orderReceivedInPeriod,
@@ -121,11 +122,14 @@ function fullItems(items: OrderItem[] | undefined) {
     .join("\n")
 }
 
-function paymentLabel(order: Order) {
+function paymentLabel(order: Order, creditOverride?: number) {
   if (order.status === "payment_added") return "Pend"
   if (order.status === "returned") return "Ret"
+  const credit =
+    typeof creditOverride === "number" ? creditOverride : getOrderCreditBalance(order)
+  if (credit > 0.004) return "Credit"
   if (hasOutstandingCredit(order)) return "Credit"
-  if (!isOrderOnCredit(order) || getOrderCreditBalance(order) <= 0.004) return "Paid"
+  if (!isOrderOnCredit(order) || credit <= 0.004) return "Paid"
   return "Paid"
 }
 
@@ -264,15 +268,16 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
     const by = order.createdBy?.trim()
     const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
     const paymentDate = bounds ? orderLastPaymentInPeriod(order, bounds.start, bounds.end) : null
+    const credit = bounds ? orderCreditAsAt(order, bounds.end) : getOrderCreditBalance(order)
     return [
       shortDate(paymentDate || order.createdAt),
       order.orderNumber || "—",
       client,
       fullItems(order.items),
-      paymentLabel(order),
+      paymentLabel(order, credit),
       amt(getOrderNetSalesValue(order)),
       paidWithDates(order, options.dateFrom, options.dateTo),
-      amt(getOrderCreditBalance(order)),
+      amt(credit),
     ]
   })
   orderRows.push([

@@ -316,10 +316,10 @@ export async function downloadFinanceOverviewPdf(
   if (loanInTable) moneyInTables.push(loanInTable)
 
   if (orders.length) {
-    const crmCreditTotal = orders.reduce(
-      (s, r) => s + Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0)),
-      0,
-    )
+    const crmCreditTotal = orders.reduce((s, r) => {
+      if (typeof r.creditOutstanding === "number") return s + Math.max(0, Number(r.creditOutstanding) || 0)
+      return s + Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0))
+    }, 0)
     moneyInTables.push({
       title: "CRM client payments received",
       columns: [
@@ -340,7 +340,11 @@ export async function downloadFinanceOverviewPdf(
         orderCashLabel(r),
         pkr(r.total),
         pkr(r.receivedInPeriod),
-        pkr(Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0))),
+        pkr(
+          typeof r.creditOutstanding === "number"
+            ? Math.max(0, Number(r.creditOutstanding) || 0)
+            : Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0)),
+        ),
       ]),
       foot: ["", "", "", "", `${orders.length}`, "", pkr(orderReceivedTotal), pkr(crmCreditTotal)],
     })

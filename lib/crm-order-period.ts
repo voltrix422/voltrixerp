@@ -3,6 +3,7 @@ import {
   getOrderAmountPaid,
   getOrderCreditBalance,
   getOrderNetSalesValue,
+  isOrderReturned,
   type Order,
 } from "@/lib/orders"
 import { approvedBalancePaymentAmount } from "@/lib/finance-overview"
@@ -49,6 +50,84 @@ export function orderReceivedInPeriod(
     if (inRange(d, start, end)) received += amount
   }
   return received
+}
+
+/**
+ * Balance-counting payments dated on or before `asAt` (inclusive end-of-day snapshot).
+ * Matches lifetime getOrderAmountPaid, but ignores later receipts.
+ */
+export function orderPaidThrough(
+  order: Pick<Order, "payments" | "status" | "createdAt">,
+  asAt: Date,
+): number {
+  const fallback = order.createdAt ? new Date(order.createdAt) : new Date()
+  return getBalanceSubmittedPayments(order.payments, order.status).reduce((sum, p) => {
+    const amount = Number(p.amount) || 0
+    if (amount <= 0.004) return sum
+    const d = new Date(p.date || p.createdAt || fallback)
+    if (Number.isNaN(d.getTime()) || d > asAt) return sum
+    return sum + amount
+  }, 0)
+}
+
+function orderCashbackThrough(
+  order: Pick<Order, "cashbackPayments" | "createdAt">,
+  asAt: Date,
+  source: "order" = "order",
+): number {
+  const fallback = order.createdAt ? new Date(order.createdAt) : new Date()
+  return (order.cashbackPayments || [])
+    .filter((p) => (p.source || "order") === source)
+    .reduce((sum, p) => {
+      const amount = Number(p.amount) || 0
+      if (amount <= 0.004) return sum
+      const d = new Date(p.date || p.createdAt || fallback)
+      if (Number.isNaN(d.getTime()) || d > asAt) return sum
+      return sum + amount
+    }, 0)
+}
+
+function orderRefundsThrough(
+  order: Pick<Order, "returnPayments" | "createdAt">,
+  asAt: Date,
+): number {
+  const fallback = order.createdAt ? new Date(order.createdAt) : new Date()
+  return (order.returnPayments || []).reduce((sum, p) => {
+    const amount = Number(p.amount) || 0
+    if (amount <= 0.004) return sum
+    const d = new Date(p.date || p.createdAt || fallback)
+    if (Number.isNaN(d.getTime()) || d > asAt) return sum
+    return sum + amount
+  }, 0)
+}
+
+/**
+ * Outstanding credit as at period end (IAS-style period snapshot).
+ * Later payments after `asAt` do not reduce this figure.
+ */
+export function orderCreditAsAt(
+  order: Pick<
+    Order,
+    | "total"
+    | "payments"
+    | "status"
+    | "createdAt"
+    | "returnPayments"
+    | "cashbackPayments"
+    | "items"
+    | "returnLines"
+    | "taxPercent"
+    | "returnMerchandiseApplied"
+  >,
+  asAt: Date,
+): number {
+  if (isOrderReturned(order)) return 0
+  const billable = getOrderNetSalesValue(order)
+  const effectivePaid = Math.max(
+    0,
+    orderPaidThrough(order, asAt) + orderCashbackThrough(order, asAt) - orderRefundsThrough(order, asAt),
+  )
+  return Math.max(0, billable - effectivePaid)
 }
 
 /** Last payment date in the period (for row date when cash was received). */
@@ -135,13 +214,12 @@ export function crmOrdersReportMoney(
   const bounds = crmPeriodBounds(dateFrom, dateTo)
   const stats = aggregateOrderPaymentStats(orders)
   const orderValue = stats.totalOrderValue || orders.reduce((sum, o) => sum + getOrderNetSalesValue(o), 0)
-  const outstanding = stats.totalOutstanding
 
   if (!bounds) {
     return {
       orderValue,
       moneyReceived: stats.totalReceived,
-      outstanding,
+      outstanding: stats.totalOutstanding,
       periodScoped: false,
     }
   }
@@ -150,10 +228,14 @@ export function crmOrdersReportMoney(
     (sum, order) => sum + orderReceivedInPeriod(order, bounds.start, bounds.end),
     0,
   )
+  const outstandingAsAt = orders.reduce(
+    (sum, order) => sum + orderCreditAsAt(order, bounds.end),
+    0,
+  )
   return {
     orderValue,
     moneyReceived,
-    outstanding,
+    outstanding: outstandingAsAt,
     periodScoped: true,
   }
 }
@@ -164,15 +246,19 @@ export function crmOrderPaidDisplay(
   dateTo?: string,
 ): { paid: number; lifetimePaid: number; credit: number; periodScoped: boolean } {
   const lifetimePaid = getOrderAmountPaid(order)
-  const credit = getOrderCreditBalance(order)
   const bounds = crmPeriodBounds(dateFrom, dateTo)
   if (!bounds) {
-    return { paid: lifetimePaid, lifetimePaid, credit, periodScoped: false }
+    return {
+      paid: lifetimePaid,
+      lifetimePaid,
+      credit: getOrderCreditBalance(order),
+      periodScoped: false,
+    }
   }
   return {
     paid: orderReceivedInPeriod(order, bounds.start, bounds.end),
     lifetimePaid,
-    credit,
+    credit: orderCreditAsAt(order, bounds.end),
     periodScoped: true,
   }
 }

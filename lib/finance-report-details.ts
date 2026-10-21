@@ -1,4 +1,5 @@
 ﻿import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
+import { orderCreditAsAt } from "@/lib/crm-order-period"
 import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 import type { MoneyOutDetailLine } from "@/lib/finance-money-out-details"
 import { approvedBalancePaymentAmount, orderPaidTotal, parseOrderPayments } from "@/lib/finance-overview"
@@ -57,6 +58,8 @@ export type FinanceOrderRow = {
   total: number
   paidTotal: number
   receivedInPeriod: number
+  /** Outstanding as at period end (ignores later payments). */
+  creditOutstanding: number
   items: FinancePdfItem[]
 }
 
@@ -313,6 +316,11 @@ export function buildOrderReport(
     branchId?: string | null
     items: unknown
     payments: unknown
+    returnPayments?: unknown
+    cashbackPayments?: unknown
+    returnLines?: unknown
+    taxPercent?: number | null
+    returnMerchandiseApplied?: boolean | null
   }>,
   start: Date,
   end: Date,
@@ -343,6 +351,33 @@ export function buildOrderReport(
     const createdInPeriod = inRange(new Date(order.createdAt), start, end)
     if (!createdInPeriod && receivedInPeriod <= 0.004) continue
 
+    const status = order.status as Order["status"]
+    const createdAt =
+      order.createdAt instanceof Date
+        ? order.createdAt.toISOString()
+        : String(order.createdAt || "")
+    const creditOutstanding = orderCreditAsAt(
+      {
+        total: order.total,
+        payments,
+        status,
+        createdAt,
+        returnPayments: Array.isArray(order.returnPayments)
+          ? (order.returnPayments as Order["returnPayments"])
+          : [],
+        cashbackPayments: Array.isArray(order.cashbackPayments)
+          ? (order.cashbackPayments as Order["cashbackPayments"])
+          : [],
+        items: Array.isArray(order.items) ? (order.items as OrderItem[]) : [],
+        returnLines: Array.isArray(order.returnLines)
+          ? (order.returnLines as Order["returnLines"])
+          : [],
+        taxPercent: Number(order.taxPercent) || 0,
+        returnMerchandiseApplied: Boolean(order.returnMerchandiseApplied),
+      },
+      end,
+    )
+
     rows.push({
       id: order.id,
       date: fmtDay(lastPaymentInPeriod || order.createdAt),
@@ -353,9 +388,10 @@ export function buildOrderReport(
       total: num(order.total),
       paidTotal: orderPaidTotal({
         payments,
-        status: order.status as Order["status"],
+        status,
       }),
       receivedInPeriod,
+      creditOutstanding,
       items: mapOrderItems(order.items),
     })
   }

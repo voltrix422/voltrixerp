@@ -42,7 +42,10 @@ function salesFromOrders(orders: FinanceOrderRow[]): BirdsEyeSalesSlice {
     (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
     0,
   )
-  const credit = orders.reduce((s, r) => s + creditOf(r.total, r.paidTotal), 0)
+  const credit = orders.reduce((s, r) => {
+    if (typeof r.creditOutstanding === "number") return s + Math.max(0, Number(r.creditOutstanding) || 0)
+    return s + creditOf(r.total, r.paidTotal)
+  }, 0)
   return { sale, received, credit }
 }
 
