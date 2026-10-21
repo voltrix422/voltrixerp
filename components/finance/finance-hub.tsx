@@ -958,7 +958,7 @@ export function FinanceHub({
                   <span>
                     <span className="text-sm font-medium block">CRM orders</span>
                     <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      {crmOrders.length} order{crmOrders.length === 1 ? "" : "s"} · total, received &amp; credit
+                      {crmOrders.length} order{crmOrders.length === 1 ? "" : "s"} created in range · total, received &amp; credit
                     </span>
                   </span>
                 </label>
@@ -977,7 +977,7 @@ export function FinanceHub({
                   </span>
                 </label>
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                  Excel has separate sheets for CRM and POS, plus a Combined totals sheet. Same date range as Overview.
+                  CRM rows are by order created date (not payment date). Excel has CRM, POS, and Combined sheets. Same date range as Overview.
                 </p>
               </div>
               <div className="flex flex-col gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">

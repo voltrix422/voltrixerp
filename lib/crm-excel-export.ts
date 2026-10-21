@@ -18,7 +18,6 @@ import {
   crmOrdersReportMoney,
   crmPeriodBounds,
   orderCreditAsAt,
-  orderLastPaymentInPeriod,
   orderPeriodPaymentLines,
   orderReceivedInPeriod,
 } from "@/lib/crm-order-period"
@@ -253,7 +252,7 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
   )
   lines.push(blankLine())
 
-  lines.push(sectionTitle(money.periodScoped ? "ERP client payments received" : "ERP client orders"))
+  lines.push(sectionTitle("ERP client orders · by order created date"))
   const orderHeaders = [
     "Date",
     "Order",
@@ -267,10 +266,9 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
   const orderRows = orders.map((order) => {
     const by = order.createdBy?.trim()
     const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
-    const paymentDate = bounds ? orderLastPaymentInPeriod(order, bounds.start, bounds.end) : null
     const credit = bounds ? orderCreditAsAt(order, bounds.end) : getOrderCreditBalance(order)
     return [
-      shortDate(paymentDate || order.createdAt),
+      shortDate(order.createdAt),
       order.orderNumber || "—",
       client,
       fullItems(order.items),

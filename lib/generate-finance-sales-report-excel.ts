@@ -62,10 +62,7 @@ export async function downloadFinanceSalesReportExcel(
   const pos = opts.includePos ? posSales : []
 
   const crmTotal = crm.reduce((s, r) => s + (Number(r.total) || 0), 0)
-  const crmReceived = crm.reduce(
-    (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
-    0,
-  )
+  const crmReceived = crm.reduce((s, r) => s + (Number(r.receivedInPeriod) || 0), 0)
   const crmCredit = crm.reduce((s, r) => s + crmRowCredit(r), 0)
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
@@ -151,7 +148,7 @@ export async function downloadFinanceSalesReportExcel(
     const ws = wb.addWorksheet("CRM orders", {
       properties: { tabColor: { argb: "FF0EA5E9" } },
     })
-    const title = ws.addRow(["CRM client orders — sale / received / credit"])
+    const title = ws.addRow(["CRM client orders — by order created date"])
     title.font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
     ws.addRow([`Period: ${range}`])
     ws.addRow([])
@@ -169,7 +166,7 @@ export async function downloadFinanceSalesReportExcel(
       ]),
     )
     for (const r of crm) {
-      const received = Number(r.receivedInPeriod) || Number(r.paidTotal) || 0
+      const received = Number(r.receivedInPeriod) || 0
       const credit = crmRowCredit(r)
       const row = ws.addRow([
         r.date || "",

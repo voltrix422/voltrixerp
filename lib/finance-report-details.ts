@@ -336,20 +336,17 @@ export function buildOrderReport(
     ) {
       continue
     }
+    // Sales / CRM period lists are by order created date — not payment received date.
+    if (!inRange(new Date(order.createdAt), start, end)) continue
+
     const payments = parseOrderPayments(order.payments)
     let receivedInPeriod = 0
-    let lastPaymentInPeriod: Date | null = null
     for (const p of payments) {
       const amount = approvedBalancePaymentAmount(p, order.status as Order["status"])
       if (amount <= 0) continue
       const d = new Date(p.date || order.createdAt)
-      if (inRange(d, start, end)) {
-        receivedInPeriod += amount
-        if (!lastPaymentInPeriod || d > lastPaymentInPeriod) lastPaymentInPeriod = d
-      }
+      if (inRange(d, start, end)) receivedInPeriod += amount
     }
-    const createdInPeriod = inRange(new Date(order.createdAt), start, end)
-    if (!createdInPeriod && receivedInPeriod <= 0.004) continue
 
     const status = order.status as Order["status"]
     const createdAt =
@@ -380,7 +377,7 @@ export function buildOrderReport(
 
     rows.push({
       id: order.id,
-      date: fmtDay(lastPaymentInPeriod || order.createdAt),
+      date: fmtDay(order.createdAt),
       orderNumber: order.orderNumber,
       clientName: order.clientName,
       status: order.status,
@@ -395,12 +392,12 @@ export function buildOrderReport(
       items: mapOrderItems(order.items),
     })
   }
-  rows.sort((a, b) => (b.receivedInPeriod || b.total) - (a.receivedInPeriod || a.total))
+  rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `ord-${row.id}`,
     label: row.orderNumber,
     sublabel: `${row.clientName} · ${row.status} · ${row.createdBy}`,
-    amount: row.receivedInPeriod || row.total,
+    amount: row.total,
     date: row.date,
     items: itemDetailLines(row.items),
   }))

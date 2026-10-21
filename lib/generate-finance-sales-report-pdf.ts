@@ -45,10 +45,7 @@ export async function downloadFinanceSalesReportPdf(
   const pos = opts.includePos ? posSales : []
 
   const crmTotal = crm.reduce((s, r) => s + (Number(r.total) || 0), 0)
-  const crmReceived = crm.reduce(
-    (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
-    0,
-  )
+  const crmReceived = crm.reduce((s, r) => s + (Number(r.receivedInPeriod) || 0), 0)
   const crmCreditTotal = crm.reduce((s, r) => s + crmCredit(r), 0)
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
@@ -112,7 +109,7 @@ export async function downloadFinanceSalesReportPdf(
 
   if (opts.includeCrm) {
     tables.push({
-      title: "CRM client orders",
+      title: "CRM client orders · by order created date",
       columns: [
         { header: "Date", width: 18 },
         { header: "Order", width: 20 },
@@ -131,10 +128,10 @@ export async function downloadFinanceSalesReportPdf(
             String(r.status || "—").replace(/_/g, " "),
             shortItems(r.items),
             pkr(r.total),
-            pkr(r.receivedInPeriod || r.paidTotal),
+            pkr(Number(r.receivedInPeriod) || 0),
             pkr(crmCredit(r)),
           ])
-        : [["No CRM orders in this period", "", "", "", "", "", "", ""]],
+        : [["No CRM orders created in this period", "", "", "", "", "", "", ""]],
       foot: crm.length
         ? ["", "", String(crm.length), "", "", pkr(crmTotal), pkr(crmReceived), pkr(crmCreditTotal)]
         : undefined,

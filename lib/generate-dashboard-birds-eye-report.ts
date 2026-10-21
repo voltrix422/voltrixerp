@@ -39,7 +39,7 @@ function money(n: number) {
 function salesFromOrders(orders: FinanceOrderRow[]): BirdsEyeSalesSlice {
   const sale = orders.reduce((s, r) => s + (Number(r.total) || 0), 0)
   const received = orders.reduce(
-    (s, r) => s + (Number(r.receivedInPeriod) || Number(r.paidTotal) || 0),
+    (s, r) => s + (Number(r.receivedInPeriod) || 0),
     0,
   )
   const credit = orders.reduce((s, r) => {

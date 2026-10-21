@@ -156,7 +156,7 @@ export function orderHasPaymentInPeriod(
   return orderReceivedInPeriod(order, start, end) > 0.004
 }
 
-/** Match CRM date filter: order created in range OR payment received in range. */
+/** Match CRM date filter: order created in range (not payment date). */
 export function orderMatchesCrmDateRange(
   order: Pick<Order, "createdAt" | "payments" | "status">,
   fromDate: string,
@@ -165,11 +165,10 @@ export function orderMatchesCrmDateRange(
   const bounds = crmPeriodBounds(fromDate, toDate)
   if (!bounds) return true
   const { start, end } = bounds
-  if (order.createdAt) {
-    const created = new Date(order.createdAt)
-    if (!Number.isNaN(created.getTime()) && inRange(created, start, end)) return true
-  }
-  return orderHasPaymentInPeriod(order, start, end)
+  if (!order.createdAt) return false
+  const created = new Date(order.createdAt)
+  if (Number.isNaN(created.getTime())) return false
+  return inRange(created, start, end)
 }
 
 export type CrmPeriodPaymentLine = {
