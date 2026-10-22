@@ -109,7 +109,7 @@ export async function downloadFinanceSalesReportPdf(
 
   if (opts.includeCrm) {
     tables.push({
-      title: "CRM client orders · by order created date",
+      title: "CRM client orders · by order created date (oldest first)",
       columns: [
         { header: "Date", width: 18 },
         { header: "Order", width: 20 },

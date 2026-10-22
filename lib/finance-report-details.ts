@@ -75,6 +75,29 @@ function fmtDay(value: Date | string) {
   return d.toLocaleDateString("en-GB", { timeZone: "Asia/Karachi" })
 }
 
+/** Parse en-GB day labels (e.g. 01/09/2026) for chronological sorting. */
+function reportDaySortKey(value: string): number {
+  const m = String(value || "")
+    .trim()
+    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
+  if (!m) return 0
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])
+  return Date.UTC(y, Number(m[2]) - 1, Number(m[1]))
+}
+
+function sortRowsByDateAsc<T extends { date: string; orderNumber?: string; number?: string }>(
+  rows: T[],
+): T[] {
+  return rows.sort((a, b) => {
+    const da = reportDaySortKey(a.date)
+    const db = reportDaySortKey(b.date)
+    if (da !== db) return da - db
+    const na = String(a.orderNumber || a.number || "")
+    const nb = String(b.orderNumber || b.number || "")
+    return na.localeCompare(nb, undefined, { numeric: true })
+  })
+}
+
 function num(n: unknown) {
   return Number(n) || 0
 }
@@ -289,7 +312,7 @@ export function buildPosSalesReport(
     })
   }
 
-  rows.sort((a, b) => b.total - a.total)
+  sortRowsByDateAsc(rows)
   const total = rows.reduce((s, r) => s + r.total, 0)
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `pos-${row.id}`,
@@ -415,11 +438,8 @@ export function buildOrderReport(
     })
   }
 
-  if (by === "payment") {
-    rows.sort((a, b) => (b.receivedInPeriod || 0) - (a.receivedInPeriod || 0))
-  } else {
-    rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
-  }
+  // Chronological (1st → last of period), then order number — Sales and money-in detail.
+  sortRowsByDateAsc(rows)
 
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `ord-${row.id}`,

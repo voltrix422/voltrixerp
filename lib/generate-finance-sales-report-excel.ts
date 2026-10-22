@@ -148,7 +148,7 @@ export async function downloadFinanceSalesReportExcel(
     const ws = wb.addWorksheet("CRM orders", {
       properties: { tabColor: { argb: "FF0EA5E9" } },
     })
-    const title = ws.addRow(["CRM client orders — by order created date"])
+    const title = ws.addRow(["CRM client orders — by order created date (oldest first)"])
     title.font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
     ws.addRow([`Period: ${range}`])
     ws.addRow([])
