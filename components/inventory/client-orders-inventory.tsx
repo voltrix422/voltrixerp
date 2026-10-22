@@ -1,7 +1,20 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from "react"
-import { getOrders, saveOrder, hasOutstandingCredit, canReplaceOrderItem, STATUS_LABELS, type Order } from "@/lib/orders"
+import {
+  getOrders,
+  saveOrder,
+  hasOutstandingCredit,
+  canReplaceOrderItem,
+  STATUS_LABELS,
+  getOrderCreditBalance,
+  isOrderOnCredit,
+  isOrderReturned,
+  orderHasAnyReturns,
+  orderHasCashback,
+  type Order,
+} from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
+import { getClients, type Client } from "@/lib/crm"
 import { Button } from "@/components/ui/button"
 import { SuccessNotification } from "@/components/ui/success-notification"
 import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, RefreshCw, ChevronDown } from "lucide-react"
@@ -11,6 +24,13 @@ import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inv
 import { canDispatchWithoutScan, getSession } from "@/lib/auth"
 import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
+import {
+  findLedgerClients,
+  listLedgerClients,
+  orderBelongsToAnyClient,
+} from "@/lib/client-order-ledger"
+import { orderMatchesCrmDateRange } from "@/lib/crm-order-period"
 import { downloadDispatchOrdersExcel } from "@/lib/inventory-excel-export"
 import { useToast } from "@/components/ui/toast"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
@@ -40,6 +60,123 @@ import {
 } from "@/lib/order-product-search"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 
+type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned" | "processing" | "shipped"
+type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit" | "cashback"
+type ActivityFilter = "all" | "return" | "replace"
+type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
+
+const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "delivered", label: "Delivered" },
+  { value: "approved", label: "Approved" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "processing", label: "Processing" },
+  { value: "shipped", label: "Shipped" },
+  { value: "returned", label: "Returned" },
+]
+
+const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "on_credit", label: "On Credit" },
+  { value: "paid", label: "Fully Paid" },
+  { value: "not_credit", label: "Not Credit" },
+  { value: "cashback", label: "Cashback" },
+]
+
+const ACTIVITY_FILTER_OPTIONS: { value: ActivityFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "return", label: "Return" },
+  { value: "replace", label: "Replace" },
+]
+
+const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "last_3", label: "Last 3 days" },
+  { value: "last_7", label: "Last 7 days" },
+  { value: "last_15", label: "Last 15 days" },
+  { value: "last_30", label: "Last 30 days" },
+]
+
+const INVENTORY_VISIBLE_STATUSES = new Set([
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "returned",
+  "approved",
+  "payment_added",
+])
+
+function toYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function getDatePresetRange(preset: DatePreset): { from: string; to: string } | null {
+  const today = startOfDay(new Date())
+  switch (preset) {
+    case "today":
+      return { from: toYmd(today), to: toYmd(today) }
+    case "tomorrow": {
+      const t = new Date(today)
+      t.setDate(t.getDate() + 1)
+      return { from: toYmd(t), to: toYmd(t) }
+    }
+    case "last_3": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 2)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_7": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 6)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_15": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 14)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_30": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 29)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    default:
+      return null
+  }
+}
+
+function orderHasAnyReplacements(order: Pick<Order, "replacementLines">): boolean {
+  return (order.replacementLines || []).some((l) => Math.max(0, Math.floor(Number(l.qty) || 0)) > 0)
+}
+
+function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "cashback") return orderHasCashback(order)
+  if (filter === "on_credit") return hasOutstandingCredit(order)
+  if (filter === "paid") return !isOrderReturned(order) && getOrderCreditBalance(order) <= 0.004
+  if (filter === "not_credit") return !isOrderOnCredit(order)
+  return true
+}
+
+function orderMatchesActivityFilter(order: Order, filter: ActivityFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "return") return orderHasAnyReturns(order)
+  if (filter === "replace") return orderHasAnyReplacements(order)
+  return true
+}
+
+function isInventoryVisibleOrder(order: Order): boolean {
+  return !isBranchPosOrderHiddenFromErp(order) && INVENTORY_VISIBLE_STATUSES.has(order.status)
+}
+
 /** Optional delivery proof — all receiver/vehicle/product fields filled. */
 function orderHasCompleteFulfillmentProof(o: Order): boolean {
   const textOk =
@@ -57,7 +194,9 @@ function orderHasCompleteFulfillmentProof(o: Order): boolean {
 export function ClientOrdersInventory() {
   const { toast } = useToast()
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [search, setSearch] = useState("")
@@ -68,6 +207,14 @@ export function ClientOrdersInventory() {
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all")
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
+  const [datePreset, setDatePreset] = useState<DatePreset>("")
+  const [referrerFilter, setReferrerFilter] = useState("")
+  const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
+  const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
+  const currentUser = getSession()?.name || "Inventory"
 
   useEffect(() => {
     loadInventoryProductOptions()
@@ -102,35 +249,46 @@ export function ClientOrdersInventory() {
   }, [inventoryProducts, productSearch, selectedProductModel])
 
   useEffect(() => {
-    getOrders().then(o => {
-      // Show confirmed orders (sent from Finance) and processing/shipped/delivered orders
-      // Branch POS orders are handled entirely in POS — keep them out of ERP inventory.
-      const filtered = o.filter(order =>
-        !isBranchPosOrderHiddenFromErp(order) &&
-        (order.status === "confirmed" ||
-        order.status === "processing" ||
-        order.status === "shipped" ||
-        order.status === "delivered")
-      )
+    Promise.all([getOrders(), getClients()]).then(([o, c]) => {
+      // Confirmed+ for dispatch, plus returned/approved so Status / Return filters work.
+      // Branch POS stays out of ERP inventory.
+      const filtered = o.filter(isInventoryVisibleOrder)
       setOrders(filtered)
+      setClients(c)
       setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
       setLoading(false)
     })
     const interval = setInterval(() => {
       getOrders().then(o => {
-        const filtered = o.filter(order =>
-          !isBranchPosOrderHiddenFromErp(order) &&
-          (order.status === "confirmed" ||
-          order.status === "processing" ||
-          order.status === "shipped" ||
-          order.status === "delivered")
-        )
+        const filtered = o.filter(isInventoryVisibleOrder)
         setOrders(filtered)
         setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
       })
     }, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  const ledgerOptions = useMemo(() => listLedgerClients(clients, orders), [clients, orders])
+  const ledgerClients = useMemo(
+    () => findLedgerClients(ledgerOptions, ledgerClientIds),
+    [ledgerOptions, ledgerClientIds],
+  )
+  const excludedClients = useMemo(
+    () => findLedgerClients(ledgerOptions, excludedClientIds),
+    [ledgerOptions, excludedClientIds],
+  )
+
+  const referrerOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          orders
+            .map((o) => (o.referrerName || "").trim())
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [orders],
+  )
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -139,18 +297,46 @@ export function ClientOrdersInventory() {
         !search ||
         order.orderNumber.toLowerCase().includes(searchLower) ||
         order.clientName.toLowerCase().includes(searchLower) ||
+        (order.warrantyHolderName || "").toLowerCase().includes(searchLower) ||
+        (order.referrerName || "").toLowerCase().includes(searchLower) ||
         (order.dispatcher || "").toLowerCase().includes(searchLower)
 
       const matchesProduct = orderTouchesProductFilter(order, productFilter)
+      const matchesStatus = statusFilter === "all" || order.status === statusFilter
+      const matchesPayment = orderMatchesPaymentFilter(order, paymentFilter)
+      const matchesActivity = orderMatchesActivityFilter(order, activityFilter)
+      const matchesDateRange = orderMatchesCrmDateRange(order, fromDate, toDate)
+      const matchesClient = ledgerClients.length
+        ? orderBelongsToAnyClient(order, ledgerClients)
+        : excludedClients.length === 0 || !orderBelongsToAnyClient(order, excludedClients)
+      const matchesReferrer =
+        !referrerFilter ||
+        (order.referrerName || "").trim().toLowerCase() === referrerFilter.toLowerCase()
 
-      const orderDate = order.deliveryDate ? new Date(order.deliveryDate) : new Date()
-      const matchesDateRange =
-        (!fromDate || orderDate >= new Date(fromDate)) &&
-        (!toDate || orderDate <= new Date(toDate))
-
-      return matchesSearch && matchesProduct && matchesDateRange
+      return (
+        matchesSearch &&
+        matchesProduct &&
+        matchesStatus &&
+        matchesPayment &&
+        matchesActivity &&
+        matchesDateRange &&
+        matchesClient &&
+        matchesReferrer
+      )
     })
-  }, [orders, search, productFilter, fromDate, toDate])
+  }, [
+    orders,
+    search,
+    productFilter,
+    statusFilter,
+    paymentFilter,
+    activityFilter,
+    fromDate,
+    toDate,
+    ledgerClients,
+    excludedClients,
+    referrerFilter,
+  ])
 
   const productSummary = useMemo(() => {
     if (!hasProductFilter(productFilter)) return null
@@ -185,6 +371,49 @@ export function ClientOrdersInventory() {
     if (value.trim()) setSelectedProductModel("")
   }
 
+  function applyDatePreset(preset: DatePreset) {
+    if (datePreset === preset) {
+      setDatePreset("")
+      setFromDate("")
+      setToDate("")
+      return
+    }
+    const range = getDatePresetRange(preset)
+    if (!range) return
+    setDatePreset(preset)
+    setFromDate(range.from)
+    setToDate(range.to)
+  }
+
+  function clearFilters() {
+    setSearch("")
+    clearProductFilter()
+    setFromDate("")
+    setToDate("")
+    setStatusFilter("all")
+    setPaymentFilter("all")
+    setActivityFilter("all")
+    setDatePreset("")
+    setReferrerFilter("")
+    setExcludedClientIds([])
+    setLedgerClientIds([])
+  }
+
+  function selectLedgerClients(ids: string[]) {
+    const firstPick = ledgerClientIds.length === 0 && ids.length > 0
+    setLedgerClientIds(ids)
+    if (!firstPick) return
+    setSearch("")
+    setFromDate("")
+    setToDate("")
+    setDatePreset("")
+    setStatusFilter("all")
+    setPaymentFilter("all")
+    setActivityFilter("all")
+    setReferrerFilter("")
+    setExcludedClientIds([])
+  }
+
   function exportDispatchExcel() {
     setExportingExcel(true)
     try {
@@ -201,95 +430,326 @@ export function ClientOrdersInventory() {
     }
   }
 
-  const filterActive = Boolean(search || isProductFiltered || fromDate || toDate)
+  async function exportListPdf() {
+    if (exportingPdf || filteredOrders.length === 0) return
+    setExportingPdf(true)
+    try {
+      const { downloadCrmOrdersReportPdf } = await import("@/lib/crm-orders-report-pdf")
+      await downloadCrmOrdersReportPdf(filteredOrders, {
+        dateFrom: fromDate,
+        dateTo: toDate,
+        exportedBy: currentUser,
+        clients: ledgerClients.map((c) => ({
+          name: c.name,
+          company: c.company,
+          phone: c.phone,
+          email: c.email,
+          ntn: c.ntn,
+          address: c.address,
+          city: c.city,
+        })),
+      })
+      toast({
+        title: "Downloaded",
+        message: `${filteredOrders.length} order(s) saved as PDF.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export PDF.", type: "error" })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const filterActive = Boolean(
+    search ||
+      isProductFiltered ||
+      fromDate ||
+      toDate ||
+      statusFilter !== "all" ||
+      paymentFilter !== "all" ||
+      activityFilter !== "all" ||
+      referrerFilter ||
+      excludedClientIds.length > 0 ||
+      ledgerClientIds.length > 0,
+  )
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-          {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
-          {isProductFiltered ? " with this product" : " for dispatch"}
-        </p>
-        <div className="flex items-center gap-1.5">
+      {showFilters && !loading && (
+        <div className="space-y-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Activity
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setActivityFilter(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    activityFilter === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Status
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    statusFilter === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Payment
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPaymentFilter(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    paymentFilter === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <ClientExcludePicker
+            clients={clients}
+            orders={orders}
+            excludedIds={excludedClientIds}
+            onChange={(ids) => {
+              setExcludedClientIds(ids)
+              if (ids.length) setLedgerClientIds([])
+            }}
+          />
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Referrer
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setReferrerFilter("")}
+                className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                  !referrerFilter
+                    ? "bg-[#1faca6] text-white border-[#1faca6]"
+                    : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                }`}
+              >
+                All
+              </button>
+              {referrerOptions.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setReferrerFilter(name)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    referrerFilter === name
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+              {referrerOptions.length === 0 && (
+                <span className="h-7 px-2.5 text-xs text-[hsl(var(--muted-foreground))] inline-flex items-center">
+                  No referrers yet
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Date range
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DATE_PRESET_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => applyDatePreset(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    datePreset === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Product
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={selectedProductModel}
+                onChange={(e) => handleProductDropdownChange(e.target.value)}
+                disabled={loadingProducts}
+                className="h-8 min-w-[160px] rounded border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+              >
+                <option value="">
+                  {loadingProducts ? "Loading inventory…" : "All products"}
+                </option>
+                {filteredInventoryProducts.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.displayName} ({product.inStock} in stock)
+                  </option>
+                ))}
+              </select>
+              <div className="relative flex-1 min-w-[160px] max-w-sm">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                <input
+                  value={productSearch}
+                  onChange={(e) => handleProductSearchChange(e.target.value)}
+                  placeholder="Product / model name..."
+                  className="w-full h-8 border rounded bg-[hsl(var(--background))] pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.target.value)
+                setDatePreset("")
+              }}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.target.value)
+                setDatePreset("")
+              }}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+            <select
+              value={referrerFilter}
+              onChange={(e) => setReferrerFilter(e.target.value)}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] min-w-[10rem]"
+            >
+              <option value="">All referrers</option>
+              {referrerOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <div className="relative flex-1 min-w-[12rem]">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search orders, client, or referrer..."
+                className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              />
+            </div>
+            {filterActive && (
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+              disabled={loading || filteredOrders.length === 0 || exportingPdf}
+              onClick={() => void exportListPdf()}
+            >
+              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <ClientLedgerPicker
+          clients={clients}
+          orders={orders}
+          selectedIds={ledgerClientIds}
+          onChange={selectLedgerClients}
+        />
+        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
           <CrmExcelExportButton
             onExport={exportDispatchExcel}
             exporting={exportingExcel}
-            disabled={loading || filteredOrders.length === 0}
-            className="h-7 px-2.5 text-[11px] gap-1"
+            disabled={loading || filteredOrders.length === 0 || exportingPdf}
+            className="h-8 px-2.5 text-xs gap-1.5"
           />
-          {!loading && orders.length > 0 && (
-            <button
-              type="button"
-              className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] inline-flex items-center gap-1 cursor-pointer"
-              onClick={() => setShowFilters((o) => !o)}
-            >
-              Filter
-              <ChevronDown className={`h-3 w-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
-            </button>
-          )}
-          {filterActive && (
-            <span className="text-[11px] text-[hsl(var(--muted-foreground))]">on</span>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+            disabled={loading || filteredOrders.length === 0 || exportingPdf}
+            onClick={() => void exportListPdf()}
+          >
+            {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => setShowFilters((o) => !o)}
+          >
+            {showFilters ? "Hide Filters" : "Filters"}
+            <ChevronDown className={`h-3 w-3 ml-1 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          </Button>
         </div>
       </div>
 
-      {showFilters && !loading && orders.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center border border-[hsl(var(--border))] px-2 py-2">
-          <select
-            value={selectedProductModel}
-            onChange={(e) => handleProductDropdownChange(e.target.value)}
-            disabled={loadingProducts}
-            className="h-7 min-w-[160px] border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none cursor-pointer"
-          >
-            <option value="">
-              {loadingProducts ? "Loading inventory…" : "All products"}
-            </option>
-            {filteredInventoryProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.displayName} ({product.inStock} in stock)
-              </option>
-            ))}
-          </select>
-          <div className="relative flex-1 min-w-[160px] max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={productSearch}
-              onChange={(e) => handleProductSearchChange(e.target.value)}
-              placeholder="Product / model name..."
-              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
-            />
-          </div>
-          <div className="relative flex-1 min-w-[160px] max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Order, client, dispatcher..."
-              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
-            />
-          </div>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none w-[140px] cursor-pointer"
-          />
-          <input
-            type="date"
-            value={toDate}
-            onChange={e => setToDate(e.target.value)}
-            className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none w-[140px] cursor-pointer"
-          />
-          {filterActive && (
-            <button
-              type="button"
-              className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
-              onClick={() => { setSearch(""); clearProductFilter(); setFromDate(""); setToDate("") }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
+      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+        {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
+        {isProductFiltered ? " with this product" : ledgerClients.length ? " for selected client(s)" : " for dispatch"}
+        {filterActive ? " · filters on" : ""}
+      </p>
+
+      {ledgerClients.length > 0 && (
+        <ClientLedgerSummary clients={ledgerClients} orders={filteredOrders} currentUser={currentUser} />
       )}
 
       {productSummary && (
