@@ -281,3 +281,30 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: true, updated: result.count })
 }
+
+/** Delete this user's copy of a chat with partnerId (partner keeps their copy). */
+export async function DELETE(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  const userId = String(body.userId || "").trim()
+  const partnerId = String(body.partnerId || "").trim()
+  if (!userId || !partnerId) {
+    return NextResponse.json({ error: "Missing userId or partnerId" }, { status: 400 })
+  }
+
+  const legacyA = chatLink(userId, partnerId)
+  const legacyB = chatLink(partnerId, userId)
+  const result = await prisma.erpNotification.deleteMany({
+    where: {
+      userId,
+      type: "chat_message",
+      OR: [
+        { link: legacyA },
+        { link: legacyB },
+        { link: { startsWith: `${legacyA}:` } },
+        { link: { startsWith: `${legacyB}:` } },
+      ],
+    },
+  })
+
+  return NextResponse.json({ ok: true, deleted: result.count })
+}

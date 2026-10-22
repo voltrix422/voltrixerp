@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { notifyMessagesChanged } from "@/components/layout/use-unread-messages"
 import { Button } from "@/components/ui/button"
-import { Check, CheckCheck, MessageSquare, Send, Search, Users } from "lucide-react"
+import { Check, CheckCheck, MessageSquare, Send, Search, Trash2, Users } from "lucide-react"
 
 type ErpUserRow = {
   id: string
@@ -74,8 +74,10 @@ export function MessagesManager() {
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
+  const [deletingChat, setDeletingChat] = useState(false)
   const [search, setSearch] = useState("")
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chats")
+  const [confirmDeletePartnerId, setConfirmDeletePartnerId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -137,7 +139,7 @@ export function MessagesManager() {
       .map(conv => ({
         user: userById.get(conv.partnerId) || {
           id: conv.partnerId,
-          name: "User",
+          name: String(conv.partnerName || conv.senderName || "User"),
           email: "",
         },
         conv,
@@ -256,6 +258,32 @@ export function MessagesManager() {
   function openChat(userId: string) {
     setSelectedUserId(userId)
     setSidebarTab("chats")
+    setConfirmDeletePartnerId(null)
+  }
+
+  async function deleteChat(partnerId: string) {
+    if (!user?.id || !partnerId || deletingChat) return
+    setDeletingChat(true)
+    try {
+      const res = await fetch("/api/db/messages", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, partnerId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to delete chat")
+      }
+      if (selectedUserId === partnerId) {
+        setSelectedUserId("")
+        setMessages([])
+      }
+      setConfirmDeletePartnerId(null)
+      notifyMessagesChanged()
+      await loadConversations()
+    } finally {
+      setDeletingChat(false)
+    }
   }
 
   if (!user) return null
@@ -332,42 +360,93 @@ export function MessagesManager() {
                   </button>
                 </div>
               ) : (
-                chatRows.map(({ user: u, conv }) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => openChat(u.id)}
-                    className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors cursor-pointer ${
-                      selectedUserId === u.id
-                        ? "border-[#1faca6]/50 bg-[#1faca6]/10"
-                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="h-8 w-8 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-[10px] font-bold flex items-center justify-center shrink-0">
-                        {initials(u.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold truncate">{u.name}</p>
-                          <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">
-                            {formatTime(conv.createdAt)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 mt-0.5">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                            {conv.text}
+                chatRows.map(({ user: u, conv }) => {
+                  const displayName =
+                    u.name !== "User" ? u.name : conv.partnerName || conv.senderName || "User"
+                  const confirming = confirmDeletePartnerId === u.id
+                  return (
+                    <div
+                      key={u.id}
+                      className={`rounded-lg border transition-colors ${
+                        selectedUserId === u.id
+                          ? "border-[#1faca6]/50 bg-[#1faca6]/10"
+                          : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
+                      }`}
+                    >
+                      {confirming ? (
+                        <div className="px-2.5 py-2 space-y-2">
+                          <p className="text-[11px] text-[hsl(var(--foreground))]">
+                            Delete chat with <span className="font-semibold">{displayName}</span>?
                           </p>
-                          {conv.unreadCount > 0 && (
-                            <span className="h-4 min-w-4 rounded-full bg-[#1faca6] px-1 text-[10px] text-white flex items-center justify-center shrink-0">
-                              {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
-                            </span>
-                          )}
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                            Removes it from your list only. They keep their copy.
+                          </p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              disabled={deletingChat}
+                              onClick={() => void deleteChat(u.id)}
+                              className="h-7 px-2 rounded-md bg-red-600 text-white text-[10px] font-medium cursor-pointer disabled:opacity-50"
+                            >
+                              {deletingChat ? "Deleting…" : "Delete"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={deletingChat}
+                              onClick={() => setConfirmDeletePartnerId(null)}
+                              className="h-7 px-2 rounded-md border text-[10px] font-medium cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex items-stretch">
+                          <button
+                            type="button"
+                            onClick={() => openChat(u.id)}
+                            className="flex-1 min-w-0 px-2.5 py-2 text-left cursor-pointer"
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className="h-8 w-8 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {initials(displayName)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-semibold truncate">{displayName}</p>
+                                  <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">
+                                    {formatTime(conv.createdAt)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                                    {conv.text}
+                                  </p>
+                                  {conv.unreadCount > 0 && (
+                                    <span className="h-4 min-w-4 rounded-full bg-[#1faca6] px-1 text-[10px] text-white flex items-center justify-center shrink-0">
+                                      {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete chat"
+                            onClick={e => {
+                              e.stopPropagation()
+                              setConfirmDeletePartnerId(u.id)
+                            }}
+                            className="px-2 text-red-500/80 hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0 self-stretch flex items-center"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </button>
-                ))
+                  )
+                })
               )
             ) : peopleRows.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">No users found.</p>
@@ -404,19 +483,52 @@ export function MessagesManager() {
         </div>
 
         <div className="flex flex-col h-full min-h-0 bg-[hsl(var(--background))]">
-          <div className="h-14 border-b px-4 flex items-center shrink-0 bg-[hsl(var(--card))]">
+          <div className="h-14 border-b px-4 flex items-center justify-between gap-2 shrink-0 bg-[hsl(var(--card))]">
             {selectedUser ? (
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-9 w-9 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-xs font-bold flex items-center justify-center shrink-0">
-                  {initials(selectedUser.name)}
+              <>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-9 w-9 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-xs font-bold flex items-center justify-center shrink-0">
+                    {initials(selectedUser.name)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{selectedUser.name}</p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                      {selectedUser.email || "ERP user"}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{selectedUser.name}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                    {selectedUser.email || "ERP user"}
-                  </p>
-                </div>
-              </div>
+                {conversations.some(c => c.partnerId === selectedUser.id) && (
+                  confirmDeletePartnerId === selectedUser.id ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={deletingChat}
+                        onClick={() => void deleteChat(selectedUser.id)}
+                        className="h-8 px-2.5 rounded-md bg-red-600 text-white text-[11px] font-medium cursor-pointer disabled:opacity-50"
+                      >
+                        {deletingChat ? "Deleting…" : "Delete chat"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deletingChat}
+                        onClick={() => setConfirmDeletePartnerId(null)}
+                        className="h-8 px-2.5 rounded-md border text-[11px] cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Delete chat"
+                      onClick={() => setConfirmDeletePartnerId(selectedUser.id)}
+                      className="h-8 w-8 rounded-md border text-red-500 hover:bg-red-50 inline-flex items-center justify-center cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                )}
+              </>
             ) : (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 Select someone to start chatting
