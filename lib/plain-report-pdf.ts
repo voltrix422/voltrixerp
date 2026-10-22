@@ -29,9 +29,11 @@ const MONEY_HEADER = /^(amount|total|paid|due|received|credit|unit)$/i
 function columnMinWidth(col: PlainCol): number {
   if (col.minWidth != null && col.minWidth > 0) return col.minWidth
   if (col.header === "%") return 14
-  if (col.header === "Date") return 22
-  if (col.header === "Items") return 48
-  if (col.align === "right" && MONEY_HEADER.test(col.header)) return 22
+  if (col.header === "Date") return 16
+  if (/^order\b/i.test(col.header) || /^sale\b/i.test(col.header)) return 22
+  if (col.header === "Items") return 28
+  // Enough for "PKR 1,170,000" at compact table font without wrapping
+  if (col.align === "right" && MONEY_HEADER.test(col.header)) return 28
   if (col.align === "right") return 16
   return 14
 }
@@ -67,7 +69,12 @@ export function dateRangeLabel(from: string, to: string) {
 }
 
 export function pkr(n: number) {
-  return `PKR\u00A0${Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+  // Non-breaking space after PKR; word joiners after thousand separators so
+  // amounts like "PKR 1,170,000" stay on one line in narrow PDF cells.
+  const num = Number(n || 0)
+    .toLocaleString("en-PK", { maximumFractionDigits: 0 })
+    .replace(/([,\u00A0])/g, "$1\u2060")
+  return `PKR\u00A0${num}`
 }
 
 export function pct(part: number, total: number) {
