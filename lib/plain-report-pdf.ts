@@ -4,6 +4,8 @@ export type PlainCol = {
   width?: number
   minWidth?: number
   small?: boolean
+  /** Prefer ellipsize over mid-word linebreak (good for money / order nos). */
+  noWrap?: boolean
 }
 
 export type PlainTable = {
@@ -28,21 +30,40 @@ const MONEY_HEADER = /^(amount|total|paid|due|received|credit|unit)$/i
 
 function columnMinWidth(col: PlainCol): number {
   if (col.minWidth != null && col.minWidth > 0) return col.minWidth
-  if (col.header === "%") return 14
-  if (col.header === "Date") return 16
-  if (/^order\b/i.test(col.header) || /^sale\b/i.test(col.header)) return 22
-  if (col.header === "Items") return 28
-  // Enough for "PKR 1,170,000" at compact table font without wrapping
-  if (col.align === "right" && MONEY_HEADER.test(col.header)) return 28
+  if (col.header === "%") return 12
+  if (col.header === "Date") return 15
+  if (/^order\b/i.test(col.header) || /^sale\b/i.test(col.header)) return 20
+  if (col.header === "Items") return 24
+  // Bare numbers like 1,170,000 (PKR is in report header)
+  if (col.align === "right" && MONEY_HEADER.test(col.header)) return 24
   if (col.align === "right") return 16
-  return 14
+  return 12
+}
+
+function isMoneyCol(col: PlainCol) {
+  return col.align === "right" && MONEY_HEADER.test(col.header)
 }
 
 function fitColumnWidths(columns: PlainCol[], usable: number): number[] {
   const mins = columns.map(columnMinWidth)
   const preferred = columns.map((c, i) => Math.max(c.width && c.width > 0 ? c.width : mins[i], mins[i]))
   const minSum = mins.reduce((s, w) => s + w, 0)
-  if (minSum >= usable) {
+  if (minSum > usable) {
+    // Shrink soft columns first; keep money / order / date mins as long as possible
+    const soft = columns.map((c, i) =>
+      isMoneyCol(c) || c.header === "Date" || /^order\b/i.test(c.header) || /^sale\b/i.test(c.header)
+        ? 0
+        : mins[i],
+    )
+    const softSum = soft.reduce((s, w) => s + w, 0)
+    const hardSum = minSum - softSum
+    if (softSum > 0 && hardSum < usable) {
+      const softBudget = usable - hardSum
+      return mins.map((m, i) => {
+        if (soft[i] <= 0) return m
+        return Math.max(10, (soft[i] / softSum) * softBudget)
+      })
+    }
     return mins.map((w) => (w / minSum) * usable)
   }
   const extra = usable - minSum
@@ -69,12 +90,12 @@ export function dateRangeLabel(from: string, to: string) {
 }
 
 export function pkr(n: number) {
-  // Non-breaking space after PKR; word joiners after thousand separators so
-  // amounts like "PKR 1,170,000" stay on one line in narrow PDF cells.
-  const num = Number(n || 0)
-    .toLocaleString("en-PK", { maximumFractionDigits: 0 })
-    .replace(/([,\u00A0])/g, "$1\u2060")
-  return `PKR\u00A0${num}`
+  return `PKR ${Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+}
+
+/** Amount only (no PKR prefix) — for dense table money columns. */
+export function pkrNum(n: number) {
+  return Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })
 }
 
 export function pct(part: number, total: number) {
@@ -261,6 +282,15 @@ export async function downloadPlainReportPdf(opts: {
     if (table.title) {
       y = drawSectionTitle(doc, table.title, m, y, pageW, m, compact)
     }
+    if (table.note) {
+      doc.setFont(TABLE_FONT, "normal")
+      doc.setFontSize(compact ? 6.5 : 7.5)
+      doc.setTextColor(...MUTED)
+      const noteLines = doc.splitTextToSize(table.note, pageW - m * 2)
+      doc.text(noteLines, m, y)
+      y += noteLines.length * (compact ? 3.2 : 3.8) + (compact ? 1 : 1.5)
+      doc.setTextColor(...INK)
+    }
 
     const body =
       table.rows.length > 0
@@ -314,7 +344,7 @@ export async function downloadPlainReportPdf(opts: {
           {
             halign: c.align || "left",
             cellWidth: colWidths[i],
-            overflow: "linebreak",
+            overflow: c.noWrap || isMoneyCol(c) ? "ellipsize" : "linebreak",
             fontSize: c.small ? smallSize : bodySize,
           },
         ]),
