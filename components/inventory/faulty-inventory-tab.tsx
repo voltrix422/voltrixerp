@@ -180,23 +180,43 @@ export function FaultyInventoryTab() {
                 >
                   <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${open ? "" : "-rotate-90"}`} />
                   <span className="flex-1 min-w-0 text-xs truncate">{group.displayName}</span>
-                  <span className="hidden sm:inline text-[11px] font-mono text-[hsl(var(--muted-foreground))] truncate max-w-[220px]">
-                    {group.modelKey}
+                  <span className="hidden sm:inline text-[11px] font-mono text-[hsl(var(--muted-foreground))] truncate max-w-[260px]">
+                    {(group.aliasModelKeys && group.aliasModelKeys.length > 1
+                      ? group.aliasModelKeys.join(" · ")
+                      : group.modelKey)}
                   </span>
                   <span className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] shrink-0">
                     {group.faultyQty} {group.unit}
                   </span>
                 </button>
                 {open && (
-                  <div className="border-t border-[hsl(var(--border))] px-2 py-1.5 space-y-1">
-                    <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] sm:hidden">{group.modelKey}</p>
+                  <div className="border-t border-[hsl(var(--border))] px-2 py-1.5 space-y-1.5">
+                    <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] sm:hidden">
+                      {(group.aliasModelKeys && group.aliasModelKeys.length > 1
+                        ? group.aliasModelKeys.join(" · ")
+                        : group.modelKey)}
+                    </p>
                     {group.serialUnits.length > 0 ? (
                       group.serialUnits.map((unit) => (
-                        <div key={unit.id} className="flex items-center justify-between gap-2 py-1">
-                          <p className="text-xs min-w-0">
-                            <span className="font-mono">{unit.serialNumber}</span>
-                            <span className="text-[hsl(var(--muted-foreground))]"> · {formatDate(unit.scannedAt)}</span>
-                          </p>
+                        <div key={unit.id} className="flex items-start justify-between gap-2 py-1">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className="text-xs min-w-0">
+                              <span className="font-mono">{unit.serialNumber}</span>
+                              {unit.orderNumber ? (
+                                <span className="text-[hsl(var(--muted-foreground))]"> · {unit.orderNumber}</span>
+                              ) : null}
+                              <span className="text-[hsl(var(--muted-foreground))]"> · {formatDate(unit.scannedAt)}</span>
+                            </p>
+                            {unit.replaceReason ? (
+                              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                                Reason: {unit.replaceReason}
+                              </p>
+                            ) : unit.notes?.trim() ? (
+                              <p className="text-[11px] text-[hsl(var(--muted-foreground))] line-clamp-2">
+                                {unit.notes.trim()}
+                              </p>
+                            ) : null}
+                          </div>
                           <button
                             type="button"
                             className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] cursor-pointer disabled:opacity-50 shrink-0"

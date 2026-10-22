@@ -9,7 +9,11 @@ export type FaultyInventoryGroup = {
     status: string
     notes: string
     scannedAt: string
+    orderNumber?: string
+    replaceReason?: string
+    sourceModel?: string
   }>
+  aliasModelKeys?: string[]
   manualId?: string
   stockId?: string
   isManual: boolean

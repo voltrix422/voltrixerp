@@ -3,22 +3,59 @@ import {
   countInStockSerialsForModel,
   findStockByModel,
 } from "@/lib/ensure-model-stock-link"
+import { productCanonicalKeyFromText } from "@/lib/order-product-search"
+
+export type FaultySerialUnit = {
+  id: string
+  serialNumber: string
+  status: string
+  notes: string
+  scannedAt: string
+  /** Parsed from replace notes when present */
+  orderNumber?: string
+  replaceReason?: string
+  sourceModel?: string
+}
 
 export type FaultyInventoryGroup = {
   modelKey: string
   displayName: string
   unit: string
   faultyQty: number
-  serialUnits: Array<{
-    id: string
-    serialNumber: string
-    status: string
-    notes: string
-    scannedAt: string
-  }>
+  serialUnits: FaultySerialUnit[]
+  /** Other model codes merged into this product family (e.g. HSLD15KW under 15.6) */
+  aliasModelKeys?: string[]
   manualId?: string
   stockId?: string
   isManual: boolean
+}
+
+/** Notes format: "Replaced from ORD-00012: reason…\nPhotos: …" */
+export function parseFaultyReplaceNote(notes: string | null | undefined): {
+  orderNumber?: string
+  replaceReason?: string
+} {
+  const text = (notes || "").trim()
+  if (!text) return {}
+  const match = text.match(/Replaced from\s+(ORD-\d+)\s*:\s*([\s\S]*?)(?:\nPhotos:|$)/i)
+  if (!match) return {}
+  const orderNumber = match[1]
+  const replaceReason = match[2]
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return {
+    orderNumber,
+    replaceReason: replaceReason || undefined,
+  }
+}
+
+function faultyFamilyKey(modelKey: string, displayName: string): string {
+  const fromName = productCanonicalKeyFromText(displayName)
+  if (fromName !== "unknown") return fromName
+  const fromModel = productCanonicalKeyFromText(modelKey)
+  if (fromModel !== "unknown") return fromModel
+  return modelKey.trim() || "unknown"
 }
 
 async function syncStockAvailableForModel(model: string, stockId?: string | null) {
@@ -76,12 +113,16 @@ export async function listFaultyInventoryGroups(
   for (const unit of faultySerials) {
     const key = unit.model?.trim() || "Unknown model"
     const existing = groups.get(key)
-    const serial = {
+    const parsed = parseFaultyReplaceNote(unit.notes)
+    const serial: FaultySerialUnit = {
       id: unit.id,
       serialNumber: unit.serialNumber,
       status: unit.status,
-      notes: unit.notes,
+      notes: unit.notes || "",
       scannedAt: unit.scannedAt.toISOString(),
+      orderNumber: parsed.orderNumber,
+      replaceReason: parsed.replaceReason,
+      sourceModel: key,
     }
     if (existing) {
       existing.serialUnits.push(serial)
@@ -104,7 +145,8 @@ export async function listFaultyInventoryGroups(
     if (faultyQty <= 0) continue
     const existing = groups.get(key)
     if (existing) {
-      existing.faultyQty = Math.max(existing.faultyQty, faultyQty)
+      // Prefer serial count when units are tracked; keep manual only as ceiling for qty-only leftovers.
+      existing.faultyQty = Math.max(existing.serialUnits.length, faultyQty)
       existing.manualId = manual.id
       existing.isManual = true
       existing.unit = manual.unit || existing.unit
@@ -140,7 +182,59 @@ export async function listFaultyInventoryGroups(
     })
   }
 
-  return Array.from(groups.values()).sort((a, b) => a.modelKey.localeCompare(b.modelKey))
+  // Merge aliases of the same product (HSLD15KW + MAN-15-6… → one 15.6 row)
+  const merged = new Map<string, FaultyInventoryGroup>()
+  for (const group of groups.values()) {
+    const family = faultyFamilyKey(group.modelKey, group.displayName)
+    const existing = merged.get(family)
+    if (!existing) {
+      merged.set(family, {
+        ...group,
+        aliasModelKeys: [group.modelKey],
+      })
+      continue
+    }
+
+    const aliases = new Set([...(existing.aliasModelKeys || [existing.modelKey]), group.modelKey])
+    existing.aliasModelKeys = [...aliases]
+    existing.serialUnits = [...existing.serialUnits, ...group.serialUnits].sort(
+      (a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime(),
+    )
+
+    const existingQtyOnly = Math.max(0, existing.faultyQty - (existing.serialUnits.length - group.serialUnits.length))
+    const groupQtyOnly = Math.max(0, group.faultyQty - group.serialUnits.length)
+    if (existing.serialUnits.length > 0) {
+      existing.faultyQty = existing.serialUnits.length + existingQtyOnly + groupQtyOnly
+    } else {
+      existing.faultyQty = existing.faultyQty + group.faultyQty
+    }
+
+    if (group.displayName.length > existing.displayName.length) {
+      existing.displayName = group.displayName
+    }
+    // Prefer a real MAN- code as the restore target when family key is synthetic
+    if (family.startsWith("product:") && group.modelKey.startsWith("MAN-") && !existing.modelKey.startsWith("MAN-")) {
+      existing.modelKey = group.modelKey
+      if (group.manualId) existing.manualId = group.manualId
+      if (group.stockId) existing.stockId = group.stockId
+    } else {
+      if (!existing.manualId && group.manualId) existing.manualId = group.manualId
+      if (!existing.stockId && group.stockId) existing.stockId = group.stockId
+    }
+    existing.isManual = existing.isManual || group.isManual
+    existing.unit = existing.unit || group.unit
+  }
+
+  for (const group of merged.values()) {
+    // Replace path always creates serial rows — show exact unit count
+    if (group.serialUnits.length > 0) {
+      group.faultyQty = group.serialUnits.length
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" }),
+  )
 }
 
 export async function markSerialUnitFaulty(params: {
