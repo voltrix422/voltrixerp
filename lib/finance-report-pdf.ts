@@ -321,7 +321,7 @@ export async function downloadFinanceOverviewPdf(
       return s + Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0))
     }, 0)
     moneyInTables.push({
-      title: "CRM client payments received",
+      title: "CRM client payments received · by payment date",
       columns: [
         { header: "Date", width: 18, minWidth: 16 },
         { header: "Order no.", width: 20 },

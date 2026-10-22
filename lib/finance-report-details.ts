@@ -302,6 +302,14 @@ export function buildPosSalesReport(
   return { rows, details, total }
 }
 
+export type BuildOrderReportOpts = {
+  /**
+   * - payment: day-to-day cash (include when money received in range) — Finance money-in PDF
+   * - created: orders created in range — Sales cash / CRM sales lists
+   */
+  by?: "payment" | "created"
+}
+
 export function buildOrderReport(
   orders: Array<{
     id: string
@@ -324,7 +332,9 @@ export function buildOrderReport(
   }>,
   start: Date,
   end: Date,
+  opts: BuildOrderReportOpts = {},
 ): { rows: FinanceOrderRow[]; details: MoneyOutDetailLine[] } {
+  const by = opts.by || "payment"
   const rows: FinanceOrderRow[] = []
   for (const order of orders) {
     if (
@@ -336,16 +346,26 @@ export function buildOrderReport(
     ) {
       continue
     }
-    // Sales / CRM period lists are by order created date — not payment received date.
-    if (!inRange(new Date(order.createdAt), start, end)) continue
 
     const payments = parseOrderPayments(order.payments)
     let receivedInPeriod = 0
+    let lastPaymentInPeriod: Date | null = null
     for (const p of payments) {
       const amount = approvedBalancePaymentAmount(p, order.status as Order["status"])
       if (amount <= 0) continue
       const d = new Date(p.date || order.createdAt)
-      if (inRange(d, start, end)) receivedInPeriod += amount
+      if (inRange(d, start, end)) {
+        receivedInPeriod += amount
+        if (!lastPaymentInPeriod || d > lastPaymentInPeriod) lastPaymentInPeriod = d
+      }
+    }
+
+    const createdInPeriod = inRange(new Date(order.createdAt), start, end)
+    if (by === "created") {
+      if (!createdInPeriod) continue
+    } else if (receivedInPeriod <= 0.004) {
+      // Money-in day-to-day: only orders with cash received in the period
+      continue
     }
 
     const status = order.status as Order["status"]
@@ -377,7 +397,9 @@ export function buildOrderReport(
 
     rows.push({
       id: order.id,
-      date: fmtDay(order.createdAt),
+      date: fmtDay(
+        by === "payment" ? lastPaymentInPeriod || order.createdAt : order.createdAt,
+      ),
       orderNumber: order.orderNumber,
       clientName: order.clientName,
       status: order.status,
@@ -392,12 +414,18 @@ export function buildOrderReport(
       items: mapOrderItems(order.items),
     })
   }
-  rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
+
+  if (by === "payment") {
+    rows.sort((a, b) => (b.receivedInPeriod || 0) - (a.receivedInPeriod || 0))
+  } else {
+    rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
+  }
+
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `ord-${row.id}`,
     label: row.orderNumber,
     sublabel: `${row.clientName} · ${row.status} · ${row.createdBy}`,
-    amount: row.total,
+    amount: by === "payment" ? row.receivedInPeriod || row.total : row.total,
     date: row.date,
     items: itemDetailLines(row.items),
   }))

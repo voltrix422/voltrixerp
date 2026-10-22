@@ -475,7 +475,9 @@ export async function GET(req: NextRequest) {
     const posSalesInPeriod = posSalesReport.total
     const posTransactionsInPeriod = posSalesReport.rows.length
     const expenseReport = buildExpenseReport(records, start, end)
-    const orderReport = buildOrderReport(orders, start, end)
+    // Money-in PDF: cash received in period. Sales cash: orders created in period.
+    const orderReport = buildOrderReport(orders, start, end, { by: "payment" })
+    const orderCreatedReport = buildOrderReport(orders, start, end, { by: "created" })
     const pettyCashReport = buildPettyCashReport(pettyReceipts, start, end)
     const purchaseReport = buildPurchaseReport(pos, start, end)
     const ledgerReport = buildLedgerReport(purchaseLedger, start, end)
@@ -880,6 +882,7 @@ export async function GET(req: NextRequest) {
       expensesByPerson: expenseReport.byPerson,
       posSales: posSalesReport.rows,
       orders: orderReport.rows,
+      ordersCreated: orderCreatedReport.rows,
       pettyCashLines: pettyCashReport.lines,
       pettyCashByPerson: pettyCashReport.byPerson,
       localPurchases: purchaseReport.local,

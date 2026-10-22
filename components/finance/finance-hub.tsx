@@ -575,7 +575,14 @@ export function FinanceHub({
       setOrderPayments(data.orderPayments ?? null)
       setMoneyOutDetails(data.moneyOutDetails ?? null)
       setMoneyInDetails(data.moneyInDetails ?? null)
-      setCrmOrders(Array.isArray(data.orders) ? data.orders : [])
+      // Sales cash uses orders created in range; money-in PDF uses data.orders (payment dates).
+      setCrmOrders(
+        Array.isArray(data.ordersCreated)
+          ? data.ordersCreated
+          : Array.isArray(data.orders)
+            ? data.orders
+            : [],
+      )
       setPosSaleRows(Array.isArray(data.posSales) ? data.posSales : [])
       setLoans(data.summary?.loans ?? null)
     } catch (e) {
