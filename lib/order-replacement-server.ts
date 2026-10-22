@@ -283,10 +283,15 @@ async function restoreOldQtyUnit(params: {
   photoUrls?: string[]
 }) {
   const manual = await resolveManualInventoryForOrderLine(params.orderItem)
-  const note = `Replacement return from ${params.orderNumber}: ${params.reason}`
+  const destTag =
+    params.disposition === "faulty"
+      ? "disposition: faulty → Faulty / damaged"
+      : "disposition: main → Main inventory"
+  const note = `Replacement return from ${params.orderNumber}: ${params.reason} · ${destTag}`
 
   if (manual) {
     if (params.disposition === "faulty") {
+      // Faulty is excluded from sellable Main WH — never bump availableQty.
       const nextFaulty = (Number(manual.faultyQty) || 0) + 1
       await prisma.erpManualInventoryItem.update({
         where: { id: manual.id },

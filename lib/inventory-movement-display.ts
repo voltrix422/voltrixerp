@@ -120,6 +120,15 @@ export function getTrackPlaceLabel(m: InventoryMovementRow): string {
   if (m.reference_type === "faulty_restore") {
     return "Main warehouse (from faulty)"
   }
+  if (m.reference_type === "order_replace" && m.is_inbound) {
+    if (
+      /disposition:\s*faulty|→\s*faulty|faulty \/ damaged/i.test(notes) ||
+      (m.destination || "").toLowerCase().includes("faulty")
+    ) {
+      return "Faulty / Damaged inventory"
+    }
+    return "Main Warehouse (replacement return)"
+  }
   if (/stock restored|returned from order|order return/i.test(notes)) {
     return m.destination.includes("Main") ? m.destination : `Returned → ${m.destination}`
   }
@@ -172,6 +181,19 @@ function resolveSourceDestination(
   }
   if (ref === "faulty_restore") {
     return { source: "Faulty / Damaged", destination: "Main Warehouse" }
+  }
+  if (ref === "order_replace") {
+    const notes = (tx.notes || "").toLowerCase()
+    const toFaulty =
+      /disposition:\s*faulty|→\s*faulty\s*\/\s*damaged|to faulty/i.test(notes) ||
+      (/replacement return/i.test(notes) && !/disposition:\s*main|→\s*main inventory/i.test(notes))
+    if (tx.transaction_type === "in") {
+      if (toFaulty) {
+        return { source: refNum, destination: "Faulty / Damaged" }
+      }
+      return { source: refNum, destination: "Main Warehouse" }
+    }
+    return { source: "Main Warehouse", destination: refNum }
   }
   if (ref === "branch_pos_order") {
     return { source: tx.location_label || "Branch POS", destination: "POS Customer" }
@@ -372,7 +394,16 @@ export function mainWarehouseDelta(m: InventoryMovementRow): number {
     return -q
   }
   if (m.reference_type === "order_replace") {
-    return m.is_inbound ? q : -q
+    // Replacement dispatch leaves Main WH; return to Main increases it.
+    // Return to Faulty must NOT count as sellable Main WH stock.
+    if (!m.is_inbound) return -q
+    const notes = (m.notes || "").toLowerCase()
+    const toFaulty =
+      /disposition:\s*faulty|→\s*faulty|to faulty|faulty \/ damaged/i.test(notes) ||
+      (m.destination || "").toLowerCase().includes("faulty") ||
+      (/replacement return/i.test(notes) && !/disposition:\s*main|→\s*main inventory/i.test(notes))
+    if (toFaulty) return 0
+    return q
   }
   if (m.transaction_type === "assigned_to_branch") {
     return -q
