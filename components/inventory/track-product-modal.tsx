@@ -28,7 +28,10 @@ import {
   type InventoryMovementRow,
 } from "@/lib/inventory-movement-display"
 import { Button } from "@/components/ui/button"
-import { Loader2, Package, Search, X } from "lucide-react"
+import { useToast } from "@/components/ui/toast"
+import { getSession } from "@/lib/auth"
+import { downloadTrackProductPdf } from "@/lib/generate-track-product-pdf"
+import { Download, Loader2, Package, Search, X } from "lucide-react"
 
 export type TrackProductOption = {
   modelKey: string
@@ -291,9 +294,11 @@ export function TrackProductModal({
   products,
   initialModelKey = "",
 }: TrackProductModalProps) {
+  const { toast } = useToast()
   const [selectedModel, setSelectedModel] = useState(initialModelKey)
   const [productQuery, setProductQuery] = useState("")
   const [loading, setLoading] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [rows, setRows] = useState<InventoryMovementRow[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [manualItems, setManualItems] = useState<ManualInventoryItem[]>([])
@@ -536,6 +541,67 @@ export function TrackProductModal({
     }
   }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening, mainWhTrailEnd, historyGap])
 
+  async function handleExportPdf() {
+    if (!selected || !summary || exportingPdf || loading) return
+    setExportingPdf(true)
+    try {
+      await downloadTrackProductPdf({
+        displayName: selected.displayName,
+        modelKey: selected.modelKey,
+        exportedBy: getSession()?.name || undefined,
+        summary: {
+          starting: summary.starting,
+          mainNow: summary.mainNow,
+          faultyNow: summary.faultyNow,
+          atBranches: summary.atBranches,
+          erpOrdersNet: summary.erpOrdersNet,
+          erpOrdersLine: summary.erpOrdersLine,
+          erpReturned: summary.erpReturned,
+          erpReplaced: summary.erpReplaced,
+          transfers: summary.transfers,
+          pos: summary.pos,
+          returns: summary.returns,
+          addedToWh: summary.addedToWh,
+          leftWh: summary.leftWh,
+          unit: summary.unit,
+          mainWhOpening: summary.mainWhOpening ?? undefined,
+          historyGap: summary.historyGap,
+          orders: summary.orders,
+          branchRows: summary.branchRows,
+          posRows: summary.posRows,
+          transferRows: summary.transferRows,
+          returnsList: summary.returnsList,
+          replacementsList: summary.replacementsList,
+          faultyRows: faultyGroup
+            ? faultyGroup.serialUnits.length > 0
+              ? faultyGroup.serialUnits.map((u) => ({
+                  item: faultyGroup.displayName,
+                  detail: `SN ${u.serialNumber}${u.orderNumber ? ` · ${u.orderNumber}` : ""}${
+                    u.replaceReason ? ` · ${u.replaceReason}` : ""
+                  }`,
+                  qty: "1",
+                }))
+              : [
+                  {
+                    item: faultyGroup.displayName,
+                    detail: "Qty stock",
+                    qty: String(faultyGroup.faultyQty),
+                  },
+                ]
+            : summary.faultyNow > 0
+              ? [{ item: selected.displayName, detail: "Faulty", qty: String(summary.faultyNow) }]
+              : [],
+        },
+        historyRows: rows,
+      })
+      toast({ title: "Downloaded", message: "Track product PDF saved.", type: "success" })
+    } catch {
+      toast({ title: "Error", message: "Could not export PDF.", type: "error" })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   if (!open) return null
 
   return (
@@ -567,6 +633,17 @@ export function TrackProductModal({
               </option>
             ))}
           </select>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2.5 text-[11px] gap-1.5 cursor-pointer shrink-0"
+            disabled={!selected || !summary || loading || exportingPdf}
+            onClick={() => void handleExportPdf()}
+          >
+            {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {exportingPdf ? "Preparing…" : "Download PDF"}
+          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose} aria-label="Close">
             <X className="h-4 w-4" />
           </Button>
