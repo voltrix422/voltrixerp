@@ -1,4 +1,9 @@
 import {
+  BG51100_MODEL,
+  isBg51100MacQr,
+  parseMacStyleQr,
+} from "@/lib/bg51100-mac-qr"
+import {
   isDateSegment,
   looksLikeHsVoltageModel,
   looksLikeProductModel,
@@ -239,6 +244,24 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       retailPrice: null,
       gstPercent: null,
       extra,
+    }
+  }
+
+  // HS-BG51100 only: MAC-style QR with last segment length 2 (letters or digits).
+  // Different last-segment length is intentionally not mapped to this product.
+  if (isBg51100MacQr(trimmed)) {
+    const mac = parseMacStyleQr(trimmed)!
+    return {
+      serialNumber: mac.serial,
+      productName: BG51100_MODEL,
+      model: BG51100_MODEL,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      retailPrice: null,
+      gstPercent: null,
+      extra: { source: "bg51100-mac", lastSegmentLen: String(mac.lastSegmentLen) },
     }
   }
 

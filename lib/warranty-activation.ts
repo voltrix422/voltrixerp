@@ -1,3 +1,9 @@
+import {
+  BG51100_LAST_SEGMENT_LEN,
+  BG51100_MODEL,
+  isBg51100Model,
+  parseMacStyleQr,
+} from "@/lib/bg51100-mac-qr"
 import { prisma } from "@/lib/db"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import {
@@ -128,8 +134,37 @@ export function resolveSerialFromWarrantyScan(raw: string): string {
     // not a URL
   }
 
+  // HS-BG51100 MAC-style (any last-segment length): keep full payload as serial.
+  const mac = parseMacStyleQr(trimmed)
+  if (mac) return mac.serial
+
   const parsed = parseProductQrPayload(trimmed)
   return (parsed.serialNumber || trimmed).trim()
+}
+
+/**
+ * Resolve product for a warranty scan. HS-BG51100 MAC QRs only map when last
+ * segment length is 2; other lengths are not this product.
+ */
+export function resolveProductFromWarrantyScan(
+  raw: string,
+  fallbackProductName?: string | null,
+): string {
+  const trimmed = raw.trim()
+  const mac = parseMacStyleQr(trimmed)
+  if (mac) {
+    if (mac.lastSegmentLen === BG51100_LAST_SEGMENT_LEN) return BG51100_MODEL
+    // Wrong last-segment length must not inherit HS-BG51100 from a fallback.
+    if (isBg51100Model(fallbackProductName)) return ""
+    return fallbackProductName?.trim() || ""
+  }
+  const parsed = parseProductQrPayload(trimmed)
+  return (
+    parsed.model?.trim() ||
+    parsed.productName?.trim() ||
+    fallbackProductName?.trim() ||
+    ""
+  )
 }
 
 export function buildWarrantyCheckUrl(serialNumber: string, baseUrl?: string): string {
@@ -265,8 +300,21 @@ export async function activateWarrantyBySerial(
     }
 
     const parsed = parseProductQrPayload(rawScan)
+    const mac = parseMacStyleQr(rawScan)
+    if (
+      mac &&
+      mac.lastSegmentLen !== BG51100_LAST_SEGMENT_LEN &&
+      isBg51100Model(options?.productName)
+    ) {
+      return {
+        ok: false,
+        error: `This QR last segment has ${mac.lastSegmentLen} character(s); HS-BG51100 requires ${BG51100_LAST_SEGMENT_LEN}. Different product.`,
+        code: "BG51100_MAC_MISMATCH",
+      }
+    }
     const productName =
-      options.productName?.trim() ||
+      resolveProductFromWarrantyScan(rawScan, options?.productName) ||
+      options?.productName?.trim() ||
       parsed.model?.trim() ||
       parsed.productName?.trim() ||
       serialNumber

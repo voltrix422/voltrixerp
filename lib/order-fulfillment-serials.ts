@@ -1,3 +1,8 @@
+import {
+  bg51100MacScanAllowedForProduct,
+  isBg51100MacQr,
+  isBg51100Model,
+} from "@/lib/bg51100-mac-qr"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import { serialNumberKey } from "@/lib/inventory-serial-units"
 import type { ManualInventoryItem } from "@/lib/manual-inventory"
@@ -126,6 +131,14 @@ export function dispatchScanModelMatches(
 ): boolean {
   const order = modelKey(orderModel)
   if (!order) return true
+
+  // HS-BG51100 only: MAC last-segment length must be 2; other lengths = different product.
+  const bg51100MacGate = bg51100MacScanAllowedForProduct(orderModel, rawPayload)
+  if (bg51100MacGate === false) return false
+  if (bg51100MacGate === true) return true
+
+  // Length-2 MAC QR identifies HS-BG51100 — do not accept on other order lines.
+  if (!isBg51100Model(orderModel) && isBg51100MacQr(rawPayload)) return false
 
   const orderNorm = normalizeDispatchModelKey(orderModel)
   const raw = modelKey(rawPayload.trim())

@@ -12,6 +12,12 @@ import {
 import { Camera, CheckCircle2, ScanLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
+import {
+  BG51100_LAST_SEGMENT_LEN,
+  bg51100MacScanAllowedForProduct,
+  isBg51100Model,
+  parseMacStyleQr,
+} from "@/lib/bg51100-mac-qr"
 import { normalizeInventorySerialNumber, serialNumberKey } from "@/lib/inventory-serial-units"
 import { looksLikeProductModel } from "@/lib/label-field-utils"
 import {
@@ -233,14 +239,17 @@ export function DispatchSerialScanPanel({
 
       const isManual = isManualDispatchLine(item)
       const scannedModel = details.model?.trim()
-      if (
-        !isManual &&
-        scannedModel &&
-        !dispatchScanModelMatches(model, scannedModel, serialRaw, raw)
-      ) {
+      if (!isManual && !dispatchScanModelMatches(model, scannedModel || "", serialRaw, raw)) {
+        const bg51100Mac = isBg51100Model(model) ? parseMacStyleQr(raw) : null
+        const bg51100Rejected =
+          bg51100MacScanAllowedForProduct(model, raw) === false && bg51100Mac
         setMessage({
           type: "err",
-          text: `QR model "${scannedModel}" does not match order model "${model}".`,
+          text: bg51100Rejected
+            ? `This QR last segment has ${bg51100Mac.lastSegmentLen} character(s); HS-BG51100 requires ${BG51100_LAST_SEGMENT_LEN}. Different product.`
+            : scannedModel
+              ? `QR model "${scannedModel}" does not match order model "${model}".`
+              : `QR does not match order model "${model}".`,
         })
         playScanRejectBeep()
         return false
