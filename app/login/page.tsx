@@ -77,7 +77,7 @@ export default function LoginPage() {
 
   return (
     <PwaProvider>
-    <div className="min-h-screen flex bg-white">
+    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
 
       {/* Left — branding panel */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16" style={{ backgroundColor: "#1a9f9a" }}>
@@ -116,20 +116,28 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 bg-white">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 bg-[hsl(var(--background))]">
         <div className="lg:hidden mb-10">
-          <Image src="/logo.png" alt="Voltrix" width={110} height={36} className="h-8 w-auto object-contain" />
+          <Image
+            src="/logo.png"
+            alt="Voltrix"
+            width={110}
+            height={36}
+            className="h-8 w-auto object-contain dark:brightness-0 dark:invert"
+          />
         </div>
 
         <div className="w-full max-w-xs space-y-8">
           <div>
-            <h2 className="text-xl font-semibold text-neutral-900">Sign in</h2>
-            <p className="text-sm text-neutral-400 mt-1">Enter your credentials to continue</p>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">Sign in</h2>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">Enter your credentials to continue</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="text-xs text-neutral-500" htmlFor="email">Email</label>
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]" htmlFor="email">
+                Email
+              </label>
               <input
                 id="email"
                 type="email"
@@ -138,12 +146,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@voltrix.com"
-                className="w-full h-10 rounded-lg border border-neutral-300 bg-transparent px-3 text-sm outline-none focus:border-[#1a9f9a] transition-colors placeholder:text-neutral-300"
+                className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] outline-none focus:border-[#1a9f9a] transition-colors placeholder:text-[hsl(var(--muted-foreground))]/60"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-neutral-500" htmlFor="password">Password</label>
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]" htmlFor="password">
+                Password
+              </label>
               <div className="relative">
                 <input
                   id="password"
@@ -153,12 +163,12 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-10 rounded-lg border border-neutral-300 bg-transparent px-3 pr-10 text-sm outline-none focus:border-[#1a9f9a] transition-colors placeholder:text-neutral-300"
+                  className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 pr-10 text-sm text-[hsl(var(--foreground))] outline-none focus:border-[#1a9f9a] transition-colors placeholder:text-[hsl(var(--muted-foreground))]/60"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-600 transition-colors cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
                   tabIndex={-1}
                 >
                   {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -166,7 +176,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer">
               <input
                 type="checkbox"
                 checked={staySignedIn}
@@ -177,7 +187,7 @@ export default function LoginPage() {
             </label>
 
             {error && (
-              <p className="text-xs text-red-500">{error}</p>
+              <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
             )}
 
             <button
@@ -194,12 +204,15 @@ export default function LoginPage() {
           <div className="text-center space-y-3">
             <Link
               href="/pos/login"
-              className="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-[#1a9f9a] text-sm font-medium text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors"
+              className="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-[#1a9f9a] text-sm font-medium text-[#1a9f9a] hover:bg-[#1a9f9a]/10 dark:hover:bg-[#1a9f9a]/20 transition-colors"
             >
               <Store className="h-4 w-4" />
               Sign in to POS
             </Link>
-            <a href="/" className="block text-xs text-neutral-400 hover:text-neutral-600 transition-colors hover:underline hover:decoration-dotted underline-offset-2">
+            <a
+              href="/"
+              className="block text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors hover:underline hover:decoration-dotted underline-offset-2"
+            >
               Back to website
             </a>
           </div>

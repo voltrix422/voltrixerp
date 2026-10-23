@@ -81,7 +81,7 @@ export default function PosLoginPage() {
           </div>
 
           <div>
-            <h2 className="text-xl font-bold">POS sign in</h2>
+            <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">POS sign in</h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
               Enter your branch username and password
             </p>
@@ -89,7 +89,9 @@ export default function PosLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" htmlFor="pos-email">Email / username</label>
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]" htmlFor="pos-email">
+                Email / username
+              </label>
               <input
                 id="pos-email"
                 type="email"
@@ -98,11 +100,13 @@ export default function PosLoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="e.g. pos-br006@branch.voltrix"
-                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+                className="w-full h-10 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))]/60 focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" htmlFor="pos-password">Password</label>
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]" htmlFor="pos-password">
+                Password
+              </label>
               <div className="relative">
                 <input
                   id="pos-password"
@@ -111,12 +115,12 @@ export default function PosLoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+                  className="w-full h-10 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 pr-10 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
                   tabIndex={-1}
                 >
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
