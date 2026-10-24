@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/db"
-import { normalizeProductText } from "@/lib/order-product-search"
+import { productKeysMatch } from "@/lib/branch-product-trail"
+import { normalizeProductText, productCanonicalKeyFromText } from "@/lib/order-product-search"
 import {
   collectManualProductMatchTerms,
   textMatchesAnyProductTerm,
+  textMatchesProductTerm,
 } from "@/lib/inventory-model-aliases"
 
 export type BranchProductSearchResult = {
@@ -17,18 +19,11 @@ export type BranchProductSearchResult = {
   assignedAt: string | null
 }
 
-function valueMatchesTerm(value: string, term: string): boolean {
-  const v = normalizeProductText(value)
-  const t = normalizeProductText(term)
-  if (!v || !t) return false
-  return v === t || v.includes(t) || t.includes(v)
-}
-
 function matchesAnyTerm(terms: string[], values: Array<string | null | undefined>): boolean {
   const cleanedTerms = terms.map((t) => t.trim()).filter(Boolean)
   if (!cleanedTerms.length) return false
   return cleanedTerms.some((term) =>
-    values.some((value) => value && valueMatchesTerm(String(value), term)),
+    values.some((value) => value && textMatchesProductTerm(String(value), term)),
   )
 }
 
@@ -73,9 +68,17 @@ export async function searchProductAcrossBranches(
   }
 
   function manualForRow(values: Array<string | null | undefined>) {
+    const cleaned = values.map((v) => String(v || "").trim()).filter(Boolean)
+    // Prefer exact MAN model match so …-B-1 never resolves to …-B.
+    for (const value of cleaned) {
+      const key = productCanonicalKeyFromText(value)
+      if (!key.startsWith("man-")) continue
+      const exact = manualByModel.get(key) || manualByModel.get(value.toLowerCase())
+      if (exact) return exact
+    }
     for (const manual of manualItems) {
       const terms = manualMatchTerms.get(manual.model.trim().toLowerCase()) || []
-      if (values.some((value) => value && textMatchesAnyProductTerm(String(value), terms))) {
+      if (cleaned.some((value) => textMatchesAnyProductTerm(value, terms))) {
         return manual
       }
     }
@@ -271,7 +274,10 @@ function consolidateBranchProductResults(
 
   for (const row of results) {
     const manual = resolveManual([row.model, row.itemName])
-    const canonical = (manual?.model || row.model).trim().toLowerCase()
+    const modelKey = productCanonicalKeyFromText(manual?.model || row.model)
+    const canonical =
+      modelKey !== "unknown" ? modelKey : (manual?.model || row.model).trim().toLowerCase()
+    // Keep …-B and …-B-1 on separate keys even if resolveManual mis-fires.
     const key = `${row.branchId}:${canonical}`
     const existing = map.get(key)
     if (!existing) {
@@ -279,6 +285,19 @@ function consolidateBranchProductResults(
         ...row,
         model: manual?.model || row.model,
         itemName: manual?.name || row.itemName,
+      })
+      continue
+    }
+    const existingKey = productCanonicalKeyFromText(existing.model)
+    if (
+      existingKey.startsWith("man-") &&
+      canonical.startsWith("man-") &&
+      !productKeysMatch(existingKey, canonical)
+    ) {
+      map.set(`${row.branchId}:${canonical}:raw`, {
+        ...row,
+        model: row.model,
+        itemName: row.itemName,
       })
       continue
     }
