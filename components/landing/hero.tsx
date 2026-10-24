@@ -1,68 +1,38 @@
 "use client"
 
 import { ArrowRight, Zap } from "lucide-react"
-import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
-import SideRays from "./side-rays"
 import HeroProductCarousel from "./hero-product-carousel"
 
 export default function Hero() {
-
   return (
-    <section className="relative min-h-screen flex flex-col overflow-hidden bg-neutral-950">
-      {/* Dark base */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
-      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-white/[0.04] via-transparent to-neutral-950/80" />
-
-      {/* Side rays — subtle top-right glow */}
-      <SideRays
-        speed={2.5}
-        rayColor1="#ffffff"
-        rayColor2="#e8e8e8"
-        intensity={1.6}
-        spread={2.2}
-        origin="top-right"
-        tilt={-4}
-        saturation={1}
-        blend={0.65}
-        falloff={1.5}
-        opacity={0.65}
-      />
-
-      {/* Soft highlight on product area */}
+    <section className="relative min-h-screen flex flex-col overflow-hidden bg-white">
+      {/* Soft white → cool wash — calm, not busy */}
       <div
-        className="absolute inset-0 z-[2] pointer-events-none"
+        className="absolute inset-0 z-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 45% 38% at 78% 14%, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 40%, transparent 70%)",
+            "radial-gradient(ellipse 70% 50% at 85% 20%, rgba(26,159,154,0.07) 0%, transparent 55%), linear-gradient(180deg, #ffffff 0%, #f8fafb 55%, #ffffff 100%)",
         }}
         aria-hidden
       />
 
-      {/* 50px grid on dark */}
+      {/* Very light grid */}
       <div
         className="absolute inset-0 z-[1] pointer-events-none"
         style={{
           backgroundImage: `
-            linear-gradient(to right, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 1px, transparent 1px)
+            linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px)
           `,
-          backgroundSize: "50px 50px",
-          opacity: 0.03,
+          backgroundSize: "56px 56px",
         }}
         aria-hidden
       />
 
-      {/* Vignette for depth */}
-      <div
-        className="absolute inset-0 z-[3] pointer-events-none bg-gradient-to-t from-neutral-950 via-transparent to-neutral-950/25"
-        aria-hidden
-      />
-
-      {/* Main hero content */}
       <div className="relative z-10 flex-1 flex items-center">
-        <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 lg:py-28 relative pl-6 sm:pl-12 lg:pl-48 w-full">
-          <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
+        <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-14 py-28 lg:py-32 w-full">
+          <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl">
             <div className="flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-[#1a9f9a] shrink-0" strokeWidth={2.5} />
               <span className="text-[10px] sm:text-[11px] font-bold text-[#1a9f9a] uppercase tracking-[0.22em]">
@@ -70,13 +40,13 @@ export default function Hero() {
               </span>
             </div>
 
-            <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
+            <h1 className="text-[clamp(2.35rem,4.8vw,3.75rem)] font-bold tracking-tight leading-[1.12] text-neutral-900">
               Power your{" "}
               <span className="inline-block min-w-[4.5rem] align-bottom">
                 <RotatingText
                   texts={["Drive", "Solar", "EVs", "House"]}
                   splitBy="words"
-                  mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
+                  mainClassName="px-1 py-0.5 rounded-md font-bold text-[#1a9f9a]"
                   staggerDuration={0.03}
                   staggerFrom="last"
                   rotationInterval={2500}
@@ -88,45 +58,41 @@ export default function Hero() {
                 />
               </span>
               <br />
-              <span className="text-[#1a9f9a]">with Voltrix lithium batteries.</span>
+              <span className="text-[#158a85]">with Voltrix lithium batteries.</span>
             </h1>
 
-            <p className="text-base text-neutral-400 leading-relaxed max-w-2xl">
-              LiFePO4 solar batteries and hybrid inverters in Pakistan — home storage, load-shedding backup, and next-generation energy solutions.
+            <p className="text-base sm:text-[17px] text-neutral-600 leading-relaxed max-w-xl">
+              LiFePO4 solar batteries and hybrid inverters in Pakistan — home storage, load-shedding
+              backup, and next-generation energy solutions.
             </p>
 
             <a
               href="#products"
-              className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-[#1a9f9a]/25 hover:bg-[#158a85] w-fit cursor-pointer"
+              className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-md hover:shadow-[#1a9f9a]/25 hover:bg-[#158a85] w-fit cursor-pointer"
             >
               <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
                 Explore products
               </span>
-              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20 transition-all duration-300 group-hover:translate-x-0.5">
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/25 transition-all duration-300 group-hover:translate-x-0.5">
                 <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </a>
           </div>
 
-          <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative w-[400px] shrink-0">
+          <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative w-full max-w-[400px] shrink-0">
             <HeroProductCarousel />
           </div>
 
-          <div className="lg:hidden w-full mt-4">
+          <div className="lg:hidden w-full mt-2">
             <HeroProductCarousel />
           </div>
         </div>
       </div>
 
-      <GradualBlur
-        position="bottom"
-        height="6rem"
-        strength={2}
-        divCount={6}
-        curve="bezier"
-        exponential
-        opacity={1}
-        zIndex={5}
+      {/* Soft fade into next section */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-16 z-[5] pointer-events-none bg-gradient-to-t from-white to-transparent"
+        aria-hidden
       />
     </section>
   )

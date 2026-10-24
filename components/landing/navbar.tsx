@@ -33,8 +33,8 @@ export default function Navbar() {
   const pathname = usePathname()
   const isHome = pathname === "/"
 
-  const transparent = isHome && !scrolled
-  const glass = !transparent
+  // Home hero is white — always use dark nav text; glass only after scroll.
+  const glass = !isHome || scrolled
 
   const getHref = (hash?: string) => hash ? (isHome ? `#${hash}` : `/#${hash}`) : ""
   const closeMenu = () => setOpen(false)
@@ -55,24 +55,16 @@ export default function Navbar() {
   }, [])
 
   const navClass = glass
-    ? "bg-white/70 backdrop-blur-xl border-white/50 shadow-lg border"
+    ? "bg-white/80 backdrop-blur-xl border-neutral-200/80 shadow-lg border"
     : "bg-transparent border-transparent shadow-none"
 
-  const linkClass = transparent
-    ? "text-white hover:text-white/70"
-    : "text-neutral-900 hover:text-neutral-500"
+  const linkClass = "text-neutral-900 hover:text-neutral-500"
 
-  const dividerClass = transparent
-    ? "bg-white/30"
-    : "bg-neutral-300"
+  const dividerClass = "bg-neutral-300"
 
-  const toggleClass = transparent
-    ? "text-white hover:text-white/70"
-    : "text-neutral-400 hover:text-neutral-900"
+  const toggleClass = "text-neutral-500 hover:text-neutral-900"
 
-  const logoClass = transparent
-    ? "h-7 w-auto object-contain brightness-0 invert"
-    : "h-7 w-auto object-contain"
+  const logoClass = "h-7 w-auto object-contain"
 
   return (
     <div
@@ -129,7 +121,7 @@ export default function Navbar() {
         </div>
 
         <div className="hidden lg:flex shrink-0 items-center pl-3 xl:pl-4">
-          <GetQuoteButton variant={transparent ? "ghost" : "solid"} />
+          <GetQuoteButton variant={glass ? "solid" : "ghost"} />
         </div>
 
         <button

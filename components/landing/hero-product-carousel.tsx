@@ -27,28 +27,28 @@ const PRIORITY_MODELS = [
 ]
 
 const categoryColors: Record<string, string> = {
-  "Energy Storage Battery": "bg-teal-500/20 text-teal-200 border-teal-400/30",
-  "Energy Storage": "bg-teal-500/20 text-teal-200 border-teal-400/30",
-  "Voltrix Fusion": "bg-amber-500/20 text-amber-200 border-amber-400/30",
-  Inverter: "bg-sky-500/20 text-sky-200 border-sky-400/30",
+  "Energy Storage Battery": "bg-teal-50 text-teal-800 border-teal-200",
+  "Energy Storage": "bg-teal-50 text-teal-800 border-teal-200",
+  "Voltrix Fusion": "bg-amber-50 text-amber-800 border-amber-200",
+  Inverter: "bg-sky-50 text-sky-800 border-sky-200",
 }
 
 function StockBadge({ stock }: { stock: unknown }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
   if (s === "in")
     return (
-      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-400/25">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
         <CheckCircle2 className="w-3 h-3" /> In Stock
       </span>
     )
   if (s === "low")
     return (
-      <span className="flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-400/25">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
         <AlertCircle className="w-3 h-3" /> Low Stock
       </span>
     )
   return (
-    <span className="flex items-center gap-1 text-[10px] font-medium text-neutral-400 bg-neutral-500/15 px-2 py-0.5 rounded-md border border-neutral-400/25">
+    <span className="flex items-center gap-1 text-[10px] font-medium text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md border border-neutral-200">
       <XCircle className="w-3 h-3" /> Out of Stock
     </span>
   )
@@ -110,7 +110,7 @@ export default function HeroProductCarousel() {
 
   return (
     <div className="w-full max-w-[380px] mx-auto lg:mx-0">
-      <div className="relative rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-md shadow-2xl shadow-black/40 overflow-hidden">
+      <div className="relative rounded-2xl border border-neutral-200/90 bg-white shadow-[0_12px_40px_-12px_rgba(15,23,42,0.18)] overflow-hidden">
         {/* Slides */}
         <div className="relative min-h-[420px]">
           {products.map((product, index) => {
@@ -123,7 +123,7 @@ export default function HeroProductCarousel() {
             const slideCatClass =
               categoryColors[String(product.category ?? "")] ||
               categoryColors[getMainCategory(String(product.category ?? ""))] ||
-              "bg-neutral-500/20 text-neutral-200 border-neutral-400/30"
+              "bg-neutral-50 text-neutral-700 border-neutral-200"
 
             return (
               <Link
@@ -135,8 +135,8 @@ export default function HeroProductCarousel() {
                     : "opacity-0 translate-x-6 pointer-events-none z-0"
                 }`}
               >
-                <div className="relative w-full h-52 bg-neutral-900/50">
-                  <ProductThumbnail src={slideThumb} alt={display.title} fill imgClassName="p-4" />
+                <div className="relative w-full h-52 bg-neutral-50 border-b border-neutral-100">
+                  <ProductThumbnail src={slideThumb} alt={display.title} fill imgClassName="p-5 object-contain" />
                 </div>
 
                 <div className="p-5 flex flex-col gap-3 flex-1">
@@ -148,19 +148,21 @@ export default function HeroProductCarousel() {
                   </div>
 
                   <div className="space-y-1 flex-1">
-                    <h3 className="font-bold text-white text-base leading-tight line-clamp-2">{display.title}</h3>
+                    <h3 className="font-bold text-neutral-900 text-base leading-tight line-clamp-2">
+                      {display.title}
+                    </h3>
                     {display.model ? (
-                      <p className="text-[11px] font-mono text-neutral-400">Model: {display.model}</p>
+                      <p className="text-[11px] font-mono text-neutral-500">Model: {display.model}</p>
                     ) : null}
                     {product.freeDelivery ? (
-                      <p className="text-[11px] font-medium text-[#1a9f9a]">Free Home Delivery</p>
+                      <p className="text-[11px] font-medium text-[#158a85]">Free Home Delivery</p>
                     ) : null}
-                    <p className="text-xs text-neutral-400 leading-relaxed line-clamp-2">
+                    <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2">
                       {String(product.description ?? "")}
                     </p>
                   </div>
 
-                  <div className="flex items-end justify-between pt-3 border-t border-white/10">
+                  <div className="flex items-end justify-between pt-3 border-t border-neutral-100">
                     <div>
                       {shouldRequestQuote(product) ? (
                         <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
@@ -168,7 +170,7 @@ export default function HeroProductCarousel() {
                         <ProductPriceDisplay
                           product={product}
                           size="md"
-                          className="[&_span]:text-white [&_.line-through]:text-neutral-500"
+                          className="[&_span]:text-neutral-900 [&_.line-through]:text-neutral-400"
                         />
                       )}
                       <p className="text-[10px] text-neutral-500 mt-0.5">
@@ -194,7 +196,7 @@ export default function HeroProductCarousel() {
                 e.preventDefault()
                 prev()
               }}
-              className="absolute left-2 top-[44%] z-20 w-8 h-8 rounded-full bg-black/40 border border-white/15 flex items-center justify-center text-white/80 hover:bg-black/60 hover:text-white transition-colors"
+              className="absolute left-2 top-[104px] z-20 w-8 h-8 rounded-full bg-white/95 border border-neutral-200 shadow-sm flex items-center justify-center text-neutral-700 hover:bg-white hover:text-neutral-900 transition-colors"
               aria-label="Previous product"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -205,7 +207,7 @@ export default function HeroProductCarousel() {
                 e.preventDefault()
                 next()
               }}
-              className="absolute right-2 top-[44%] z-20 w-8 h-8 rounded-full bg-black/40 border border-white/15 flex items-center justify-center text-white/80 hover:bg-black/60 hover:text-white transition-colors"
+              className="absolute right-2 top-[104px] z-20 w-8 h-8 rounded-full bg-white/95 border border-neutral-200 shadow-sm flex items-center justify-center text-neutral-700 hover:bg-white hover:text-neutral-900 transition-colors"
               aria-label="Next product"
             >
               <ChevronRight className="w-4 h-4" />
@@ -222,7 +224,7 @@ export default function HeroProductCarousel() {
               key={index}
               type="button"
               onClick={() => setCurrentIndex(index)}
-              className="relative w-8 h-1 rounded-full overflow-hidden bg-neutral-700 hover:bg-neutral-600 transition-colors"
+              className="relative w-8 h-1 rounded-full overflow-hidden bg-neutral-200 hover:bg-neutral-300 transition-colors"
               aria-label={`Go to product ${index + 1}`}
             >
               <div
