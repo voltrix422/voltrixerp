@@ -7,23 +7,39 @@ import HeroProductCarousel from "./hero-product-carousel"
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col overflow-hidden bg-white">
-      {/* Soft white → cool wash — calm, not busy */}
+      {/* Soft white → cool wash */}
       <div
         className="absolute inset-0 z-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 70% 50% at 85% 20%, rgba(26,159,154,0.07) 0%, transparent 55%), linear-gradient(180deg, #ffffff 0%, #f8fafb 55%, #ffffff 100%)",
+            "linear-gradient(180deg, #ffffff 0%, #f8fafb 55%, #ffffff 100%)",
         }}
         aria-hidden
       />
 
-      {/* Very light grid */}
+      {/* Soft Gaussian shade orbs */}
+      <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden" aria-hidden>
+        <div
+          className="absolute -top-24 right-[-8%] h-[28rem] w-[28rem] rounded-full"
+          style={{ background: "rgba(26, 159, 154, 0.16)", filter: "blur(90px)" }}
+        />
+        <div
+          className="absolute top-[38%] left-[-12%] h-[22rem] w-[22rem] rounded-full"
+          style={{ background: "rgba(186, 230, 253, 0.55)", filter: "blur(100px)" }}
+        />
+        <div
+          className="absolute bottom-[-10%] right-[18%] h-[18rem] w-[18rem] rounded-full"
+          style={{ background: "rgba(212, 212, 212, 0.45)", filter: "blur(80px)" }}
+        />
+      </div>
+
+      {/* Very light grid over the blur */}
       <div
-        className="absolute inset-0 z-[1] pointer-events-none"
+        className="absolute inset-0 z-[2] pointer-events-none"
         style={{
           backgroundImage: `
-            linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px)
+            linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px)
           `,
           backgroundSize: "56px 56px",
         }}
