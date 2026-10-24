@@ -18,6 +18,8 @@ export const runtime = "nodejs"
 export const maxDuration = 600
 
 const DOWNLOAD_ROOT = path.join(os.tmpdir(), "voltrix-backup-downloads")
+const META_NAME = "meta.json"
+const KEEP_MS = 2 * 60 * 60 * 1000
 
 type JobStatus = "queued" | "running" | "ready" | "error"
 
@@ -68,14 +70,75 @@ async function ensureDownloadRoot() {
   await fs.mkdir(DOWNLOAD_ROOT, { recursive: true })
 }
 
+function metaPathFor(workDir: string) {
+  return path.join(workDir, META_NAME)
+}
+
+async function persistMeta(meta: StoredMeta) {
+  prepared.set(meta.token, meta)
+  try {
+    await fs.writeFile(metaPathFor(meta.workDir), JSON.stringify(meta), "utf8")
+  } catch (e) {
+    console.error("[full-backup] persist meta failed", e)
+  }
+}
+
+async function loadMeta(token: string): Promise<StoredMeta | null> {
+  const cached = prepared.get(token)
+  if (cached) return cached
+
+  const workDir = path.join(DOWNLOAD_ROOT, token)
+  const metaFile = metaPathFor(workDir)
+  if (!existsSync(metaFile)) return null
+  try {
+    const raw = await fs.readFile(metaFile, "utf8")
+    const meta = JSON.parse(raw) as StoredMeta
+    if (!meta?.token || meta.token !== token) return null
+    prepared.set(token, meta)
+    return meta
+  } catch {
+    return null
+  }
+}
+
 async function sweepOld() {
-  const cutoff = Date.now() - 60 * 60 * 1000
+  const cutoff = Date.now() - KEEP_MS
+
   for (const [token, meta] of prepared) {
     if (meta.createdAt < cutoff) {
       prepared.delete(token)
       await cleanupBackupWorkDir(meta.workDir)
     }
   }
+
+  try {
+    await ensureDownloadRoot()
+    const entries = await fs.readdir(DOWNLOAD_ROOT, { withFileTypes: true })
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue
+      const workDir = path.join(DOWNLOAD_ROOT, ent.name)
+      const metaFile = metaPathFor(workDir)
+      let createdAt = 0
+      try {
+        if (existsSync(metaFile)) {
+          const meta = JSON.parse(await fs.readFile(metaFile, "utf8")) as StoredMeta
+          createdAt = Number(meta.createdAt) || 0
+        } else {
+          const st = await fs.stat(workDir)
+          createdAt = st.mtimeMs
+        }
+      } catch {
+        createdAt = 0
+      }
+      if (!createdAt || createdAt < cutoff) {
+        prepared.delete(ent.name)
+        await cleanupBackupWorkDir(workDir)
+      }
+    }
+  } catch (e) {
+    console.error("[full-backup] sweep failed", e)
+  }
+
   for (const [jobId, job] of jobs) {
     if (job.createdAt < cutoff) jobs.delete(jobId)
   }
@@ -145,7 +208,7 @@ async function runJob(job: BackupJob, includeEnv: boolean, createdBy: string, da
       userId: job.userId,
       createdAt: Date.now(),
     }
-    prepared.set(token, meta)
+    await persistMeta(meta)
 
     job.token = token
     job.filename = built.filename
@@ -251,24 +314,23 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const meta = prepared.get(token)
+  const meta = await loadMeta(token)
   if (!meta || meta.userId !== auth.user.id) {
     return NextResponse.json({ error: "Backup not found or expired. Create it again." }, { status: 404 })
   }
   if (!existsSync(meta.zipPath)) {
     prepared.delete(token)
+    await cleanupBackupWorkDir(meta.workDir).catch(() => undefined)
     return NextResponse.json({ error: "Backup file missing. Create it again." }, { status: 404 })
   }
 
   const nodeStream = createReadStream(meta.zipPath)
   const webStream = Readable.toWeb(nodeStream) as ReadableStream
 
-  const cleanup = () => {
-    prepared.delete(token)
-    void cleanupBackupWorkDir(meta.workDir)
-  }
-  nodeStream.on("close", cleanup)
-  nodeStream.on("error", cleanup)
+  // Keep the ZIP for retries / interrupted downloads (swept after KEEP_MS).
+  nodeStream.on("error", (err) => {
+    console.error("[full-backup] stream error", err)
+  })
 
   return new NextResponse(webStream, {
     status: 200,

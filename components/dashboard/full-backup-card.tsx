@@ -131,6 +131,21 @@ export function FullBackupCard() {
     }
   }
 
+  function friendlyNetError(e: unknown, fallback: string) {
+    const raw = e instanceof Error ? e.message : String(e || "")
+    const lower = raw.toLowerCase()
+    if (
+      !raw ||
+      lower.includes("failed to fetch") ||
+      lower.includes("networkerror") ||
+      lower === "network error" ||
+      lower.includes("load failed")
+    ) {
+      return "Connection interrupted — the ZIP is large (~2 GB). Try Download again; keep this tab open."
+    }
+    return raw || fallback
+  }
+
   async function createBackup() {
     if (!user?.id) {
       setError("Sign in required")
@@ -164,11 +179,11 @@ export function FullBackupCard() {
       stopPoll()
       pollRef.current = setInterval(() => {
         void pollProgress(jobId, user.id)
-      }, 450)
+      }, 800)
       await pollProgress(jobId, user.id)
     } catch (e) {
       stopPoll()
-      setError(e instanceof Error ? e.message : "Backup failed")
+      setError(friendlyNetError(e, "Backup failed"))
       setPhase("error")
       setLive(null)
     }
@@ -211,88 +226,154 @@ export function FullBackupCard() {
         setLive(null)
       }
     } catch (e) {
+      // Transient blips while the zip is still building — keep polling.
+      const msg = e instanceof Error ? e.message : String(e || "")
+      const soft =
+        /failed to fetch|networkerror|network error|load failed|fetch/i.test(msg) || !msg
+      if (soft) {
+        setLive((prev) =>
+          prev
+            ? { ...prev, message: "Hold on — reconnecting to backup progress…" }
+            : {
+                percent: 0,
+                leftPercent: 100,
+                stage: "reconnect",
+                message: "Hold on — reconnecting to backup progress…",
+              },
+        )
+        return
+      }
       stopPoll()
-      setError(e instanceof Error ? e.message : "Backup progress failed")
+      setError(friendlyNetError(e, "Backup progress failed"))
       setPhase("error")
       setLive(null)
     }
   }
 
+  /** Stream ZIP to disk (no multi‑GB RAM buffer — that caused “network error”). */
   async function downloadZip() {
     if (!prepared?.downloadPath) return
+    setError("")
     setPhase("downloading")
     setDownloadLive({
       percent: 0,
       leftPercent: 100,
       stage: "download",
-      message: "Hold on — downloading your ZIP…",
+      message: "Hold on — starting download to your computer…",
     })
 
+    const total = Number(prepared.sizeBytes || 0) || 0
+
     try {
-      const res = await fetch(prepared.downloadPath, { cache: "no-store" })
-      if (!res.ok) {
-        let message = `Download failed (${res.status})`
-        try {
-          const j = await res.json()
-          if (j?.error) message = String(j.error)
-        } catch {
-          /* ignore */
+      const picker = (
+        window as Window & {
+          showSaveFilePicker?: (opts: {
+            suggestedName?: string
+            types?: { description: string; accept: Record<string, string[]> }[]
+          }) => Promise<FileSystemFileHandle>
         }
-        throw new Error(message)
+      ).showSaveFilePicker
+
+      if (typeof picker === "function" && typeof ReadableStream !== "undefined") {
+        const handle = await picker({
+          suggestedName: prepared.filename || "voltrix-erp-backup.zip",
+          types: [
+            {
+              description: "ZIP archive",
+              accept: { "application/zip": [".zip"] },
+            },
+          ],
+        })
+        const writable = await handle.createWritable()
+        const res = await fetch(prepared.downloadPath, { cache: "no-store" })
+        if (!res.ok) {
+          let message = `Download failed (${res.status})`
+          try {
+            const j = await res.json()
+            if (j?.error) message = String(j.error)
+          } catch {
+            /* ignore */
+          }
+          await writable.abort().catch(() => undefined)
+          throw new Error(message)
+        }
+
+        const reader = res.body?.getReader()
+        if (!reader) {
+          await writable.abort().catch(() => undefined)
+          throw new Error("Browser could not stream the download")
+        }
+
+        let received = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          if (value) {
+            await writable.write(value)
+            received += value.length
+            const pct =
+              total > 0
+                ? Math.min(99, Math.round((received / total) * 100))
+                : Math.min(95, Math.round(received / (1024 * 1024)))
+            setDownloadLive({
+              percent: pct,
+              leftPercent: Math.max(0, 100 - pct),
+              stage: "download",
+              message: "Hold on — saving ZIP to your computer…",
+              bytesDoneLabel: formatBytes(received),
+              bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
+            })
+          }
+        }
+        await writable.close()
+
+        setDownloadLive({
+          percent: 100,
+          leftPercent: 0,
+          stage: "done",
+          message: "Download complete",
+          bytesDoneLabel: formatBytes(received),
+          bytesTotalLabel: total > 0 ? formatBytes(total) : formatBytes(received),
+        })
+        setPhase("done")
+        setTimeout(() => {
+          setDownloadLive(null)
+          setPhase("idle")
+          setPrepared(null)
+        }, 4000)
+        return
       }
 
-      const total =
-        Number(res.headers.get("Content-Length") || prepared.sizeBytes || 0) || 0
-      const reader = res.body?.getReader()
-      if (!reader) throw new Error("Browser could not stream the download")
-
-      const chunks: Uint8Array[] = []
-      let received = 0
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          chunks.push(value)
-          received += value.length
-          const pct = total > 0 ? Math.min(99, Math.round((received / total) * 100)) : Math.min(95, Math.round(received / (1024 * 1024)))
-          setDownloadLive({
-            percent: pct,
-            leftPercent: Math.max(0, 100 - pct),
-            stage: "download",
-            message: "Hold on — saving ZIP to your computer…",
-            bytesDoneLabel: formatBytes(received),
-            bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
-          })
-        }
-      }
-
-      const blob = new Blob(chunks as BlobPart[], { type: "application/zip" })
-      const url = URL.createObjectURL(blob)
+      // Fallback: let the browser download natively (no JS memory buffer).
       const a = document.createElement("a")
-      a.href = url
-      a.download = prepared.filename
+      a.href = prepared.downloadPath
+      a.download = prepared.filename || "voltrix-erp-backup.zip"
+      a.rel = "noopener"
       document.body.appendChild(a)
       a.click()
       a.remove()
-      URL.revokeObjectURL(url)
 
       setDownloadLive({
         percent: 100,
         leftPercent: 0,
         stage: "done",
-        message: "Download complete",
-        bytesDoneLabel: formatBytes(received),
-        bytesTotalLabel: total > 0 ? formatBytes(total) : formatBytes(received),
+        message: "Download started in your browser — check your Downloads folder",
+        bytesDoneLabel: total > 0 ? formatBytes(total) : undefined,
+        bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
       })
       setPhase("done")
       setTimeout(() => {
         setDownloadLive(null)
-        setPhase("idle")
-        setPrepared(null)
-      }, 4000)
+        setPhase("ready")
+      }, 5000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Download failed")
-      setPhase("error")
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setPhase("ready")
+        setDownloadLive(null)
+        return
+      }
+      setError(friendlyNetError(e, "Download failed"))
+      setPhase("ready")
       setDownloadLive(null)
     }
   }
