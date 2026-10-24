@@ -1,4 +1,5 @@
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
+import { splitCrmSalesRows } from "@/lib/finance-sales-crm-split"
 import { dateRangeLabel } from "@/lib/plain-report-pdf"
 
 export type BirdsEyeSalesSlice = {
@@ -37,16 +38,13 @@ function money(n: number) {
 }
 
 function salesFromOrders(orders: FinanceOrderRow[]): BirdsEyeSalesSlice {
-  const sale = orders.reduce((s, r) => s + (Number(r.total) || 0), 0)
-  const received = orders.reduce(
-    (s, r) => s + (Number(r.receivedInPeriod) || 0),
-    0,
-  )
-  const credit = orders.reduce((s, r) => {
-    if (typeof r.creditOutstanding === "number") return s + Math.max(0, Number(r.creditOutstanding) || 0)
-    return s + creditOf(r.total, r.paidTotal)
-  }, 0)
-  return { sale, received, credit }
+  // Active CRM only — returned orders are excluded so sale − received ≈ credit.
+  const split = splitCrmSalesRows(orders)
+  return {
+    sale: split.activeTotal,
+    received: split.activeReceived,
+    credit: split.activeCredit,
+  }
 }
 
 function salesFromPos(rows: FinancePosRow[]): BirdsEyeSalesSlice {

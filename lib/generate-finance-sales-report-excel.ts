@@ -1,14 +1,10 @@
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
 import type { FinanceSalesReportOptions } from "@/lib/generate-finance-sales-report-pdf"
+import { crmRowCredit, splitCrmSalesRows } from "@/lib/finance-sales-crm-split"
 import { dateRangeLabel } from "@/lib/plain-report-pdf"
 
 function creditOf(total: number, paid: number) {
   return Math.max(0, (Number(total) || 0) - (Number(paid) || 0))
-}
-
-function crmRowCredit(r: FinanceOrderRow) {
-  if (typeof r.creditOutstanding === "number") return Math.max(0, Number(r.creditOutstanding) || 0)
-  return creditOf(r.total, r.paidTotal)
 }
 
 function itemsLine(items: FinanceOrderRow["items"] | FinancePosRow["items"]) {
@@ -38,7 +34,7 @@ function paintHeader(row: { eachCell: (cb: (cell: any) => void) => void; height?
 }
 
 function moneyCell(cell: any) {
-  cell.numFmt = '#,##0'
+  cell.numFmt = "#,##0"
   cell.alignment = { horizontal: "right", vertical: "middle" }
 }
 
@@ -58,12 +54,13 @@ export async function downloadFinanceSalesReportExcel(
   wb.creator = "Voltrix ERP"
   wb.created = new Date()
 
-  const crm = opts.includeCrm ? orders : []
+  const crmAll = opts.includeCrm ? orders : []
+  const crmSplit = splitCrmSalesRows(crmAll)
   const pos = opts.includePos ? posSales : []
 
-  const crmTotal = crm.reduce((s, r) => s + (Number(r.total) || 0), 0)
-  const crmReceived = crm.reduce((s, r) => s + (Number(r.receivedInPeriod) || 0), 0)
-  const crmCredit = crm.reduce((s, r) => s + crmRowCredit(r), 0)
+  const crmTotal = crmSplit.activeTotal
+  const crmReceived = crmSplit.activeReceived
+  const crmCredit = crmSplit.activeCredit
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
   const posReceived = pos.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
@@ -94,6 +91,9 @@ export async function downloadFinanceSalesReportExcel(
   summary.addRow([
     `Sources: ${sources}${opts.exportedBy ? ` · ${opts.exportedBy}` : ""} · ${new Date().toLocaleString("en-PK")}`,
   ])
+  summary.addRow([
+    "CRM active totals exclude returned orders. Returns and cashback are listed separately.",
+  ])
   summary.addRow([])
 
   paintHeader(summary.addRow(["Metric", "Amount (PKR)"]))
@@ -115,12 +115,27 @@ export async function downloadFinanceSalesReportExcel(
   }
 
   if (opts.includeCrm) {
-    summary.addRow(["CRM orders"]).font = { bold: true, size: 11 }
-    addMetric("CRM · sale value", crmTotal)
-    addMetric("CRM · received", crmReceived)
-    addMetric("CRM · credit / outstanding", crmCredit)
-    addMetric("CRM · order count", crm.length)
+    summary.addRow(["CRM active orders"]).font = { bold: true, size: 11 }
+    addMetric("CRM · sale value (active)", crmTotal)
+    addMetric("CRM · received (active)", crmReceived)
+    addMetric("CRM · credit / outstanding (active)", crmCredit)
+    addMetric("CRM · active order count", crmSplit.activeCount)
+    addMetric("CRM · check (value − received − credit)", crmSplit.activeCheck)
     summary.addRow([])
+
+    if (crmSplit.returnedCount > 0) {
+      summary.addRow(["CRM returns (excluded from active)"]).font = { bold: true, size: 11 }
+      addMetric("CRM · returns · orders", crmSplit.returnedCount)
+      addMetric("CRM · returns · cash received", crmSplit.returnedReceived)
+      addMetric("CRM · returns · refunds paid", crmSplit.returnedRefunds)
+      summary.addRow([])
+    }
+
+    if (crmSplit.allCashback > 0.004) {
+      summary.addRow(["CRM cashback"]).font = { bold: true, size: 11 }
+      addMetric("CRM · cashback (period)", crmSplit.allCashback)
+      summary.addRow([])
+    }
   }
   if (opts.includePos) {
     summary.addRow(["POS sales"]).font = { bold: true, size: 11 }
@@ -131,7 +146,7 @@ export async function downloadFinanceSalesReportExcel(
     summary.addRow([])
   }
 
-  summary.addRow(["COMBINED TOTALS"]).font = {
+  summary.addRow(["COMBINED TOTALS (active CRM + POS)"]).font = {
     bold: true,
     size: 12,
     color: { argb: "FF0D7370" },
@@ -140,17 +155,18 @@ export async function downloadFinanceSalesReportExcel(
   addMetric("Combined · received", combinedReceived, true)
   addMetric("Combined · credit", combinedCredit, true)
 
-  summary.getColumn(1).width = 36
+  summary.getColumn(1).width = 44
   summary.getColumn(2).width = 22
 
-  // ——— CRM sheet ———
+  // ——— CRM active sheet ———
   if (opts.includeCrm) {
-    const ws = wb.addWorksheet("CRM orders", {
+    const ws = wb.addWorksheet("CRM active", {
       properties: { tabColor: { argb: "FF0EA5E9" } },
     })
-    const title = ws.addRow(["CRM client orders — by order created date (oldest first)"])
+    const title = ws.addRow(["CRM active orders — by order created date (oldest first)"])
     title.font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
     ws.addRow([`Period: ${range}`])
+    ws.addRow(["Returned orders are on the CRM returns sheet."])
     ws.addRow([])
     paintHeader(
       ws.addRow([
@@ -163,9 +179,10 @@ export async function downloadFinanceSalesReportExcel(
         "Total (PKR)",
         "Received (PKR)",
         "Credit (PKR)",
+        "Cashback (PKR)",
       ]),
     )
-    for (const r of crm) {
+    for (const r of crmSplit.active) {
       const received = Number(r.receivedInPeriod) || 0
       const credit = crmRowCredit(r)
       const row = ws.addRow([
@@ -178,26 +195,30 @@ export async function downloadFinanceSalesReportExcel(
         Number(r.total) || 0,
         received,
         credit,
+        Number(r.cashbackInPeriod) || 0,
       ])
       moneyCell(row.getCell(7))
       moneyCell(row.getCell(8))
       moneyCell(row.getCell(9))
+      moneyCell(row.getCell(10))
     }
     const foot = ws.addRow([
       "",
       "",
-      `${crm.length} orders`,
+      `${crmSplit.activeCount} orders`,
       "",
       "",
       "TOTAL",
       crmTotal,
       crmReceived,
       crmCredit,
+      crmSplit.activeCashback,
     ])
     foot.font = { bold: true }
     moneyCell(foot.getCell(7))
     moneyCell(foot.getCell(8))
     moneyCell(foot.getCell(9))
+    moneyCell(foot.getCell(10))
     foot.eachCell((cell: any) => {
       cell.fill = {
         type: "pattern",
@@ -205,7 +226,63 @@ export async function downloadFinanceSalesReportExcel(
         fgColor: { argb: "FFE8F7F6" },
       }
     })
-    ;[12, 16, 28, 14, 16, 40, 14, 14, 14].forEach((w, i) => {
+    ;[12, 16, 28, 14, 16, 40, 14, 14, 14, 14].forEach((w, i) => {
+      ws.getColumn(i + 1).width = w
+    })
+    ws.views = [{ state: "frozen", ySplit: 4 }]
+  }
+
+  // ——— CRM returns sheet ———
+  if (opts.includeCrm && crmSplit.returnedCount > 0) {
+    const ws = wb.addWorksheet("CRM returns", {
+      properties: { tabColor: { argb: "FFEF4444" } },
+    })
+    const title = ws.addRow(["CRM returns — excluded from active order value / outstanding"])
+    title.font = { bold: true, size: 13, color: { argb: "FF7F1D1D" } }
+    ws.addRow([`Period: ${range}`])
+    ws.addRow([])
+    paintHeader(
+      ws.addRow([
+        "Date",
+        "Order",
+        "Client",
+        "Created by",
+        "Items",
+        "Cash received (PKR)",
+        "Refunds (PKR)",
+        "Cashback (PKR)",
+      ]),
+    )
+    for (const r of crmSplit.returned) {
+      const row = ws.addRow([
+        r.date || "",
+        r.orderNumber || "",
+        r.clientName || "",
+        r.createdBy || "",
+        itemsLine(r.items),
+        Number(r.receivedInPeriod) || 0,
+        Number(r.refundsInPeriod) || 0,
+        Number(r.cashbackInPeriod) || 0,
+      ])
+      moneyCell(row.getCell(6))
+      moneyCell(row.getCell(7))
+      moneyCell(row.getCell(8))
+    }
+    const foot = ws.addRow([
+      "",
+      "",
+      `${crmSplit.returnedCount} returns`,
+      "",
+      "TOTAL",
+      crmSplit.returnedReceived,
+      crmSplit.returnedRefunds,
+      crmSplit.returnedCashback,
+    ])
+    foot.font = { bold: true }
+    moneyCell(foot.getCell(6))
+    moneyCell(foot.getCell(7))
+    moneyCell(foot.getCell(8))
+    ;[12, 16, 28, 16, 40, 18, 14, 14].forEach((w, i) => {
       ws.getColumn(i + 1).width = w
     })
     ws.views = [{ state: "frozen", ySplit: 4 }]

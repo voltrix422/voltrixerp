@@ -60,6 +60,10 @@ export type FinanceOrderRow = {
   receivedInPeriod: number
   /** Outstanding as at period end (ignores later payments). */
   creditOutstanding: number
+  /** Approved client cashback dated in the report period. */
+  cashbackInPeriod: number
+  /** Return refunds dated in the report period. */
+  refundsInPeriod: number
   items: FinancePdfItem[]
 }
 
@@ -383,6 +387,28 @@ export function buildOrderReport(
       }
     }
 
+    let cashbackInPeriod = 0
+    const cashbacks = Array.isArray(order.cashbackPayments)
+      ? (order.cashbackPayments as { amount?: number; date?: string; createdAt?: string }[])
+      : []
+    for (const cb of cashbacks) {
+      const amount = num(cb.amount)
+      if (amount <= 0) continue
+      const d = new Date(cb.date || cb.createdAt || order.createdAt)
+      if (inRange(d, start, end)) cashbackInPeriod += amount
+    }
+
+    let refundsInPeriod = 0
+    const refunds = Array.isArray(order.returnPayments)
+      ? (order.returnPayments as { amount?: number; date?: string; createdAt?: string }[])
+      : []
+    for (const rp of refunds) {
+      const amount = num(rp.amount)
+      if (amount <= 0) continue
+      const d = new Date(rp.date || rp.createdAt || order.createdAt)
+      if (inRange(d, start, end)) refundsInPeriod += amount
+    }
+
     const createdInPeriod = inRange(new Date(order.createdAt), start, end)
     if (by === "created") {
       if (!createdInPeriod) continue
@@ -434,6 +460,8 @@ export function buildOrderReport(
       }),
       receivedInPeriod,
       creditOutstanding,
+      cashbackInPeriod,
+      refundsInPeriod,
       items: mapOrderItems(order.items),
     })
   }

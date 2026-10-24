@@ -984,7 +984,7 @@ export function FinanceHub({
                   </span>
                 </label>
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                  CRM rows are by order created date (not payment date). Excel has CRM, POS, and Combined sheets. Same date range as Overview.
+                  CRM active totals exclude returned orders. Returns and cashback are separate sections. Excel: Combined · CRM active · CRM returns · POS. Same date range as Overview.
                 </p>
               </div>
               <div className="flex flex-col gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">

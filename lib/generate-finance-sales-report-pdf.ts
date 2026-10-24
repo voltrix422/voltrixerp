@@ -1,4 +1,5 @@
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
+import { crmRowCredit, splitCrmSalesRows } from "@/lib/finance-sales-crm-split"
 import { dateRangeLabel, downloadPlainReportPdf, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
 export type FinanceSalesReportOptions = {
@@ -12,11 +13,6 @@ export type FinanceSalesReportOptions = {
 
 function creditOf(total: number, paid: number) {
   return Math.max(0, (Number(total) || 0) - (Number(paid) || 0))
-}
-
-function crmCredit(r: FinanceOrderRow) {
-  if (typeof r.creditOutstanding === "number") return Math.max(0, Number(r.creditOutstanding) || 0)
-  return creditOf(r.total, r.paidTotal)
 }
 
 function shortItems(items: FinanceOrderRow["items"] | FinancePosRow["items"]) {
@@ -41,12 +37,13 @@ export async function downloadFinanceSalesReportPdf(
     throw new Error("Select at least one source (CRM or POS).")
   }
 
-  const crm = opts.includeCrm ? orders : []
+  const crmAll = opts.includeCrm ? orders : []
+  const crmSplit = splitCrmSalesRows(crmAll)
   const pos = opts.includePos ? posSales : []
 
-  const crmTotal = crm.reduce((s, r) => s + (Number(r.total) || 0), 0)
-  const crmReceived = crm.reduce((s, r) => s + (Number(r.receivedInPeriod) || 0), 0)
-  const crmCreditTotal = crm.reduce((s, r) => s + crmCredit(r), 0)
+  const crmTotal = crmSplit.activeTotal
+  const crmReceived = crmSplit.activeReceived
+  const crmCreditTotal = crmSplit.activeCredit
 
   const posTotal = pos.reduce((s, r) => s + (Number(r.total) || 0), 0)
   const posReceived = pos.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
@@ -79,6 +76,35 @@ export async function downloadFinanceSalesReportPdf(
     minute: "2-digit",
   })
 
+  const overviewRows: string[][] = []
+  if (opts.includeCrm) {
+    overviewRows.push(
+      ["CRM · order value (active)", pkr(crmTotal)],
+      ["CRM · received (active)", pkr(crmReceived)],
+      ["CRM · credit / outstanding (active)", pkr(crmCreditTotal)],
+      ["CRM · active orders", String(crmSplit.activeCount)],
+      ["CRM · check (value − received − credit)", pkr(crmSplit.activeCheck)],
+    )
+    if (crmSplit.returnedCount > 0) {
+      overviewRows.push(
+        ["CRM · returns · orders", String(crmSplit.returnedCount)],
+        ["CRM · returns · cash received (on returned)", pkr(crmSplit.returnedReceived)],
+        ["CRM · returns · refunds paid", pkr(crmSplit.returnedRefunds)],
+      )
+    }
+    if (crmSplit.allCashback > 0.004) {
+      overviewRows.push(["CRM · cashback (period)", pkr(crmSplit.allCashback)])
+    }
+  }
+  if (opts.includePos) {
+    overviewRows.push(
+      ["POS · sale value", pkr(posTotal)],
+      ["POS · received", pkr(posReceived)],
+      ["POS · credit / outstanding", pkr(posCredit)],
+      ["POS · sales", String(pos.length)],
+    )
+  }
+
   const tables: PlainTable[] = [
     {
       title: "Sales overview",
@@ -86,30 +112,13 @@ export async function downloadFinanceSalesReportPdf(
         { header: "Metric", width: 90 },
         { header: "Amount", align: "right", width: 50 },
       ],
-      rows: [
-        ...(opts.includeCrm
-          ? [
-              ["CRM · order value", pkr(crmTotal)],
-              ["CRM · received", pkr(crmReceived)],
-              ["CRM · credit / outstanding", pkr(crmCreditTotal)],
-              ["CRM · orders", String(crm.length)],
-            ]
-          : []),
-        ...(opts.includePos
-          ? [
-              ["POS · sale value", pkr(posTotal)],
-              ["POS · received", pkr(posReceived)],
-              ["POS · credit / outstanding", pkr(posCredit)],
-              ["POS · sales", String(pos.length)],
-            ]
-          : []),
-      ],
+      rows: overviewRows,
     },
   ]
 
   if (opts.includeCrm) {
     tables.push({
-      title: "CRM client orders · by order created date (oldest first)",
+      title: "CRM active orders · by order created date (oldest first)",
       columns: [
         { header: "Date", width: 18 },
         { header: "Order", width: 20 },
@@ -120,8 +129,8 @@ export async function downloadFinanceSalesReportPdf(
         { header: "Received", align: "right", width: 22 },
         { header: "Credit", align: "right", width: 20 },
       ],
-      rows: crm.length
-        ? crm.map((r) => [
+      rows: crmSplit.active.length
+        ? crmSplit.active.map((r) => [
             r.date || "—",
             r.orderNumber || "—",
             r.clientName || "—",
@@ -129,13 +138,80 @@ export async function downloadFinanceSalesReportPdf(
             shortItems(r.items),
             pkr(r.total),
             pkr(Number(r.receivedInPeriod) || 0),
-            pkr(crmCredit(r)),
+            pkr(crmRowCredit(r)),
           ])
-        : [["No CRM orders created in this period", "", "", "", "", "", "", ""]],
-      foot: crm.length
-        ? ["", "", String(crm.length), "", "", pkr(crmTotal), pkr(crmReceived), pkr(crmCreditTotal)]
+        : [["No active CRM orders in this period", "", "", "", "", "", "", ""]],
+      foot: crmSplit.active.length
+        ? [
+            "",
+            "",
+            String(crmSplit.activeCount),
+            "",
+            "",
+            pkr(crmTotal),
+            pkr(crmReceived),
+            pkr(crmCreditTotal),
+          ]
         : undefined,
     })
+
+    if (crmSplit.returnedCount > 0) {
+      tables.push({
+        title: "CRM returns · excluded from active order value / outstanding",
+        columns: [
+          { header: "Date", width: 18 },
+          { header: "Order", width: 20 },
+          { header: "Client", width: 32 },
+          { header: "Status", width: 18 },
+          { header: "Items", width: 36, small: true },
+          { header: "Cash received", align: "right", width: 24 },
+          { header: "Refunds", align: "right", width: 22 },
+          { header: "Cashback", align: "right", width: 20 },
+        ],
+        rows: crmSplit.returned.map((r) => [
+          r.date || "—",
+          r.orderNumber || "—",
+          r.clientName || "—",
+          "returned",
+          shortItems(r.items),
+          pkr(Number(r.receivedInPeriod) || 0),
+          pkr(Number(r.refundsInPeriod) || 0),
+          pkr(Number(r.cashbackInPeriod) || 0),
+        ]),
+        foot: [
+          "",
+          "",
+          String(crmSplit.returnedCount),
+          "",
+          "",
+          pkr(crmSplit.returnedReceived),
+          pkr(crmSplit.returnedRefunds),
+          pkr(crmSplit.returnedCashback),
+        ],
+      })
+    }
+
+    if (crmSplit.allCashback > 0.004) {
+      const cashbackRows = crmAll.filter((r) => (Number(r.cashbackInPeriod) || 0) > 0.004)
+      tables.push({
+        title: "CRM cashback · period (shown separately so active totals stay clear)",
+        columns: [
+          { header: "Date", width: 18 },
+          { header: "Order", width: 22 },
+          { header: "Client", width: 40 },
+          { header: "Status", width: 22 },
+          { header: "Cashback", align: "right", width: 28 },
+        ],
+        rows: cashbackRows.map((r) => [
+          r.date || "—",
+          r.orderNumber || "—",
+          r.clientName || "—",
+          String(r.status || "—").replace(/_/g, " "),
+          pkr(Number(r.cashbackInPeriod) || 0),
+        ]),
+        foot: ["", "", String(cashbackRows.length), "", pkr(crmSplit.allCashback)],
+      })
+    }
   }
 
   if (opts.includePos) {
@@ -179,13 +255,16 @@ export async function downloadFinanceSalesReportPdf(
     meta: [
       `${sources}${opts.exportedBy ? ` · ${opts.exportedBy}` : ""}`,
       `Generated  ${generated}  (Pakistan time)`,
-    ],
+      opts.includeCrm
+        ? "CRM active totals exclude returned orders; returns & cashback listed separately."
+        : "",
+    ].filter(Boolean),
     filename: `sales-report-${slug}-${from}-to-${to}.pdf`,
     compact: true,
     pagePerTable: false,
     tables,
     closingBanner: {
-      title: "Combined totals",
+      title: "Combined totals (active CRM + POS)",
       lines: [
         { label: "Combined · sale value", value: pkr(combinedSale) },
         { label: "Combined · received", value: pkr(combinedReceived) },
