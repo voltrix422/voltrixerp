@@ -350,6 +350,9 @@ export async function downloadPurchaseLedgerEntryPDF(entry: PurchaseLedgerEntry)
     { label: "Supplier(s)", value: formatLedgerSuppliers(entry) },
     { label: "Transaction type", value: transactionTypeLabel(entry.transactionType) },
     { label: "Due date", value: entry.dueDate || "—" },
+    ...(entry.supplierDiscount > 0
+      ? [{ label: "Supplier discount", value: `${fmtMoney(entry.supplierDiscount)} (not a payment)` }]
+      : []),
     { label: "Note", value: entry.notes?.trim() || "—" },
     { label: "Created by", value: entry.createdBy || "—" },
   ], y)

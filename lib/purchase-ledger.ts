@@ -25,6 +25,11 @@ export interface PurchaseLedgerSupplierGroup {
   items: PurchaseLedgerItem[]
   amountPaid?: number
   amountDue?: number
+  /**
+   * Supplier discount on this group’s items (PKR).
+   * Reduces amount due — not counted as a payment sent.
+   */
+  discount?: number
   /** Date for this supplier’s purchase / payment (shown per supplier). */
   date?: string
   /** @deprecated Prefer billAttachments — kept for older rows. */
@@ -70,6 +75,11 @@ export interface PurchaseLedgerEntry {
   taxPercent: number
   /** Tax amount in PKR — included in totalAmount. */
   taxAmount: number
+  /**
+   * Total supplier discount (PKR) subtracted from items + tax.
+   * Not counted as payment sent — only reduces amount due.
+   */
+  supplierDiscount: number
   totalAmount: number
   amountPaid: number
   amountDue: number
@@ -171,6 +181,7 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     items: partial?.items?.length ? partial.items.map(item => ({ ...item })) : [newLedgerItem()],
     amountPaid: partial?.amountPaid ?? 0,
     amountDue: partial?.amountDue,
+    discount: Math.max(0, Number(partial?.discount) || 0),
     date: partial?.date ?? "",
     billUrl: partial?.billUrl ?? "",
     billName: partial?.billName ?? "",
@@ -206,13 +217,35 @@ export function taxAmountFromPercent(itemsSubtotal: number, taxPercent: number) 
   return Math.round(((sub * pct) / 100) * 100) / 100
 }
 
-/** Grand total = items subtotal + tax. */
-export function ledgerGrandTotal(itemsSubtotal: number, taxAmount: number) {
-  return Math.max(0, Number(itemsSubtotal) || 0) + Math.max(0, Number(taxAmount) || 0)
+/** Grand total = items subtotal + tax − supplier discount. */
+export function ledgerGrandTotal(
+  itemsSubtotal: number,
+  taxAmount: number,
+  supplierDiscount: number = 0,
+) {
+  const gross =
+    Math.max(0, Number(itemsSubtotal) || 0) + Math.max(0, Number(taxAmount) || 0)
+  const discount = Math.max(0, Math.min(Number(supplierDiscount) || 0, gross))
+  return Math.max(0, gross - discount)
 }
 
 export function getGroupSubtotal(group: PurchaseLedgerSupplierGroup) {
   return sumItemTotals(group.items)
+}
+
+/** Discount capped at group items subtotal. */
+export function resolveGroupDiscount(group: PurchaseLedgerSupplierGroup) {
+  const subtotal = getGroupSubtotal(group)
+  return Math.max(0, Math.min(Number(group.discount) || 0, subtotal))
+}
+
+/** Amount still payable for a supplier after discount (before cash paid). */
+export function getGroupNetTotal(group: PurchaseLedgerSupplierGroup) {
+  return Math.max(0, getGroupSubtotal(group) - resolveGroupDiscount(group))
+}
+
+export function sumGroupDiscounts(groups: PurchaseLedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + resolveGroupDiscount(group), 0)
 }
 
 export function resolveGroupAmountPaid(group: PurchaseLedgerSupplierGroup) {
@@ -220,10 +253,10 @@ export function resolveGroupAmountPaid(group: PurchaseLedgerSupplierGroup) {
 }
 
 export function resolveGroupAmountDue(group: PurchaseLedgerSupplierGroup) {
-  const subtotal = getGroupSubtotal(group)
+  const net = getGroupNetTotal(group)
   const paid = resolveGroupAmountPaid(group)
-  // Always derive due from subtotal − paid (never trust a stale stored amountDue).
-  return Math.max(0, subtotal - paid)
+  // Always derive due from net − paid (never trust a stale stored amountDue).
+  return Math.max(0, net - paid)
 }
 
 export function sumGroupAmountPaid(groups: PurchaseLedgerSupplierGroup[]) {
@@ -238,12 +271,14 @@ export function withGroupPaymentTotals(
   group: PurchaseLedgerSupplierGroup,
   amountPaid: number,
 ): PurchaseLedgerSupplierGroup {
-  const subtotal = getGroupSubtotal(group)
-  const paid = Math.max(0, Math.min(amountPaid, subtotal))
+  const discount = resolveGroupDiscount(group)
+  const net = getGroupNetTotal(group)
+  const paid = Math.max(0, Math.min(amountPaid, net))
   return {
     ...group,
+    discount,
     amountPaid: paid,
-    amountDue: Math.max(0, subtotal - paid),
+    amountDue: Math.max(0, net - paid),
   }
 }
 
@@ -368,7 +403,7 @@ export function reconcilePaymentsToSupplierGroups(
 }
 
 /**
- * If a supplier is over-paid (payments > subtotal), move the excess amount
+ * If a supplier is over-paid (payments > net after discount), move the excess
  * onto other suppliers that still have remaining due.
  */
 export function redistributePaymentOverflow(
@@ -377,7 +412,7 @@ export function redistributePaymentOverflow(
 ): PurchaseLedgerPayment[] {
   if (payments.length === 0 || groups.length === 0) return payments
 
-  const roomById = new Map(groups.map(group => [group.id, getGroupSubtotal(group)]))
+  const roomById = new Map(groups.map(group => [group.id, getGroupNetTotal(group)]))
   const groupById = new Map(groups.map(group => [group.id, group]))
   const groupOrder = groups.map(group => group.id)
   const result: PurchaseLedgerPayment[] = []
@@ -560,7 +595,7 @@ export function clampPaymentsToTotal(
   return result
 }
 
-/** Realign supplier-group paid/due to payment lines (and bill subtotals). */
+/** Realign supplier-group paid/due to payment lines (and bill nets after discount). */
 export function syncSupplierGroupsToPayments(
   groups: PurchaseLedgerSupplierGroup[],
   payments: PurchaseLedgerPayment[],
@@ -583,9 +618,9 @@ export function syncSupplierGroupsToPayments(
   }
 
   let next = groups.map((group) => {
-    const subtotal = getGroupSubtotal(group)
+    const net = getGroupNetTotal(group)
     const fromPayments = paidByGroup.get(group.id) || 0
-    const applied = Math.min(subtotal, fromPayments)
+    const applied = Math.min(net, fromPayments)
     if (fromPayments > applied) unassigned += fromPayments - applied
     return withGroupPaymentTotals(group, applied)
   })
@@ -593,8 +628,8 @@ export function syncSupplierGroupsToPayments(
   if (unassigned > 0) {
     next = next.map((group) => {
       if (unassigned <= 0) return group
-      const subtotal = getGroupSubtotal(group)
-      const room = Math.max(0, subtotal - resolveGroupAmountPaid(group))
+      const net = getGroupNetTotal(group)
+      const room = Math.max(0, net - resolveGroupAmountPaid(group))
       if (room <= 0) return group
       const take = Math.min(room, unassigned)
       unassigned -= take
@@ -655,6 +690,7 @@ function parseSupplierGroups(raw: unknown, fallback: {
       items,
       amountPaid: Number(group.amountPaid) || 0,
       amountDue: group.amountDue == null ? undefined : Number(group.amountDue) || 0,
+      discount: Math.max(0, Number(group.discount) || 0),
       date: String(group.date ?? ""),
       billUrl: String(group.billUrl ?? ""),
       billName: String(group.billName ?? ""),
@@ -773,6 +809,10 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     unitPrice: Number(row.unitPrice) || 0,
     taxPercent: Number(row.taxPercent) || 0,
     taxAmount: Number(row.taxAmount) || 0,
+    supplierDiscount: Math.max(
+      0,
+      Number(row.supplierDiscount) || sumGroupDiscounts(supplierGroups) || 0,
+    ),
     totalAmount,
     amountPaid,
     amountDue,
@@ -978,6 +1018,7 @@ export function buildRentLedgerPayload(params: {
     unitPrice: amount,
     taxPercent: 0,
     taxAmount: 0,
+    supplierDiscount: 0,
     totalAmount: amount,
     amountPaid: 0,
     amountDue: amount,

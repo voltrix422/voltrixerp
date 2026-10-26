@@ -67,6 +67,8 @@ type LedgerSupplierGroup = {
   items: LedgerItem[]
   amountPaid?: number
   amountDue?: number
+  /** Supplier discount — reduces due; not a payment. */
+  discount?: number
   date?: string
   billUrl?: string
   billName?: string
@@ -91,14 +93,28 @@ function parseAttachments(raw: unknown, legacyUrl?: string, legacyName?: string)
   return [{ url, name: String(legacyName ?? "").trim() || "Attachment" }]
 }
 
+function groupDiscount(group: Pick<LedgerSupplierGroup, "discount" | "items">) {
+  const subtotal = sumItems(group.items)
+  return Math.max(0, Math.min(Number(group.discount) || 0, subtotal))
+}
+
+function groupNet(group: Pick<LedgerSupplierGroup, "discount" | "items">) {
+  return Math.max(0, sumItems(group.items) - groupDiscount(group))
+}
+
+function sumGroupDiscounts(groups: LedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + groupDiscount(group), 0)
+}
+
 function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
   if (!Array.isArray(raw)) return []
   return raw.map((group, index) => {
     const g = group as LedgerSupplierGroup
     const items = parseItems(g.items)
-    const subtotal = sumItems(items)
-    const amountPaid = Number(g.amountPaid) || 0
-    const amountDue = Math.max(0, subtotal - amountPaid)
+    const discount = groupDiscount({ items, discount: g.discount })
+    const net = Math.max(0, sumItems(items) - discount)
+    const amountPaid = Math.min(net, Number(g.amountPaid) || 0)
+    const amountDue = Math.max(0, net - amountPaid)
     const billAttachments = parseAttachments(g.billAttachments, g.billUrl, g.billName)
     const paymentProofAttachments = parseAttachments(
       g.paymentProofAttachments,
@@ -113,6 +129,7 @@ function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
       items,
       amountPaid,
       amountDue,
+      discount,
       date: String(g.date ?? ""),
       billAttachments,
       billUrl: billAttachments[0]?.url || "",
@@ -254,20 +271,30 @@ function syncGroupsFromPaymentsLocal(
     }
   }
   let next = groups.map((group) => {
-    const subtotal = sumItems(group.items)
-    const paid = Math.min(subtotal, paidByGroup.get(group.id) || 0)
-    return { ...group, amountPaid: paid, amountDue: Math.max(0, subtotal - paid) }
+    const net = groupNet(group)
+    const paid = Math.min(net, paidByGroup.get(group.id) || 0)
+    return {
+      ...group,
+      discount: groupDiscount(group),
+      amountPaid: paid,
+      amountDue: Math.max(0, net - paid),
+    }
   })
   if (unassigned > 0) {
     next = next.map((group) => {
       if (unassigned <= 0) return group
-      const subtotal = sumItems(group.items)
-      const room = Math.max(0, subtotal - (group.amountPaid || 0))
+      const net = groupNet(group)
+      const room = Math.max(0, net - (group.amountPaid || 0))
       if (room <= 0) return group
       const take = Math.min(room, unassigned)
       unassigned -= take
       const amountPaid = (group.amountPaid || 0) + take
-      return { ...group, amountPaid, amountDue: Math.max(0, subtotal - amountPaid) }
+      return {
+        ...group,
+        discount: groupDiscount(group),
+        amountPaid,
+        amountDue: Math.max(0, net - amountPaid),
+      }
     })
   }
   return next
@@ -330,7 +357,7 @@ async function handlePost(req: NextRequest) {
     if (supplierGroupId && supplierGroups.length > 0) {
       const group = supplierGroups.find((g) => g.id === supplierGroupId)
       if (group) {
-        const groupRemaining = Math.max(0, sumItems(group.items) - (group.amountPaid || 0))
+        const groupRemaining = Math.max(0, groupNet(group) - (group.amountPaid || 0))
         paymentAmount = Math.min(paymentAmount, groupRemaining)
       }
     }
@@ -359,12 +386,13 @@ async function handlePost(req: NextRequest) {
     if (supplierGroupId && supplierGroups.length > 0) {
       nextSupplierGroups = supplierGroups.map(group => {
         if (group.id !== supplierGroupId) return group
-        const subtotal = sumItems(group.items)
-        const amountPaid = Math.min(subtotal, (group.amountPaid || 0) + paymentAmount)
+        const net = groupNet(group)
+        const amountPaid = Math.min(net, (group.amountPaid || 0) + paymentAmount)
         return {
           ...group,
+          discount: groupDiscount(group),
           amountPaid,
-          amountDue: Math.max(0, subtotal - amountPaid),
+          amountDue: Math.max(0, net - amountPaid),
         }
       })
     }
@@ -380,16 +408,27 @@ async function handlePost(req: NextRequest) {
 
     if (!isProject && nextSupplierGroups.length === 1) {
       const group = nextSupplierGroups[0]
-      const subtotal = sumItems(group.items)
-      const groupPaid = Math.min(subtotal, amountPaid)
-      nextSupplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }]
+      const discount = groupDiscount(group)
+      const net = Math.max(0, sumItems(group.items) + (Number(existing.taxAmount) || 0) - discount)
+      const groupPaid = Math.min(net, amountPaid)
+      nextSupplierGroups = [{
+        ...group,
+        discount,
+        amountPaid: groupPaid,
+        amountDue: Math.max(0, net - groupPaid),
+      }]
     }
     // Keep project group dues in sync with their paid amounts after any payment.
     if (isProject && nextSupplierGroups.length > 0) {
       nextSupplierGroups = nextSupplierGroups.map((group) => {
-        const subtotal = sumItems(group.items)
-        const groupPaid = Math.min(subtotal, group.amountPaid || 0)
-        return { ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }
+        const net = groupNet(group)
+        const groupPaid = Math.min(net, group.amountPaid || 0)
+        return {
+          ...group,
+          discount: groupDiscount(group),
+          amountPaid: groupPaid,
+          amountDue: Math.max(0, net - groupPaid),
+        }
       })
     }
     const latest = payments[payments.length - 1]
@@ -423,7 +462,21 @@ async function handlePost(req: NextRequest) {
   if (taxPercent > 0 && !(Number(body.taxAmount) > 0)) {
     taxAmount = Math.round(((itemsSubtotal * taxPercent) / 100) * 100) / 100
   }
-  const totalAmount = (itemsSubtotal + taxAmount) || Number(body.totalAmount) || 0
+  const fromGroups = sumGroupDiscounts(supplierGroups)
+  const supplierDiscount = Math.max(
+    0,
+    Math.min(
+      Number(body.supplierDiscount) > 0 ? Number(body.supplierDiscount) : fromGroups,
+      itemsSubtotal + taxAmount,
+    ),
+  )
+  // Prefer group discounts when present so per-supplier totals stay consistent.
+  const effectiveDiscount = fromGroups > 0 ? Math.min(fromGroups, itemsSubtotal + taxAmount) : supplierDiscount
+  if (!isProject && supplierGroups.length === 1 && effectiveDiscount > 0) {
+    supplierGroups = [{ ...supplierGroups[0], discount: Math.min(effectiveDiscount, sumItems(supplierGroups[0].items)) }]
+  }
+  const totalAmount = Math.max(0, itemsSubtotal + taxAmount - effectiveDiscount)
+    || Math.max(0, Number(body.totalAmount) || 0)
   const firstItem = items[0]
   let payments = clampPaymentsToTotal(parsePayments(body.payments), totalAmount)
   // Group-level paid is used in project mode; payments list is always a floor.
@@ -442,10 +495,15 @@ async function handlePost(req: NextRequest) {
 
   if (!isProject && supplierGroups.length === 1) {
     const group = supplierGroups[0]
-    const subtotal = sumItems(group.items)
-    const groupTotal = subtotal + taxAmount
+    const discount = groupDiscount(group)
+    const groupTotal = Math.max(0, sumItems(group.items) + taxAmount - discount)
     const groupPaid = Math.min(groupTotal, amountPaid)
-    supplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, groupTotal - groupPaid) }]
+    supplierGroups = [{
+      ...group,
+      discount,
+      amountPaid: groupPaid,
+      amountDue: Math.max(0, groupTotal - groupPaid),
+    }]
   }
   const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
   const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber(purchaseScopeId))
@@ -469,6 +527,7 @@ async function handlePost(req: NextRequest) {
     unitPrice: firstItem?.unitPrice || Number(body.unitPrice) || 0,
     taxPercent,
     taxAmount,
+    supplierDiscount: effectiveDiscount,
     totalAmount,
     amountPaid,
     amountDue,

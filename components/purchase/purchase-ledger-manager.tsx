@@ -28,7 +28,10 @@ import {
   sumSupplierGroups,
   sumGroupAmountPaid,
   sumGroupAmountDue,
+  sumGroupDiscounts,
   getGroupSubtotal,
+  getGroupNetTotal,
+  resolveGroupDiscount,
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
   withGroupPaymentTotals,
@@ -691,9 +694,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const itemsSubtotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
   const taxAmountValue = Math.max(0, parseFloat(taxAmount) || 0)
   const taxPercentValue = Math.max(0, parseFloat(taxPercent) || 0)
+  const supplierDiscountValue = useMemo(
+    () => Math.min(sumGroupDiscounts(supplierGroups), itemsSubtotal + taxAmountValue),
+    [supplierGroups, itemsSubtotal, taxAmountValue],
+  )
   const grandTotal = useMemo(
-    () => ledgerGrandTotal(itemsSubtotal, taxAmountValue),
-    [itemsSubtotal, taxAmountValue],
+    () => ledgerGrandTotal(itemsSubtotal, taxAmountValue, supplierDiscountValue),
+    [itemsSubtotal, taxAmountValue, supplierDiscountValue],
   )
 
   // Keep tax amount aligned with % when items change.
@@ -718,10 +725,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const projectGroupDue = useMemo(() => {
     if (!isProjectMode) return 0
     return supplierGroups.reduce((sum, group) => {
-      const subtotal = getGroupSubtotal(group)
+      const net = getGroupNetTotal(group)
       const alreadyPaid = isEditing ? resolveGroupAmountPaid(group) : 0
       const paying = parseFloat(groupPayingNow[group.id] || "") || 0
-      return sum + Math.max(0, subtotal - alreadyPaid - paying)
+      return sum + Math.max(0, net - alreadyPaid - paying)
     }, 0)
   }, [isProjectMode, isEditing, supplierGroups, groupPayingNow])
   const totalPaidNow = isProjectMode ? projectGroupPaid : (isEditing ? existingPaid : payingNow)
@@ -908,8 +915,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       if (taxPctSave > 0 && !(parseFloat(taxAmount) > 0)) {
         taxAmtSave = taxAmountFromPercent(itemsSubtotalSave, taxPctSave)
       }
-      const totalAmount = ledgerGrandTotal(itemsSubtotalSave, taxAmtSave)
-      let groupsWithPayments: PurchaseLedgerSupplierGroup[] = groups
+      const groupsWithDiscount = groups.map(group => {
+        const discount = Math.min(resolveGroupDiscount(group), getGroupSubtotal(group))
+        return { ...group, discount }
+      })
+      const supplierDiscountSave = Math.min(
+        sumGroupDiscounts(groupsWithDiscount),
+        itemsSubtotalSave + taxAmtSave,
+      )
+      const totalAmount = ledgerGrandTotal(itemsSubtotalSave, taxAmtSave, supplierDiscountSave)
+      let groupsWithPayments: PurchaseLedgerSupplierGroup[] = groupsWithDiscount
       let payments: PurchaseLedgerPayment[] = []
       let amountPaid = 0
       let amountDue = totalAmount
@@ -922,9 +937,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               ? { ...p, proofUrl: "", proofName: "" }
               : { ...p },
           ),
-          groups,
+          groupsWithDiscount,
         )
-        for (const group of groups) {
+        for (const group of groupsWithDiscount) {
           const uploadedBills = await uploadAttachments(groupBillFiles[group.id] || [], "purchase-bills")
           const billAttachments = normalizeAttachments([
             ...normalizeAttachments(group.billAttachments, group.billUrl, group.billName),
@@ -943,15 +958,15 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             paymentProofAttachments,
           })
 
-          const subtotal = getGroupSubtotal(group)
+          const net = getGroupNetTotal(group)
           // Use reconciled payment lines for this group (fixes stale/orphan group ids).
           const alreadyPaid = Math.min(
-            subtotal,
+            net,
             payments
               .filter(p => p.supplierGroupId === group.id)
               .reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
           )
-          const remaining = Math.max(0, subtotal - alreadyPaid)
+          const remaining = Math.max(0, net - alreadyPaid)
           const paying = isProjectMode
             ? Math.min(parseFloat(groupPayingNow[group.id] || "") || 0, remaining)
             : 0
@@ -1037,7 +1052,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       } else if (isProjectMode) {
         groupsWithPayments = []
         payments = []
-        for (const group of groups) {
+        for (const group of groupsWithDiscount) {
           const uploadedBills = await uploadAttachments(groupBillFiles[group.id] || [], "purchase-bills")
           const uploadedProofs = await uploadAttachments(groupProofFiles[group.id] || [], "payment-proofs")
           const syncedGroup = withSyncedLegacyAttachments({
@@ -1052,7 +1067,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             ]),
           })
           const payingRaw = parseFloat(groupPayingNow[group.id] || "") || 0
-          const paying = Math.min(payingRaw, getGroupSubtotal(group))
+          const paying = Math.min(payingRaw, getGroupNetTotal(group))
           const withPayment = withGroupPaymentTotals(syncedGroup, paying)
           groupsWithPayments.push({
             ...withPayment,
@@ -1095,9 +1110,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         const uploadedProofs = await uploadAttachments(proofFiles, "payment-proofs")
         const billAttachments = normalizeAttachments(uploadedBills)
         const proofAttachments = normalizeAttachments(uploadedProofs)
-        const paidOnCreate = payingNow > 0 ? payingNow : 0
-        groupsWithPayments = groups.map((group, index) => {
-          const withPay = withGroupPaymentTotals(group, groups.length === 1 ? paidOnCreate : 0)
+        const paidOnCreate = payingNow > 0 ? Math.min(payingNow, totalAmount) : 0
+        groupsWithPayments = groupsWithDiscount.map((group, index) => {
+          const withPay = withGroupPaymentTotals(group, groupsWithDiscount.length === 1 ? paidOnCreate : 0)
           return index === 0
             ? withSyncedLegacyAttachments({
               ...withPay,
@@ -1149,7 +1164,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         billName = firstGroupBill?.billName || ""
       }
 
-      const primary = groups[0]
+      const primary = groupsWithDiscount[0]
       const clampedPayments = isProjectMode
         ? normalizeProjectPayments(payments, groupsWithPayments, totalAmount)
         : clampPaymentsToTotal(payments, totalAmount)
@@ -1170,7 +1185,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         orderId: null,
         orderNumber: "",
         supplierId: primary?.supplierId ?? null,
-        supplierName: groups.map(g => g.supplierName).filter(Boolean).join(", "),
+        supplierName: groupsWithDiscount.map(g => g.supplierName).filter(Boolean).join(", "),
         productName: flatItems[0]?.productName ?? "",
         transactionType,
         category: "expense",
@@ -1178,6 +1193,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         unitPrice: flatItems[0]?.unitPrice ?? 0,
         taxPercent: taxPctSave,
         taxAmount: taxAmtSave,
+        supplierDiscount: supplierDiscountSave,
         totalAmount,
         amountPaid: finalPaid,
         amountDue: finalDue,
@@ -1865,19 +1881,54 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       />
 
                       {isProjectMode && (
-                        <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
-                            Supplier payment
+                        <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5 space-y-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                            Supplier payment &amp; discount
                           </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-end">
                             <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
                               <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Supplier total</p>
                               <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(getGroupSubtotal(group))}</p>
                             </div>
+                            <div className="min-w-0">
+                              <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">
+                                Supplier discount
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                max={getGroupSubtotal(group) || undefined}
+                                value={group.discount ? String(group.discount) : ""}
+                                onChange={e => {
+                                  const raw = parseFloat(e.target.value) || 0
+                                  const capped = Math.max(0, Math.min(raw, getGroupSubtotal(group)))
+                                  updateSupplierGroup(group.id, {
+                                    discount: e.target.value.trim() === "" ? 0 : capped,
+                                  })
+                                }}
+                                placeholder="0"
+                                className={inputCls}
+                                inputMode="decimal"
+                              />
+                              <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                                Reduces due — not counted as payment sent
+                              </p>
+                            </div>
+                            {resolveGroupDiscount(group) > 0 && (
+                              <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">After discount</p>
+                                <p className="text-xs font-semibold sm:mt-0.5 text-[#1faca6]">
+                                  {fmtMoney(getGroupNetTotal(group))}
+                                </p>
+                              </div>
+                            )}
                             {isEditing && (
                               <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
                                 <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
-                                <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(resolveGroupAmountPaid(group))}</p>
+                                <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">
+                                  {fmtMoney(resolveGroupAmountPaid(group))}
+                                </p>
                               </div>
                             )}
                             <div className="min-w-0">
@@ -1886,7 +1937,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                                 type="number"
                                 min="0"
                                 step="any"
-                                max={Math.max(0, getGroupSubtotal(group) - (isEditing ? resolveGroupAmountPaid(group) : 0)) || undefined}
+                                max={Math.max(0, getGroupNetTotal(group) - (isEditing ? resolveGroupAmountPaid(group) : 0)) || undefined}
                                 value={groupPayingNow[group.id] || ""}
                                 onChange={e => setGroupPayingNow(prev => ({ ...prev, [group.id]: e.target.value }))}
                                 placeholder="0"
@@ -1898,7 +1949,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                               <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">
                                 {fmtMoney(Math.max(
                                   0,
-                                  getGroupSubtotal(group)
+                                  getGroupNetTotal(group)
                                     - (isEditing ? resolveGroupAmountPaid(group) : 0)
                                     - (parseFloat(groupPayingNow[group.id] || "") || 0),
                                 ))}
@@ -2031,6 +2082,49 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       Tax {taxPercentValue}% of {fmtMoney(itemsSubtotal)} = {fmtMoney(taxAmountValue)}
                     </p>
                   )}
+                  {!isProjectMode && (
+                    <Field
+                      label="Supplier discount (PKR)"
+                      hint="Reduces amount due — not counted as payment sent"
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        max={itemsSubtotal + taxAmountValue || undefined}
+                        value={
+                          supplierGroups[0]?.discount
+                            ? String(supplierGroups[0].discount)
+                            : ""
+                        }
+                        onChange={e => {
+                          const group = supplierGroups[0]
+                          if (!group) return
+                          const raw = parseFloat(e.target.value) || 0
+                          const capped = Math.max(
+                            0,
+                            Math.min(raw, itemsSubtotal + taxAmountValue),
+                          )
+                          updateSupplierGroup(group.id, {
+                            discount: e.target.value.trim() === "" ? 0 : capped,
+                          })
+                        }}
+                        placeholder="0"
+                        className={inputCls}
+                        inputMode="decimal"
+                      />
+                    </Field>
+                  )}
+                  {supplierDiscountValue > 0 && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        Supplier discount
+                      </span>
+                      <span className="text-sm font-medium tabular-nums text-amber-700 dark:text-amber-400">
+                        −{fmtMoney(supplierDiscountValue)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2 border-t pt-2">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                       {linkMode === "project" ? "Project total" : "Grand total"}
@@ -2038,7 +2132,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     <span className="text-base font-semibold text-[#1faca6] tabular-nums">{fmtMoney(grandTotal)}</span>
                   </div>
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Grand total = items subtotal + tax
+                    Grand total = items + tax − supplier discount
                   </p>
                 </div>
 

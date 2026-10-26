@@ -10,6 +10,9 @@ import {
   sumItemTotals,
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
+  resolveGroupDiscount,
+  getGroupNetTotal,
+  sumGroupDiscounts,
   normalizeSupplierKey,
   normalizeAttachments,
   type PurchaseLedgerEntry,
@@ -179,6 +182,23 @@ export function LedgerEntryDetailModal({
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Subtotal</span>
                 <span className="text-sm font-semibold text-[#1faca6]">{fmtMoney(sumItemTotals(group.items))}</span>
               </div>
+              {resolveGroupDiscount(group) > 0 && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t bg-[hsl(var(--muted))]/5">
+                  <div>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Supplier discount</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Not counted as payment sent</p>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                    −{fmtMoney(resolveGroupDiscount(group))}
+                  </span>
+                </div>
+              )}
+              {resolveGroupDiscount(group) > 0 && (
+                <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-t bg-[hsl(var(--muted))]/10">
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">After discount</span>
+                  <span className="text-sm font-semibold text-[#1faca6]">{fmtMoney(getGroupNetTotal(group))}</span>
+                </div>
+              )}
               {entry.linkMode === "project" && (
                 <div className="grid grid-cols-2 gap-2 px-3 py-2 border-t bg-[hsl(var(--muted))]/5">
                   <div className="rounded-md border bg-[hsl(var(--card))] px-2.5 py-2 text-center">
@@ -257,7 +277,16 @@ export function LedgerEntryDetailModal({
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Items subtotal</span>
               <span className="text-sm font-medium tabular-nums">
-                {fmtMoney(Math.max(0, entry.totalAmount - (entry.taxAmount || 0)))}
+                {fmtMoney(
+                  entry.items.length > 0
+                    ? sumItemTotals(entry.items)
+                    : Math.max(
+                      0,
+                      entry.totalAmount
+                        - (entry.taxAmount || 0)
+                        + (entry.supplierDiscount || sumGroupDiscounts(entry.supplierGroups) || 0),
+                    ),
+                )}
               </span>
             </div>
             {(entry.taxAmount > 0 || entry.taxPercent > 0) && (
@@ -266,6 +295,17 @@ export function LedgerEntryDetailModal({
                   Tax{entry.taxPercent > 0 ? ` (${entry.taxPercent}%)` : ""}
                 </span>
                 <span className="text-sm font-medium tabular-nums">{fmtMoney(entry.taxAmount || 0)}</span>
+              </div>
+            )}
+            {(entry.supplierDiscount > 0 || sumGroupDiscounts(entry.supplierGroups) > 0) && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Supplier discount
+                  <span className="block text-[9px] font-normal">Not counted as payment sent</span>
+                </span>
+                <span className="text-sm font-medium tabular-nums text-amber-700 dark:text-amber-400">
+                  −{fmtMoney(entry.supplierDiscount || sumGroupDiscounts(entry.supplierGroups))}
+                </span>
               </div>
             )}
             <div className="flex items-center justify-between gap-2 border-t pt-1.5">
