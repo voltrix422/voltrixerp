@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -7,6 +7,7 @@ import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle,
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 import { useAuth } from "@/components/auth-provider"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { parseOrderNumberFromWarrantyNotes } from "@/lib/warranty-order-resolver"
 
 interface Warranty {
   id: string
@@ -309,21 +310,37 @@ export function WarrantyManager() {
 
   const warranties = listTab === "started" ? startedWarranties : deliveredWarranties
 
-  const filtered = warranties.filter(w => {
+  const searchQ = search.trim().toLowerCase()
+  const orderSearchHint = useMemo(() => {
+    const raw = search.trim()
+    if (!raw) return null
+    if (/^ord[-\s]?\d+/i.test(raw)) {
+      return raw.replace(/\s+/g, "").toUpperCase().replace(/^ORD(?!-)/i, "ORD-")
+    }
+    const fromNotesShape = raw.match(/ord-\d+/i)?.[0]
+    return fromNotesShape ? fromNotesShape.toUpperCase() : null
+  }, [search])
+
+  function warrantyMatchesSearch(w: Warranty, q: string): boolean {
+    if (!q) return true
+    const orderFromNotes = parseOrderNumberFromWarrantyNotes(w.notes)
+    const orderNorm = (orderFromNotes || "").toLowerCase()
+    const qNorm = q.replace(/\s+/g, "")
+    return (
+      w.productName.toLowerCase().includes(q) ||
+      (w.serialNumber && w.serialNumber.toLowerCase().includes(q)) ||
+      (w.warrantyId && w.warrantyId.toLowerCase().includes(q)) ||
+      (w.customerName && w.customerName.toLowerCase().includes(q)) ||
+      (w.customerEmail && w.customerEmail.toLowerCase().includes(q)) ||
+      (w.customerPhone && w.customerPhone.toLowerCase().includes(q)) ||
+      (w.notes && w.notes.toLowerCase().includes(q)) ||
+      (orderNorm && (orderNorm.includes(q) || orderNorm.includes(qNorm) || qNorm.includes(orderNorm)))
+    )
+  }
+
+  function passesDateAndStatus(w: Warranty): boolean {
     const remaining = calculateRemainingWarranty(w.warrantyEndDate)
-    
-    // Search filter
-    const matchesSearch = 
-      w.productName.toLowerCase().includes(search.toLowerCase()) ||
-      (w.serialNumber && w.serialNumber.toLowerCase().includes(search.toLowerCase())) ||
-      (w.warrantyId && w.warrantyId.toLowerCase().includes(search.toLowerCase())) ||
-      (w.customerName && w.customerName.toLowerCase().includes(search.toLowerCase())) ||
-      (w.customerEmail && w.customerEmail.toLowerCase().includes(search.toLowerCase()))
-    
-    // Status filter
     const matchesStatus = statusFilter === "all" || remaining.status === statusFilter
-    
-    // Date range filter
     let matchesDateRange = true
     if (dateFrom) {
       matchesDateRange = matchesDateRange && new Date(w.warrantyStartDate) >= new Date(dateFrom)
@@ -331,9 +348,36 @@ export function WarrantyManager() {
     if (dateTo) {
       matchesDateRange = matchesDateRange && new Date(w.warrantyEndDate) <= new Date(dateTo)
     }
-    
-    return matchesSearch && matchesStatus && matchesDateRange
-  })
+    return matchesStatus && matchesDateRange
+  }
+
+  /** Order-like search looks across Delivered + Started so one ORD shows all units. */
+  const searchingByOrder = Boolean(orderSearchHint && searchQ)
+
+  type WarrantyRow = Warranty & { _listTab: "delivered" | "started" }
+
+  const filtered: WarrantyRow[] = useMemo(() => {
+    const pool = searchingByOrder
+      ? [
+          ...deliveredWarranties.map((w) => ({ w, tab: "delivered" as const })),
+          ...startedWarranties.map((w) => ({ w, tab: "started" as const })),
+        ]
+      : warranties.map((w) => ({ w, tab: listTab }))
+
+    return pool
+      .filter(({ w }) => warrantyMatchesSearch(w, searchQ) && passesDateAndStatus(w))
+      .map(({ w, tab }) => ({ ...w, _listTab: tab }))
+  }, [
+    searchingByOrder,
+    deliveredWarranties,
+    startedWarranties,
+    warranties,
+    listTab,
+    searchQ,
+    statusFilter,
+    dateFrom,
+    dateTo,
+  ])
 
   return (
     <div className="space-y-3">
@@ -373,8 +417,27 @@ export function WarrantyManager() {
         </button>
       </div>
 
-      {/* Header with Filters and Add button on right */}
-      <div className="flex items-center justify-end gap-2">
+      {/* Header with search, filters, and actions */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-sm mr-auto">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Product, customer, order (ORD-00199)…"
+            className="w-full h-9 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-8 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
+          />
+          {search.trim() && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`p-2.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer ${
@@ -399,7 +462,15 @@ export function WarrantyManager() {
         </Button>
       </div>
 
-      {/* Collapsible Filters with Search */}
+      {searchingByOrder && (
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          Showing products for order <span className="font-mono font-semibold text-[#1a9f9a]">{orderSearchHint}</span>
+          {" "}across Delivered and Warranty started
+          {filtered.length > 0 ? ` · ${filtered.length} unit${filtered.length === 1 ? "" : "s"}` : ""}.
+        </p>
+      )}
+
+      {/* Collapsible Filters */}
       {showFilters && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 space-y-2">
           <div className="flex flex-wrap gap-2">
@@ -410,7 +481,7 @@ export function WarrantyManager() {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Product, customer..."
+                  placeholder="Product, customer, order…"
                   className="w-full h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-7 pr-2 text-[10px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
                 />
               </div>
@@ -461,7 +532,7 @@ export function WarrantyManager() {
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))]">Loading warranties...</div>
       )}
 
-      {!loading && warranties.length === 0 && (
+      {!loading && !searchingByOrder && warranties.length === 0 && (
         <div className="text-center py-10 rounded-lg border border-dashed">
           <Shield className="h-10 w-10 mx-auto text-[hsl(var(--muted-foreground))] opacity-40 mb-2" />
           <p className="text-sm font-medium">
@@ -475,17 +546,30 @@ export function WarrantyManager() {
         </div>
       )}
 
+      {!loading && (searchingByOrder || warranties.length > 0) && filtered.length === 0 && (
+        <div className="text-center py-10 rounded-lg border border-dashed">
+          <Search className="h-10 w-10 mx-auto text-[hsl(var(--muted-foreground))] opacity-40 mb-2" />
+          <p className="text-sm font-medium">No warranties match this search</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-md mx-auto">
+            {searchingByOrder
+              ? `No delivered or started units found for ${orderSearchHint}. Try the full order number (e.g. ORD-00199).`
+              : "Try product name, serial, customer, or order number (ORD-…)."}
+          </p>
+        </div>
+      )}
+
       {/* Warranty Table */}
-      {!loading && warranties.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div className="rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/40">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Product</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Warranty name</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Sold Date</th>
-                  {listTab === "started" && (
+                  {(listTab === "started" || searchingByOrder) && (
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Warranty Period</th>
                   )}
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Status</th>
@@ -495,6 +579,8 @@ export function WarrantyManager() {
               <tbody>
                 {filtered.map(warranty => {
                   const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
+                  const rowTab = warranty._listTab || listTab
+                  const orderNumber = parseOrderNumberFromWarrantyNotes(warranty.notes)
                   return (
                     <tr key={warranty.id} className="border-b border-[hsl(var(--border))]/40 hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer" onClick={() => setViewDetail(warranty)}>
                       <td className="px-4 py-3.5">
@@ -502,8 +588,15 @@ export function WarrantyManager() {
                         {warranty.serialNumber && warranty.serialNumber !== warranty.productName && (
                           <p className="text-xs font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{warranty.serialNumber}</p>
                         )}
-                        {listTab === "started" && warranty.warrantyId && (
+                        {rowTab === "started" && warranty.warrantyId && (
                           <p className="text-xs font-mono text-[#1a9f9a] mt-0.5">{warranty.warrantyId}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {orderNumber ? (
+                          <p className="text-xs font-mono font-semibold text-[#1a9f9a]">{orderNumber}</p>
+                        ) : (
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">—</p>
                         )}
                       </td>
                       <td className="px-4 py-3.5">
@@ -512,13 +605,17 @@ export function WarrantyManager() {
                       <td className="px-4 py-3.5">
                         <p className="text-sm text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
                       </td>
-                      {listTab === "started" && (
+                      {(listTab === "started" || searchingByOrder) && (
                         <td className="px-4 py-3.5">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} – {formatDate(warranty.warrantyEndDate)}</p>
+                          {rowTab === "started" ? (
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} – {formatDate(warranty.warrantyEndDate)}</p>
+                          ) : (
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Not started</p>
+                          )}
                         </td>
                       )}
                       <td className="px-4 py-3.5">
-                        {listTab === "delivered" ? (
+                        {rowTab === "delivered" ? (
                           <Badge variant="warning" className="text-xs px-2.5 py-1 font-medium">
                             Pending start
                           </Badge>
@@ -536,7 +633,7 @@ export function WarrantyManager() {
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                          {listTab === "delivered" && warranty.serialNumber && (
+                          {rowTab === "delivered" && warranty.serialNumber && (
                             <Button
                               size="sm"
                               className="h-8 px-3 text-xs font-medium bg-[#1a9f9a] hover:bg-[#158a85] text-white"
@@ -547,7 +644,7 @@ export function WarrantyManager() {
                               {activatingId === warranty.id ? "Starting…" : "Start warranty"}
                             </Button>
                           )}
-                          {listTab === "started" && (
+                          {rowTab === "started" && (
                             <Button
                               size="sm"
                               variant="outline"
