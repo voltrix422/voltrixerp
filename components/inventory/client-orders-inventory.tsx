@@ -1257,7 +1257,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             body: JSON.stringify({
               orderId: updatedOrder.id,
               confirm: true,
-              activatedBy: fulfillDispatcherName.trim() || currentUser,
+              activatedBy: fulfillDispatcherName.trim() || getSession()?.name || "Inventory",
               warrantyHolderName: warrantyHolder,
             }),
           })
