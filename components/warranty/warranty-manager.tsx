@@ -326,15 +326,15 @@ export function WarrantyManager() {
     const orderFromNotes = parseOrderNumberFromWarrantyNotes(w.notes)
     const orderNorm = (orderFromNotes || "").toLowerCase()
     const qNorm = q.replace(/\s+/g, "")
-    return (
+    return Boolean(
       w.productName.toLowerCase().includes(q) ||
-      (w.serialNumber && w.serialNumber.toLowerCase().includes(q)) ||
-      (w.warrantyId && w.warrantyId.toLowerCase().includes(q)) ||
-      (w.customerName && w.customerName.toLowerCase().includes(q)) ||
-      (w.customerEmail && w.customerEmail.toLowerCase().includes(q)) ||
-      (w.customerPhone && w.customerPhone.toLowerCase().includes(q)) ||
-      (w.notes && w.notes.toLowerCase().includes(q)) ||
-      (orderNorm && (orderNorm.includes(q) || orderNorm.includes(qNorm) || qNorm.includes(orderNorm)))
+      (w.serialNumber || "").toLowerCase().includes(q) ||
+      (w.warrantyId || "").toLowerCase().includes(q) ||
+      (w.customerName || "").toLowerCase().includes(q) ||
+      (w.customerEmail || "").toLowerCase().includes(q) ||
+      (w.customerPhone || "").toLowerCase().includes(q) ||
+      (w.notes || "").toLowerCase().includes(q) ||
+      (orderNorm && (orderNorm.includes(q) || orderNorm.includes(qNorm) || qNorm.includes(orderNorm))),
     )
   }
 
