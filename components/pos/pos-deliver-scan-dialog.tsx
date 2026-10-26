@@ -43,26 +43,20 @@ export function PosDeliverScanDialog({
 
   const needsScan = lines.length > 0 && !skipScanning
   const canDeliver = !needsScan || scansValid
-  /** Warranty start needs scanned serials — not available on no-scan deliver. */
-  const canStartWarranty = canDeliver && !skipScanning && lines.length > 0
 
-  async function deliver(startWarranty: boolean) {
+  async function deliver() {
     if (saving) return
     if (needsScan && !scansValid) {
       toast({ type: "error", title: "Scan every unit", message: "Scan the same number of serials as the order qty." })
       return
     }
-    if (startWarranty && skipScanning) {
+    const holder = warrantyHolderName.trim() || (order.clientName || "").trim()
+    if (!skipScanning && lines.length > 0 && !holder) {
       toast({
         type: "error",
-        title: "Scan required for warranty",
-        message: "Deliver without scanning first, or switch to With QR scanning to start warranty now.",
+        title: "Warranty name required",
+        message: "Type the person or company name — warranties start automatically when scanning finishes.",
       })
-      return
-    }
-    const holder = warrantyHolderName.trim()
-    if (startWarranty && !holder) {
-      toast({ type: "error", title: "Warranty name required", message: "Type the name that will start this warranty." })
       return
     }
     setSaving(true)
@@ -79,7 +73,7 @@ export function PosDeliverScanDialog({
         fulfillmentDispatcher: userName,
       })
       let warrantyNote = ""
-      if (startWarranty && allocations.length > 0) {
+      if (!skipScanning && allocations.length > 0 && holder) {
         const res = await fetch("/api/db/orders/start-warranties", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -87,6 +81,7 @@ export function PosDeliverScanDialog({
             orderId: saved.id,
             confirm: true,
             activatedBy: userName || "Branch POS",
+            warrantyHolderName: holder,
           }),
         })
         const data = await res.json().catch(() => ({}))
@@ -126,7 +121,7 @@ export function PosDeliverScanDialog({
             <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
               {skipScanning
                 ? "Deliver without QR scans. Branch stock qty is still deducted. No serials for warranty."
-                : "Scan each unit like warehouse dispatch. Serials go to Stock history. Start warranty now or after."}
+                : "Scan each unit. When scanning finishes, warranties start automatically for all units."}
             </p>
           </div>
           <button type="button" className="h-8 w-8 rounded-md hover:bg-[hsl(var(--muted))]/40 inline-flex items-center justify-center" onClick={onClose} disabled={saving}>
@@ -156,7 +151,7 @@ export function PosDeliverScanDialog({
                     With QR scanning
                   </p>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                    Scan serials for warranty · then deliver
+                    Scan serials · warranties start when deliver completes
                   </p>
                 </button>
                 <button
@@ -191,8 +186,8 @@ export function PosDeliverScanDialog({
             </label>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
               {skipScanning
-                ? "Optional when delivering without scanning — warranties need serials later if you scan them separately."
-                : "Person or company who owns the product — they type this name when scanning to start warranty."}
+                ? "Optional when delivering without scanning."
+                : "Person or company who owns the product — used when warranties start after scanning."}
             </p>
             <input
               value={warrantyHolderName}
@@ -231,25 +226,23 @@ export function PosDeliverScanDialog({
           </Button>
           <Button
             type="button"
-            variant="outline"
-            className={`h-9 text-xs ${skipScanning ? "border-amber-600 text-amber-700" : "border-[#1faca6] text-[#1faca6]"}`}
+            className={`h-9 text-xs text-white ${
+              skipScanning
+                ? "bg-amber-600 hover:bg-amber-700"
+                : "bg-[#1faca6] hover:bg-[#17857f]"
+            }`}
             disabled={saving || !canDeliver}
-            onClick={() => void deliver(false)}
+            onClick={() => void deliver()}
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
-            {skipScanning ? "Deliver without scanning" : "Deliver"}
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : skipScanning ? (
+              <Truck className="h-3.5 w-3.5" />
+            ) : (
+              <Shield className="h-3.5 w-3.5" />
+            )}
+            {skipScanning ? "Deliver without scanning" : "Deliver & start warranty"}
           </Button>
-          {!skipScanning && (
-            <Button
-              type="button"
-              className="h-9 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
-              disabled={saving || !canStartWarranty}
-              onClick={() => void deliver(true)}
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
-              Deliver & start warranty
-            </Button>
-          )}
         </div>
       </div>
     </div>

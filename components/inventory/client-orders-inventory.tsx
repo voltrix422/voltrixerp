@@ -1232,9 +1232,48 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
       updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
 
+      const scannedCount = fulfillmentSerialAllocations.length
+      const shouldStartWarranties = !skipScanning && scannedCount > 0
+      const warrantyHolder =
+        (updatedOrder.warrantyHolderName || "").trim() ||
+        (updatedOrder.clientName || "").trim() ||
+        fulfillDispatcherName.trim()
+
+      if (shouldStartWarranties && warrantyHolder && !(updatedOrder.warrantyHolderName || "").trim()) {
+        updatedOrder = { ...updatedOrder, warrantyHolderName: warrantyHolder }
+      }
+
       updatedOrder = await saveOrder(updatedOrder)
       if (!updatedOrder.inventoryDeductedAt) {
         updatedOrder = await applyInventoryDeduction(updatedOrder)
+      }
+
+      let warrantyStartNote = ""
+      if (shouldStartWarranties && warrantyHolder) {
+        try {
+          const res = await fetch("/api/db/orders/start-warranties", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId: updatedOrder.id,
+              confirm: true,
+              activatedBy: fulfillDispatcherName.trim() || currentUser,
+              warrantyHolderName: warrantyHolder,
+            }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (res.ok) {
+            const started = Number((data as { started?: number }).started) || 0
+            const already = Number((data as { alreadyActive?: number }).alreadyActive) || 0
+            warrantyStartNote = `${started} warranty${started === 1 ? "" : "ies"} started${already ? ` · ${already} already active` : ""}`
+          } else {
+            warrantyStartNote =
+              (data as { error?: string }).error ||
+              "Warranties pending — start them from the order or Warranty tab."
+          }
+        } catch {
+          warrantyStartNote = "Warranties pending — start them from the order or Warranty tab."
+        }
       }
 
       await logOrderFulfillmentHistory({
@@ -1251,7 +1290,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         productImageUrls: productImageUrls.length > 0 ? productImageUrls : [],
         fulfilledAt: updatedOrder.fulfillmentDate || new Date().toISOString(),
         fulfilledBy: updatedOrder.createdBy || "Inventory",
-        notes: `Dispatch note created by ${fulfillDispatcherName.trim()}. Inventory updated.`,
+        notes: `Dispatch note created by ${fulfillDispatcherName.trim()}. Inventory updated.${warrantyStartNote ? ` ${warrantyStartNote}.` : ""}`,
       })
 
       const blob = await generateDispatchNotePDF(updatedOrder, fulfillDispatcherName, fulfillDate)
@@ -1266,6 +1305,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       setFulfilledOrderNumber(order.orderNumber)
       setShowFulfillSuccess(true)
+      if (warrantyStartNote) {
+        setStockDeductionNotice(warrantyStartNote)
+      }
 
       clearDispatchDraft(order.id)
       setShowFulfillDialog(false)
@@ -2306,7 +2348,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 onClick={handleFulfillOrder}
                 disabled={updating || !canSubmitFulfillment}
               >
-                {updating ? "Creating…" : "Create dispatch note"}
+                {updating
+                  ? "Creating…"
+                  : useQrScanDispatch
+                    ? "Create dispatch note & start warranty"
+                    : "Create dispatch note"}
               </Button>
               {useQrScanDispatch && !order.inventoryDeductedAt && (
                 <Button

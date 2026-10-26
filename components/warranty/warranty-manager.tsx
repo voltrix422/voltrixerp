@@ -8,6 +8,7 @@ import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 import { useAuth } from "@/components/auth-provider"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import { parseOrderNumberFromWarrantyNotes } from "@/lib/warranty-order-resolver"
+import { isErpAdmin } from "@/lib/auth"
 
 interface Warranty {
   id: string
@@ -46,6 +47,7 @@ export function WarrantyManager() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "expired">("all")
+  const [startingAllPending, setStartingAllPending] = useState(false)
 
   // Form state
   const [productName, setProductName] = useState("")
@@ -288,6 +290,53 @@ export function WarrantyManager() {
     }
   }
 
+  async function handleStartAllPending() {
+    if (!isErpAdmin(user?.role)) return
+    if (deliveredWarranties.length === 0) {
+      alert("No pending delivered warranties to start.")
+      return
+    }
+    if (
+      !confirm(
+        `Start warranty for all ${deliveredWarranties.length} delivered unit(s) that are not started yet?`,
+      )
+    ) {
+      return
+    }
+    setStartingAllPending(true)
+    try {
+      const res = await fetch("/api/db/orders/start-warranties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirm: true,
+          startAllPending: true,
+          activatedBy: user?.name || "ERP admin",
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert((data as { error?: string }).error || "Could not start pending warranties.")
+        return
+      }
+      const started = Number((data as { started?: number }).started) || 0
+      const already = Number((data as { alreadyActive?: number }).alreadyActive) || 0
+      const failed = Array.isArray((data as { failed?: unknown[] }).failed)
+        ? (data as { failed: unknown[] }).failed.length
+        : 0
+      await fetchWarranties()
+      setListTab("started")
+      alert(
+        `Done. Started ${started}${already ? ` · ${already} already active` : ""}${failed ? ` · ${failed} failed` : ""}.`,
+      )
+    } catch (error) {
+      console.error("Error starting all pending warranties:", error)
+      alert("Could not start pending warranties. Please try again.")
+    } finally {
+      setStartingAllPending(false)
+    }
+  }
+
   function calculateRemainingWarranty(endDate: string): { days: number; status: "active" | "expiring" | "expired" } {
     const end = new Date(endDate)
     const now = new Date()
@@ -382,12 +431,12 @@ export function WarrantyManager() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed">
-        <strong>Delivered</strong> lists units dispatched to customers whose warranty has not been started yet.
-        After someone scans the product QR (branch, this page, or{" "}
+        <strong>Delivered</strong> lists units dispatched whose warranty has not been started yet.
+        New scanned dispatches start warranty automatically. You can also start pending units here, or from the public page{" "}
         <a href="https://voltrixbatteries.com/warranty" className="text-[#1a9f9a] underline" target="_blank" rel="noreferrer">
           voltrixbatteries.com/warranty
         </a>
-        ), they move to <strong>Warranty started</strong>.
+        .
       </p>
 
       <div className="flex gap-1 border-b border-[hsl(var(--border))]">
@@ -446,6 +495,20 @@ export function WarrantyManager() {
         >
           <Filter className="h-4 w-4" />
         </button>
+        {isErpAdmin(user?.role) && deliveredWarranties.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 text-sm gap-2 border-[#1a9f9a] text-[#1a9f9a]"
+            disabled={startingAllPending}
+            onClick={() => void handleStartAllPending()}
+          >
+            <PlayCircle className="h-4 w-4" />
+            {startingAllPending
+              ? "Starting…"
+              : `Start all pending (${deliveredWarranties.length})`}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"

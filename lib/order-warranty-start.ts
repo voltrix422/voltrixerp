@@ -3,6 +3,7 @@ import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-s
 import { activateWarrantyBySerial } from "@/lib/warranty-activation"
 import { normalizeWarrantyHolderName } from "@/lib/warranty-holder-name"
 import { parseOrderNumberFromWarrantyNotes } from "@/lib/warranty-order-resolver"
+import { filterDeliveredPendingWarranties } from "@/lib/warranty-registry"
 
 export type OrderWarrantyStartFailure = {
   serialNumber: string
@@ -80,6 +81,8 @@ async function runPool<T>(
 export async function startWarrantiesForOrder(params: {
   orderId: string
   activatedBy: string
+  /** When set, written onto the order before starting (e.g. client name fallback). */
+  warrantyHolderName?: string
 }): Promise<OrderWarrantyStartResult> {
   const order = await prisma.erpOrder.findUnique({ where: { id: params.orderId } })
   if (!order) {
@@ -89,9 +92,20 @@ export async function startWarrantiesForOrder(params: {
     throw new Error("Warranty can only be started on a delivered order.")
   }
 
-  const warrantyName = normalizeWarrantyHolderName(order.warrantyHolderName || "")
+  let warrantyName = normalizeWarrantyHolderName(
+    params.warrantyHolderName || order.warrantyHolderName || order.clientName || "",
+  )
   if (!warrantyName) {
     throw new Error("Save a warranty name on this order first.")
+  }
+
+  if (
+    normalizeWarrantyHolderName(order.warrantyHolderName || "") !== warrantyName
+  ) {
+    await prisma.erpOrder.update({
+      where: { id: order.id },
+      data: { warrantyHolderName: warrantyName },
+    })
   }
 
   const fromAlloc = uniqueSerialsFromAllocations(order.fulfillmentSerialAllocations)
@@ -131,5 +145,153 @@ export async function startWarrantiesForOrder(params: {
     started,
     alreadyActive,
     failed,
+  }
+}
+
+export type StartAllPendingResult = {
+  pendingFound: number
+  started: number
+  alreadyActive: number
+  failed: OrderWarrantyStartFailure[]
+  ordersTouched: number
+}
+
+/**
+ * Start warranty for every delivered unit that is still pending
+ * (Website → Warranty → Delivered tab).
+ */
+export async function startAllPendingDispatchedWarranties(params: {
+  activatedBy: string
+}): Promise<StartAllPendingResult> {
+  const activatedBy = params.activatedBy.trim() || "ERP admin — bulk start pending"
+
+  const [warranties, units] = await Promise.all([
+    prisma.erpWarranty.findMany({
+      where: { activatedAt: null },
+      select: {
+        id: true,
+        warrantyId: true,
+        serialNumber: true,
+        productName: true,
+        customerName: true,
+        notes: true,
+        activatedAt: true,
+      },
+    }),
+    prisma.erpInventorySerialUnit.findMany({
+      select: { warrantyId: true, serialNumber: true, status: true },
+    }),
+  ])
+
+  const pending = filterDeliveredPendingWarranties(warranties, units)
+  const byOrder = new Map<string, typeof pending>()
+  const orphans: typeof pending = []
+
+  for (const row of pending) {
+    const orderNumber = parseOrderNumberFromWarrantyNotes(row.notes)
+    if (orderNumber) {
+      const list = byOrder.get(orderNumber) || []
+      list.push(row)
+      byOrder.set(orderNumber, list)
+    } else {
+      orphans.push(row)
+    }
+  }
+
+  let started = 0
+  let alreadyActive = 0
+  const failed: OrderWarrantyStartFailure[] = []
+  let ordersTouched = 0
+
+  for (const [orderNumber, rows] of byOrder) {
+    const order = await prisma.erpOrder.findFirst({
+      where: { orderNumber: { equals: orderNumber, mode: "insensitive" } },
+      select: {
+        id: true,
+        status: true,
+        clientName: true,
+        warrantyHolderName: true,
+        fulfillmentSerialAllocations: true,
+      },
+    })
+
+    const holder =
+      normalizeWarrantyHolderName(order?.warrantyHolderName || "") ||
+      normalizeWarrantyHolderName(rows.find((r) => r.customerName)?.customerName || "") ||
+      normalizeWarrantyHolderName(order?.clientName || "") ||
+      "Customer"
+
+    if (order && order.status === "delivered") {
+      try {
+        const result = await startWarrantiesForOrder({
+          orderId: order.id,
+          activatedBy,
+          warrantyHolderName: holder,
+        })
+        ordersTouched += 1
+        started += result.started
+        alreadyActive += result.alreadyActive
+        failed.push(...result.failed)
+        continue
+      } catch (err) {
+        // Fall through to per-serial activation for this order's rows.
+        console.error(`[start-all-pending] order ${orderNumber} failed, using serials`, err)
+      }
+    }
+
+    await runPool(rows, 6, async (row) => {
+      const serial = String(row.serialNumber || "").trim()
+      if (!serial) {
+        failed.push({ serialNumber: "(missing)", error: `No serial on warranty ${row.warrantyId}` })
+        return
+      }
+      const name =
+        normalizeWarrantyHolderName(row.customerName || "") || holder
+      const result = await activateWarrantyBySerial(serial, {
+        allowUnregistered: true,
+        useAssignedHolderName: true,
+        activatedBy,
+        customerName: name,
+        productName: row.productName || undefined,
+      })
+      if (!result.ok) {
+        failed.push({ serialNumber: serial, error: result.error })
+        return
+      }
+      if (result.alreadyActive) alreadyActive += 1
+      else started += 1
+    })
+    ordersTouched += 1
+  }
+
+  await runPool(orphans, 6, async (row) => {
+    const serial = String(row.serialNumber || "").trim()
+    if (!serial) {
+      failed.push({ serialNumber: "(missing)", error: `No serial on warranty ${row.warrantyId}` })
+      return
+    }
+    const name =
+      normalizeWarrantyHolderName(row.customerName || "") || "Customer"
+    const result = await activateWarrantyBySerial(serial, {
+      allowUnregistered: true,
+      useAssignedHolderName: true,
+      activatedBy,
+      customerName: name,
+      productName: row.productName || undefined,
+    })
+    if (!result.ok) {
+      failed.push({ serialNumber: serial, error: result.error })
+      return
+    }
+    if (result.alreadyActive) alreadyActive += 1
+    else started += 1
+  })
+
+  return {
+    pendingFound: pending.length,
+    started,
+    alreadyActive,
+    failed,
+    ordersTouched,
   }
 }
