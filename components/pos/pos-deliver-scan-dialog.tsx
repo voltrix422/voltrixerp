@@ -209,8 +209,8 @@ export function PosDeliverScanDialog({
             </p>
           ) : skipScanning ? (
             <p className="text-xs text-amber-800 dark:text-amber-200 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              Delivering without scanning. Branch stock for {lines.reduce((s, l) => s + (l.quantity || 0), 0)} unit
-              {lines.reduce((s, l) => s + (l.quantity || 0), 0) === 1 ? "" : "s"} will be deducted by quantity only.
+              Delivering without scanning. Branch stock for {lines.reduce((s, l) => s + (l.qty || 0), 0)} unit
+              {lines.reduce((s, l) => s + (l.qty || 0), 0) === 1 ? "" : "s"} will be deducted by quantity only.
               Serials will not be registered for warranty.
             </p>
           ) : (
