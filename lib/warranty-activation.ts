@@ -143,6 +143,45 @@ export function resolveSerialFromWarrantyScan(raw: string): string {
 }
 
 /**
+ * Serial variants for DB lookup. Box QRs often encode model + serial with a
+ * separator (HS12.8V100Ah-voltrix-45) while warranties store the short serial
+ * (voltrix-45). Exact/full forms are tried first. Glued payloads without a
+ * separator (HS-25.6V100AHvoltrix-N) keep only the full serial so they do not
+ * collide with a different product's short voltrix-N row.
+ */
+export function serialLookupCandidates(raw: string): string[] {
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+
+  const resolved = resolveSerialFromWarrantyScan(trimmed)
+  const out: string[] = []
+  const add = (value: string | null | undefined) => {
+    const next = (value || "").trim()
+    if (!next) return
+    if (out.some((existing) => existing.toLowerCase() === next.toLowerCase())) return
+    out.push(next)
+  }
+
+  add(resolved)
+  add(trimmed)
+
+  for (const source of [resolved, trimmed]) {
+    // Only when model and serial are separated (dash/space), not glued.
+    const separated = source.match(
+      /^((?:MAN-)?HS-?\d+(?:[.-]\d+)?V\s*\d+\s*A[hH]?)[\s\-–—]+([A-Za-z][A-Za-z0-9._-]{1,40})$/i,
+    )
+    if (separated?.[2]) add(separated[2].trim())
+
+    const modelSn = source.match(
+      /^([A-Za-z0-9][A-Za-z0-9._/\s-]{2,48})\s*(?:->|=>|→|—>|-->|[-–—])\s*([A-Za-z0-9][A-Za-z0-9._/-]{4,60})$/i,
+    )
+    if (modelSn?.[2]) add(modelSn[2].trim())
+  }
+
+  return out
+}
+
+/**
  * Resolve product for a warranty scan. HS-BG51100 MAC QRs only map when last
  * segment length is 2; other lengths are not this product.
  */
@@ -208,15 +247,23 @@ export type ActivateWarrantyOptions = {
 }
 
 async function findWarrantyBySerial(serialNumber: string) {
-  return prisma.erpWarranty.findFirst({
-    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
-  })
+  for (const key of serialLookupCandidates(serialNumber)) {
+    const row = await prisma.erpWarranty.findFirst({
+      where: { serialNumber: { equals: key, mode: "insensitive" } },
+    })
+    if (row) return row
+  }
+  return null
 }
 
 async function findUnitBySerial(serialNumber: string) {
-  return prisma.erpInventorySerialUnit.findFirst({
-    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
-  })
+  for (const key of serialLookupCandidates(serialNumber)) {
+    const row = await prisma.erpInventorySerialUnit.findFirst({
+      where: { serialNumber: { equals: key, mode: "insensitive" } },
+    })
+    if (row) return row
+  }
+  return null
 }
 
 export async function activateWarrantyBySerial(
@@ -549,7 +596,11 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
 
   const normalizedWarrantyNo = normalizeWarrantyNumberInput(trimmed)
   const resolvedSerial = resolveSerialFromWarrantyScan(trimmed)
-  const lookupKeys = [...new Set([trimmed, normalizedWarrantyNo, resolvedSerial].filter(Boolean))]
+  const lookupKeys = [
+    ...new Set(
+      [trimmed, normalizedWarrantyNo, resolvedSerial, ...serialLookupCandidates(trimmed)].filter(Boolean),
+    ),
+  ]
 
   let warranty = null as Awaited<ReturnType<typeof prisma.erpWarranty.findFirst>>
   for (const key of lookupKeys) {
@@ -565,10 +616,7 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
   }
 
   if (!warranty) {
-    const serialForUnit = resolvedSerial || trimmed
-    const unit = await prisma.erpInventorySerialUnit.findFirst({
-      where: { serialNumber: { equals: serialForUnit, mode: "insensitive" } },
-    })
+    const unit = await findUnitBySerial(resolvedSerial || trimmed)
 
     if (unit?.warrantyId) {
       warranty = await prisma.erpWarranty.findFirst({
