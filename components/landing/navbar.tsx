@@ -121,7 +121,7 @@ export default function Navbar() {
         </div>
 
         <div className="hidden lg:flex shrink-0 items-center pl-3 xl:pl-4">
-          <GetQuoteButton variant={glass ? "solid" : "ghost"} />
+          <GetQuoteButton variant="solid" />
         </div>
 
         <button
