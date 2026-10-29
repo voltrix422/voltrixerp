@@ -1152,6 +1152,7 @@ model CrmLeadContact {
 
 model ErpPettyCashAllocation {
   id            String   @id @default(cuid())
+  referenceNumber String @default("") @map("reference_number")
   employeeId    String   @map("employee_id")
   employeeName  String   @map("employee_name")
   employeeRole  String   @map("employee_role")
@@ -1169,6 +1170,7 @@ model ErpPettyCashAllocation {
   reviewedAt    DateTime? @map("reviewed_at")
   reviewNotes   String?  @map("review_notes")
 
+  @@index([referenceNumber])
   @@map("erp_petty_cash_allocations")
 }
 

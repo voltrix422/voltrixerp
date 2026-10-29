@@ -99,6 +99,9 @@ export function PettyCashApprovalForm({ allocation, reviewedBy, onClose, onSave 
         <div className="p-6 space-y-4">
           <div className="rounded-lg border bg-[hsl(var(--muted))]/30 px-4 py-3 text-sm space-y-1">
             <p className="font-medium">{allocation.employeeName}</p>
+            {allocation.referenceNumber ? (
+              <p className="text-xs font-semibold text-[#1a9f9a] tabular-nums">{allocation.referenceNumber}</p>
+            ) : null}
             <p className="text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
             <p className="text-[hsl(var(--muted-foreground))]">Requested: PKR {allocation.amount.toLocaleString()}</p>
           </div>

@@ -391,6 +391,9 @@ export function PettyCashDashboard() {
             {pendingRequests.map((allocation) => (
               <div key={allocation.id} className="flex flex-col gap-3 rounded-lg border px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
+                  {allocation.referenceNumber ? (
+                    <p className="text-[11px] font-semibold text-[#1a9f9a] tabular-nums">{allocation.referenceNumber}</p>
+                  ) : null}
                   <p className="text-sm font-medium">{allocation.employeeName}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
                   <p className="text-xs font-semibold mt-1">Requested: PKR {allocation.amount.toLocaleString()}</p>
@@ -613,9 +616,10 @@ export function PettyCashDashboard() {
                 )}
               </p>
               <div className="rounded-lg border overflow-x-auto">
-                <table className="w-full min-w-[960px]">
+                <table className="w-full min-w-[1040px]">
                   <thead>
                     <tr className="border-b bg-[hsl(var(--muted))]/40">
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ref</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Given</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] max-w-[140px]">Purpose</th>
@@ -643,6 +647,11 @@ export function PettyCashDashboard() {
                           className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer align-top"
                           onClick={() => setSelectedAllocation(allocation)}
                         >
+                          <td className="px-3 py-2.5 text-xs">
+                            <p className="font-semibold text-[#1a9f9a] tabular-nums whitespace-nowrap">
+                              {allocation.referenceNumber || "—"}
+                            </p>
+                          </td>
                           <td className="px-3 py-2.5 text-xs">
                             <div className="flex items-start gap-2">
                               <Eye className="h-3 w-3 mt-0.5 text-[hsl(var(--muted-foreground))] shrink-0" />

@@ -3,12 +3,17 @@ import { prisma } from '@/lib/db'
 import { appendPettyCashTopUpNote } from '@/lib/petty-cash-topup'
 import { isPersonalLedgerAllocation } from '@/lib/petty-cash-personal'
 import {
+  backfillPettyCashReferenceNumbers,
+  generatePettyCashReferenceNumber,
+} from '@/lib/petty-cash-reference'
+import {
   notifyOnPettyCashPending,
   notifyOnPettyCashReviewed,
 } from '@/lib/notifications-server'
 
 const ALLOCATION_LIST_SELECT = {
   id: true,
+  referenceNumber: true,
   employeeId: true,
   employeeName: true,
   employeeRole: true,
@@ -28,6 +33,7 @@ const ALLOCATION_LIST_SELECT = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
+      await backfillPettyCashReferenceNumbers()
       const allocations = await prisma.erpPettyCashAllocation.findMany({
         select: ALLOCATION_LIST_SELECT,
         orderBy: { allocatedAt: 'desc' }
@@ -55,8 +61,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const allocationStatus = status || 'active'
+      const referenceNumber = await generatePettyCashReferenceNumber()
       const allocation = await prisma.erpPettyCashAllocation.create({
         data: {
+          referenceNumber,
           employeeId,
           employeeName,
           employeeRole,

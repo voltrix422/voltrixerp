@@ -331,6 +331,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             <div>
               <p className="text-lg font-bold">Petty Cash Allocation Details</p>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {allocation.referenceNumber ? (
+                  <span className="font-semibold text-[#1a9f9a] tabular-nums mr-1.5">{allocation.referenceNumber}</span>
+                ) : null}
                 {allocation.employeeName} • {allocation.employeeRole}
               </p>
             </div>
@@ -600,6 +603,12 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 Allocation Information
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[hsl(var(--muted-foreground))]">Reference</p>
+                  <p className="font-semibold text-[#1a9f9a] tabular-nums">
+                    {allocation.referenceNumber || "—"}
+                  </p>
+                </div>
                 <div>
                   <p className="text-[hsl(var(--muted-foreground))]">Employee</p>
                   <p className="font-medium">{allocation.employeeName}</p>

@@ -1,5 +1,7 @@
 export interface PettyCashAllocation {
   id: string
+  /** Display ref e.g. PC-00001 */
+  referenceNumber?: string
   employeeId: string
   employeeName: string
   employeeRole: string

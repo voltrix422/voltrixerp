@@ -54,7 +54,12 @@ export function PettyCashRequestForm({ employeeId, employeeName, employeeRole, o
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-green-600" />
-            <p className="text-lg font-bold">Request Petty Cash</p>
+            <div>
+              <p className="text-lg font-bold">Request Petty Cash</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                A reference number (PC-#####) is assigned automatically on submit.
+              </p>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
             <X className="h-4 w-4" />

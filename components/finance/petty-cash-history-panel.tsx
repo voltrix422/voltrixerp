@@ -59,6 +59,7 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
         <table className="w-full">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
+              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ref</th>
               <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
               <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Purpose</th>
               <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
@@ -74,6 +75,9 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
               const closedAt = allocation.settledAt || allocation.reviewedAt || allocation.allocatedAt
               return (
                 <tr key={allocation.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
+                  <td className="px-4 py-2.5 text-xs font-semibold text-[#1a9f9a] tabular-nums whitespace-nowrap">
+                    {allocation.referenceNumber || "—"}
+                  </td>
                   <td className="px-4 py-2.5 text-xs">
                     <p className="font-medium">{allocation.employeeName}</p>
                     <p className="text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
