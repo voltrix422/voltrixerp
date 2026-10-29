@@ -69,143 +69,463 @@ function imageFormatFromPath(filePath: string): "PNG" | "JPEG" | "WEBP" | null {
   return null
 }
 
-type Palette = {
+type C = {
   teal: [number, number, number]
+  darkTeal: [number, number, number]
+  softTeal: [number, number, number]
   white: [number, number, number]
-  dark: [number, number, number]
-  gray: [number, number, number]
+  ink: [number, number, number]
+  muted: [number, number, number]
   line: [number, number, number]
-  wash: [number, number, number]
+  soft: [number, number, number]
+  card: [number, number, number]
 }
 
-function ensureSpace(
-  doc: jsPDF,
-  y: number,
-  need: number,
-  pageH: number,
-  topY: number,
-): number {
-  if (y + need > pageH - 18) {
-    doc.addPage()
-    return topY
+const COLORS: C = {
+  teal: [26, 159, 154],
+  darkTeal: [18, 120, 116],
+  softTeal: [232, 247, 246],
+  white: [255, 255, 255],
+  ink: [22, 28, 32],
+  muted: [100, 110, 116],
+  line: [226, 232, 232],
+  soft: [248, 250, 250],
+  card: [255, 255, 255],
+}
+
+type Ctx = {
+  doc: jsPDF
+  pageW: number
+  pageH: number
+  mL: number
+  mR: number
+  contentW: number
+  topY: number
+  footerReserve: number
+  branded: boolean
+}
+
+function ensureSpace(ctx: Ctx, y: number, need: number): number {
+  if (y + need > ctx.pageH - ctx.footerReserve) {
+    ctx.doc.addPage()
+    return ctx.topY
   }
   return y
 }
 
-function drawSectionTitle(
-  doc: jsPDF,
-  title: string,
-  y: number,
-  mL: number,
-  pageW: number,
-  mR: number,
-  colors: Palette,
-): number {
+function drawAccentBar(doc: jsPDF, x: number, y: number, h: number) {
+  doc.setFillColor(...COLORS.teal)
+  doc.roundedRect(x, y, 1.4, h, 0.4, 0.4, "F")
+}
+
+function sectionHeader(ctx: Ctx, title: string, y: number): number {
+  y = ensureSpace(ctx, y, 14)
+  const { doc, mL, contentW } = ctx
+  doc.setFillColor(...COLORS.softTeal)
+  doc.roundedRect(mL, y - 4, contentW, 9, 1.2, 1.2, "F")
+  doc.setFillColor(...COLORS.teal)
+  doc.roundedRect(mL, y - 4, 1.6, 9, 0.6, 0.6, "F")
   doc.setFont(FONT, "bold")
-  doc.setFontSize(8)
-  doc.setTextColor(...colors.dark)
-  doc.text(title, mL, y)
-  y += 4.5
-  doc.setDrawColor(...colors.line)
-  doc.setLineWidth(0.2)
-  doc.line(mL, y - 2, pageW - mR, y - 2)
+  doc.setFontSize(9)
+  doc.setTextColor(...COLORS.ink)
+  doc.text(title.toUpperCase(), mL + 6, y + 1.8)
+  return y + 10
+}
+
+function writeWrapped(
+  ctx: Ctx,
+  text: string,
+  y: number,
+  opts?: { size?: number; color?: [number, number, number]; bold?: boolean; italic?: boolean; indent?: number; lineH?: number },
+): number {
+  const { doc, mL, contentW } = ctx
+  const size = opts?.size ?? 9
+  const lineH = opts?.lineH ?? size * 0.42
+  const indent = opts?.indent ?? 0
+  doc.setFont(FONT, opts?.bold ? "bold" : "normal")
+  doc.setFontSize(size)
+  doc.setTextColor(...(opts?.color || COLORS.ink))
+  const lines = doc.splitTextToSize(text, contentW - indent) as string[]
+  for (const line of lines) {
+    y = ensureSpace(ctx, y, lineH + 1)
+    doc.text(line, mL + indent, y)
+    y += lineH
+  }
   return y
 }
 
 function drawPlainOrBullets(
-  doc: jsPDF,
-  opts: {
-    bodyType: QuoteBodyType
-    bullets: string[]
-    plainText: string
-    y: number
-    mL: number
-    pageW: number
-    mR: number
-    pageH: number
-    topY: number
-    colors: Palette
-  },
+  ctx: Ctx,
+  bodyType: QuoteBodyType,
+  bullets: string[],
+  plainText: string,
+  y: number,
 ): number {
-  let { y } = opts
-  const contentW = opts.pageW - opts.mL - opts.mR
-  if (opts.bodyType === "plain") {
-    const text = opts.plainText.trim()
+  if (bodyType === "plain") {
+    const text = plainText.trim()
     if (!text) return y
-    doc.setFont(FONT, "normal")
-    doc.setFontSize(7.2)
-    doc.setTextColor(55, 60, 64)
-    const lines = doc.splitTextToSize(text, contentW)
-    for (let i = 0; i < lines.length; i++) {
-      y = ensureSpace(doc, y, 5, opts.pageH, opts.topY)
-      doc.text(lines[i], opts.mL, y)
-      y += 3.3
-    }
-    return y + 1.5
+    return writeWrapped(ctx, text, y, { size: 8.5, color: [50, 56, 62], lineH: 3.8 }) + 2
   }
-
-  const bullets = opts.bullets.map((b) => b.trim()).filter(Boolean)
-  doc.setFont(FONT, "normal")
-  doc.setFontSize(7.2)
-  doc.setTextColor(55, 60, 64)
-  for (const bullet of bullets) {
-    y = ensureSpace(doc, y, 8, opts.pageH, opts.topY)
-    const wrapped = doc.splitTextToSize(bullet, contentW - 6)
-    doc.text("•", opts.mL, y)
-    doc.text(wrapped, opts.mL + 4, y)
-    y += wrapped.length * 3.3 + 1.1
+  const list = bullets.map((b) => b.trim()).filter(Boolean)
+  for (const bullet of list) {
+    y = ensureSpace(ctx, y, 8)
+    ctx.doc.setFont(FONT, "normal")
+    ctx.doc.setFontSize(8.5)
+    ctx.doc.setTextColor(...COLORS.teal)
+    ctx.doc.text("•", ctx.mL, y)
+    ctx.doc.setTextColor(50, 56, 62)
+    const wrapped = ctx.doc.splitTextToSize(bullet, ctx.contentW - 6) as string[]
+    ctx.doc.text(wrapped, ctx.mL + 5, y)
+    y += wrapped.length * 3.7 + 1.4
   }
-  return y + 1.5
+  return y + 1
 }
 
-function drawHeadingBlock(
-  doc: jsPDF,
-  heading: string,
-  y: number,
-  mL: number,
-  pageW: number,
-  mR: number,
-  pageH: number,
-  topY: number,
-  colors: Palette,
-  skipGenericTerms = false,
-): number {
+function drawSubheading(ctx: Ctx, heading: string, y: number, skipGeneric = false): number {
   const h = heading.trim()
   if (!h) return y
-  if (skipGenericTerms && isGenericTermsHeading(h)) return y
-  y = ensureSpace(doc, y, 10, pageH, topY)
-  doc.setFont(FONT, "bold")
-  doc.setFontSize(7.5)
-  doc.setTextColor(...colors.dark)
-  const hLines = doc.splitTextToSize(h, pageW - mL - mR)
-  doc.text(hLines, mL, y)
-  return y + hLines.length * 3.4 + 1
+  if (skipGeneric && isGenericTermsHeading(h)) return y
+  y = ensureSpace(ctx, y, 8)
+  ctx.doc.setFont(FONT, "bold")
+  ctx.doc.setFontSize(9)
+  ctx.doc.setTextColor(...COLORS.ink)
+  const lines = ctx.doc.splitTextToSize(h, ctx.contentW) as string[]
+  ctx.doc.text(lines, ctx.mL, y)
+  return y + lines.length * 3.8 + 1.5
 }
 
-function applyPageFooters(doc: jsPDF, quote: ExtensiveQuotation, branded: boolean, colors: Palette) {
+function drawHeader(ctx: Ctx, quote: ExtensiveQuotation): number {
+  const { doc, pageW, mL, mR, branded } = ctx
+  if (branded) {
+    doc.setFillColor(...COLORS.teal)
+    doc.rect(0, 0, pageW, 38, "F")
+    doc.setFillColor(...COLORS.darkTeal)
+    doc.rect(0, 38, pageW, 3, "F")
+
+    try {
+      const logoPath = path.join(process.cwd(), "public", "logo.png")
+      if (fs.existsSync(logoPath)) {
+        const logoBase64 = fs.readFileSync(logoPath).toString("base64")
+        doc.addImage(`data:image/png;base64,${logoBase64}`, "PNG", mL, 7, 24, 24)
+      }
+    } catch {}
+
+    doc.setTextColor(...COLORS.white)
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(14)
+    doc.text("VOLTRIX BATTERIES", mL + 28, 14)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(7.2)
+    doc.setTextColor(220, 245, 243)
+    doc.text("Plot 73, Street 14, I-9/2, Islamabad", mL + 28, 20)
+    doc.text("051-8731661  ·  +92 303 4927779", mL + 28, 25)
+    doc.text("sale@voltrixbatteries.com  ·  voltrixbatteries.com", mL + 28, 30)
+
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(18)
+    doc.setTextColor(...COLORS.white)
+    doc.text("QUOTATION", pageW - mR, 16, { align: "right" })
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(9)
+    doc.setTextColor(220, 245, 243)
+    doc.text(quote.quotationNumber, pageW - mR, 23, { align: "right" })
+    return 50
+  }
+
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(18)
+  doc.setTextColor(...COLORS.ink)
+  doc.text("QUOTATION", mL, 18)
+  doc.setFont(FONT, "normal")
+  doc.setFontSize(9)
+  doc.setTextColor(...COLORS.muted)
+  doc.text(quote.quotationNumber, pageW - mR, 18, { align: "right" })
+  doc.setDrawColor(...COLORS.teal)
+  doc.setLineWidth(1.2)
+  doc.line(mL, 22, pageW - mR, 22)
+  return 30
+}
+
+function drawPartyBlock(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const { doc, mL, mR, pageW, contentW } = ctx
+  const gap = 4
+  const leftW = contentW * 0.58
+  const rightW = contentW - leftW - gap
+  const boxH = 28
+
+  y = ensureSpace(ctx, y, boxH + 4)
+
+  // Prepared for
+  doc.setFillColor(...COLORS.soft)
+  doc.roundedRect(mL, y, leftW, boxH, 2, 2, "F")
+  drawAccentBar(doc, mL + 2, y + 4, boxH - 8)
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(6.5)
+  doc.setTextColor(...COLORS.teal)
+  doc.text("PREPARED FOR", mL + 7, y + 7)
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(11)
+  doc.setTextColor(...COLORS.ink)
+  const nameLines = doc.splitTextToSize(quote.recipientName || "—", leftW - 12) as string[]
+  doc.text(nameLines[0], mL + 7, y + 13.5)
+  doc.setFont(FONT, "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...COLORS.muted)
+  const detail = [quote.recipientCompany, quote.recipientAddress].filter(Boolean).join("\n")
+  if (detail) {
+    const dLines = doc.splitTextToSize(detail, leftW - 12) as string[]
+    doc.text(dLines.slice(0, 2), mL + 7, y + 19)
+  }
+
+  // Quote meta
+  const rx = mL + leftW + gap
+  doc.setFillColor(...COLORS.softTeal)
+  doc.roundedRect(rx, y, rightW, boxH, 2, 2, "F")
+  const rows = [
+    { label: "Quote date", value: formatDate(quote.quoteDate) },
+    { label: "Valid until", value: quote.validUntil ? formatDate(quote.validUntil) : "—" },
+    { label: "Reference", value: quote.quotationNumber },
+  ]
+  rows.forEach((row, i) => {
+    const ry = y + 6 + i * 7
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(6.5)
+    doc.setTextColor(...COLORS.teal)
+    doc.text(row.label.toUpperCase(), rx + 4, ry)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(8.5)
+    doc.setTextColor(...COLORS.ink)
+    doc.text(row.value, pageW - mR - 4, ry, { align: "right" })
+  })
+
+  return y + boxH + 8
+}
+
+function drawIntro(ctx: Ctx, intro: string, y: number): number {
+  const text = intro.trim()
+  if (!text) return y
+  const { doc, mL, contentW } = ctx
+  const lines = doc.splitTextToSize(text, contentW - 10) as string[]
+  const boxH = Math.min(8 + lines.length * 4.1, 42)
+  y = ensureSpace(ctx, y, boxH + 6)
+  doc.setDrawColor(...COLORS.line)
+  doc.setFillColor(...COLORS.white)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(mL, y, contentW, boxH, 2, 2, "FD")
+  drawAccentBar(doc, mL + 2.5, y + 4, boxH - 8)
+  doc.setFont(FONT, "normal")
+  doc.setFontSize(9)
+  doc.setTextColor(45, 52, 58)
+  let ty = y + 7
+  for (const line of lines.slice(0, 8)) {
+    doc.text(line, mL + 8, ty)
+    ty += 4.1
+  }
+  return y + boxH + 8
+}
+
+function drawTotal(ctx: Ctx, total: number, y: number): number {
+  const { doc, pageW, mR } = ctx
+  const totW = 68
+  const totX = pageW - mR - totW
+  y = ensureSpace(ctx, y, 16)
+  doc.setFillColor(...COLORS.soft)
+  doc.roundedRect(totX - 2, y - 2, totW + 4, 14, 2, 2, "F")
+  doc.setFillColor(...COLORS.teal)
+  doc.roundedRect(totX, y, totW, 10, 1.5, 1.5, "F")
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(9)
+  doc.setTextColor(...COLORS.white)
+  doc.text("TOTAL", totX + 4, y + 6.5)
+  doc.setFontSize(10)
+  doc.text(`PKR ${formatMoney(total)}`, totX + totW - 4, y + 6.5, { align: "right" })
+  return y + 16
+}
+
+function drawProjects(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const projects = quote.projects.filter(
+    (p) => p.title.trim() || p.summary.trim() || p.imageUrls.length,
+  )
+  if (!projects.length) return y
+  y = sectionHeader(ctx, "Recent projects", y)
+  const { doc, mL, contentW } = ctx
+
+  for (const project of projects) {
+    const urls = project.imageUrls.filter(Boolean).slice(0, 4)
+    const imgH = urls.length ? 30 : 0
+    const estH = 18 + (project.summary ? 12 : 0) + imgH
+    y = ensureSpace(ctx, y, Math.min(estH, 50))
+
+    doc.setFillColor(...COLORS.soft)
+    const cardTop = y
+    let innerY = y + 5
+
+    if (project.title.trim()) {
+      doc.setFont(FONT, "bold")
+      doc.setFontSize(10)
+      doc.setTextColor(...COLORS.ink)
+      doc.text(project.title.trim(), mL + 4, innerY)
+      innerY += 5
+    }
+    if (project.location.trim()) {
+      doc.setFont(FONT, "normal")
+      doc.setFontSize(7.5)
+      doc.setTextColor(...COLORS.teal)
+      doc.text(project.location.trim(), mL + 4, innerY)
+      innerY += 4.5
+    }
+    if (project.summary.trim()) {
+      doc.setFont(FONT, "normal")
+      doc.setFontSize(8)
+      doc.setTextColor(55, 60, 66)
+      const sum = doc.splitTextToSize(project.summary.trim(), contentW - 8) as string[]
+      for (const line of sum.slice(0, 4)) {
+        innerY = ensureSpace(ctx, innerY, 5)
+        if (innerY < 20) {
+          // new page — restart card without prior background
+        }
+        doc.text(line, mL + 4, innerY)
+        innerY += 3.6
+      }
+      innerY += 2
+    }
+
+    if (urls.length) {
+      const imgW = (contentW - 8 - (urls.length - 1) * 3) / Math.min(urls.length, 3)
+      const h = 28
+      let x = mL + 4
+      let row = 0
+      for (let i = 0; i < urls.length; i++) {
+        const filePath = resolvePublicFile(urls[i])
+        const fmt = filePath ? imageFormatFromPath(filePath) : null
+        if (!filePath || !fmt) continue
+        if (i > 0 && i % 3 === 0) {
+          x = mL + 4
+          row += 1
+          innerY += h + 3
+        }
+        innerY = ensureSpace(ctx, innerY, h + 4)
+        try {
+          const b64 = fs.readFileSync(filePath).toString("base64")
+          const mime = fmt === "PNG" ? "image/png" : fmt === "WEBP" ? "image/webp" : "image/jpeg"
+          const drawY = innerY
+          doc.addImage(`data:${mime};base64,${b64}`, fmt, x, drawY, imgW, h)
+          x += imgW + 3
+        } catch {
+          // skip
+        }
+      }
+      innerY += h + 3
+    }
+
+    const cardH = Math.max(innerY - cardTop + 3, 12)
+    // redraw soft card behind content is hard mid-stream; use top border instead
+    doc.setDrawColor(...COLORS.line)
+    doc.setLineWidth(0.35)
+    doc.roundedRect(mL, cardTop - 1, contentW, cardH, 2, 2, "S")
+    y = cardTop + cardH + 5
+  }
+  return y
+}
+
+function drawWarranties(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const warranties = quote.warranties.filter(
+    (w) => w.productName.trim() || w.heading.trim() || w.bullets.length || w.plainText.trim(),
+  )
+  if (!warranties.length) return y
+  y = sectionHeader(ctx, "Product warranties", y)
+  for (const w of warranties as QuoteWarrantySection[]) {
+    const title = [w.productName.trim(), w.heading.trim()].filter(Boolean).join("  ·  ")
+    y = drawSubheading(ctx, title, y)
+    y = drawPlainOrBullets(ctx, w.bodyType || "bullets", w.bullets, w.plainText || "", y)
+    y += 2
+  }
+  return y
+}
+
+function drawTestimonials(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const testimonials = quote.testimonials.filter((t) => t.quote.trim() || t.name.trim())
+  if (!testimonials.length) return y
+  y = sectionHeader(ctx, "Client testimonials", y)
+  const { doc, mL, contentW } = ctx
+
+  for (const t of testimonials) {
+    const quoteText = t.quote.trim()
+    const wrapped = doc.splitTextToSize(quoteText ? `“${quoteText}”` : "", contentW - 12) as string[]
+    const boxH = 10 + wrapped.length * 3.8 + (t.name ? 5 : 0)
+    y = ensureSpace(ctx, y, boxH + 4)
+    doc.setFillColor(...COLORS.soft)
+    doc.roundedRect(mL, y, contentW, boxH, 2, 2, "F")
+    drawAccentBar(doc, mL + 2, y + 4, boxH - 8)
+    let ty = y + 6
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(8.5)
+    doc.setTextColor(50, 56, 62)
+    for (const line of wrapped) {
+      doc.text(line, mL + 8, ty)
+      ty += 3.8
+    }
+    const attribution = [t.name.trim(), t.role.trim()].filter(Boolean).join(" · ")
+    if (attribution) {
+      ty += 1
+      doc.setFont(FONT, "bold")
+      doc.setFontSize(7.5)
+      doc.setTextColor(...COLORS.teal)
+      doc.text(attribution, mL + 8, ty)
+    }
+    y += boxH + 4
+  }
+  return y
+}
+
+function drawCustomSections(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const sections = quote.customSections.filter(
+    (s) => s.heading.trim() || s.bullets.length || s.plainText.trim(),
+  )
+  if (!sections.length) return y
+  y = sectionHeader(ctx, "Additional details", y)
+  for (const s of sections as QuoteCustomSection[]) {
+    y = drawSubheading(ctx, s.heading, y)
+    y = drawPlainOrBullets(ctx, s.bodyType || "bullets", s.bullets, s.plainText || "", y)
+    y += 2
+  }
+  return y
+}
+
+function drawTerms(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
+  const terms = quote.terms.filter(
+    (t) => t.heading.trim() || t.bullets.some((b) => b.trim()) || (t.plainText || "").trim(),
+  )
+  if (!terms.length) return y
+  y = sectionHeader(ctx, "Terms & conditions", y)
+  for (const section of terms as QuoteTermSection[]) {
+    y = drawSubheading(ctx, section.heading, y, true)
+    y = drawPlainOrBullets(ctx, section.bodyType || "bullets", section.bullets, section.plainText || "", y)
+    y += 2
+  }
+  return y
+}
+
+function applyPageFooters(ctx: Ctx, quote: ExtensiveQuotation) {
+  const { doc, pageW, pageH, mL, mR, branded } = ctx
   const pageCount = doc.getNumberOfPages()
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const mL = 12
-  const mR = 12
-  const base = branded
-    ? "Voltrix Batteries (Pvt) Ltd  ·  Computer-generated quotation"
-    : "Computer-generated quotation"
   const custom = quote.footerText.trim()
+  const base = branded ? "Voltrix Batteries (Pvt) Ltd" : "Quotation"
 
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setDrawColor(...colors.line)
-    doc.setLineWidth(0.25)
-    doc.line(mL, pageH - (custom ? 14 : 11), pageW - mR, pageH - (custom ? 14 : 11))
+    doc.setDrawColor(...COLORS.line)
+    doc.setLineWidth(0.4)
+    doc.line(mL, pageH - 14, pageW - mR, pageH - 14)
     doc.setFont(FONT, "normal")
-    doc.setFontSize(6.5)
-    doc.setTextColor(...colors.gray)
-    doc.text(base, pageW / 2, pageH - (custom ? 10 : 7), { align: "center" })
+    doc.setFontSize(7)
+    doc.setTextColor(...COLORS.muted)
+    doc.text(base, mL, pageH - 9)
+    doc.text(`Page ${i} of ${pageCount}`, pageW - mR, pageH - 9, { align: "right" })
     if (custom) {
-      const clipped = doc.splitTextToSize(custom, pageW - mL - mR)
-      doc.setFontSize(6)
-      doc.text(clipped.slice(0, 2), pageW / 2, pageH - 6, { align: "center" })
+      doc.setFontSize(6.5)
+      const clipped = doc.splitTextToSize(custom, pageW - mL - mR - 50) as string[]
+      doc.text(clipped[0] || "", pageW / 2, pageH - 9, { align: "center" })
     }
   }
 }
@@ -221,109 +541,26 @@ export async function POST(req: NextRequest) {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
     registerGeist(doc)
     doc.setFont(FONT, "normal")
+
     const pageW = doc.internal.pageSize.getWidth()
     const pageH = doc.internal.pageSize.getHeight()
-    const mL = 12
-    const mR = 12
-    const colors: Palette = {
-      teal: [31, 172, 166],
-      white: [255, 255, 255],
-      dark: [28, 32, 36],
-      gray: [90, 96, 100],
-      line: [210, 218, 218],
-      wash: [245, 249, 249],
-    }
-    const topY = branded ? 16 : 14
-
-    let y = 0
-
-    if (branded) {
-      doc.setFillColor(...colors.teal)
-      doc.rect(0, 0, pageW, 26, "F")
-      try {
-        const logoPath = path.join(process.cwd(), "public", "logo.png")
-        if (fs.existsSync(logoPath)) {
-          const logoBase64 = fs.readFileSync(logoPath).toString("base64")
-          doc.addImage(`data:image/png;base64,${logoBase64}`, "PNG", mL, 4.5, 17, 17)
-        }
-      } catch {}
-      doc.setTextColor(...colors.white)
-      doc.setFont(FONT, "bold")
-      doc.setFontSize(11)
-      doc.text("VOLTRIX BATTERIES", mL + 20, 10)
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(6.5)
-      doc.text("Plot 73, Street 14, I-9/2, Islamabad  ·  051-8731661  ·  +92 303 4927779", mL + 20, 15.5)
-      doc.text("sale@voltrixbatteries.com  ·  www.voltrixbatteries.com", mL + 20, 19.5)
-      doc.setFont(FONT, "bold")
-      doc.setFontSize(13)
-      doc.text("QUOTATION", pageW - mR, 11, { align: "right" })
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(8)
-      doc.text(quote.quotationNumber, pageW - mR, 17, { align: "right" })
-      y = 32
-    } else {
-      doc.setFont(FONT, "bold")
-      doc.setFontSize(13)
-      doc.setTextColor(...colors.dark)
-      doc.text("QUOTATION", mL, 14)
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(...colors.gray)
-      doc.text(quote.quotationNumber, pageW - mR, 14, { align: "right" })
-      doc.setDrawColor(...colors.teal)
-      doc.setLineWidth(0.7)
-      doc.line(mL, 17.5, pageW - mR, 17.5)
-      y = 22
+    const mL = 14
+    const mR = 14
+    const ctx: Ctx = {
+      doc,
+      pageW,
+      pageH,
+      mL,
+      mR,
+      contentW: pageW - mL - mR,
+      topY: branded ? 16 : 14,
+      footerReserve: 20,
+      branded,
     }
 
-    const prepared = [quote.recipientCompany, quote.recipientAddress].filter(Boolean).join(" · ")
-    doc.setFillColor(...colors.wash)
-    doc.roundedRect(mL, y, pageW - mL - mR, prepared ? 16 : 11, 1.5, 1.5, "F")
-    const meta = [
-      { label: "TO", value: quote.recipientName || "—" },
-      { label: "DATE", value: formatDate(quote.quoteDate) },
-      { label: "VALID UNTIL", value: quote.validUntil ? formatDate(quote.validUntil) : "—" },
-    ]
-    const colW = (pageW - mL - mR - 6) / 3
-    meta.forEach((m, i) => {
-      const x = mL + 3 + i * colW
-      doc.setFont(FONT, "bold")
-      doc.setFontSize(6)
-      doc.setTextColor(...colors.gray)
-      doc.text(m.label, x, y + 4)
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(...colors.dark)
-      const clipped = doc.splitTextToSize(m.value, colW - 2)
-      doc.text(clipped[0], x, y + 8.5)
-    })
-    y += 12
-    if (prepared) {
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(7)
-      doc.setTextColor(...colors.gray)
-      const prep = doc.splitTextToSize(prepared, pageW - mL - mR - 8)
-      doc.text(prep.slice(0, 1), mL + 3, y + 2.5)
-      y += 7
-    } else {
-      y += 2
-    }
-
-    if (quote.introText.trim()) {
-      y = ensureSpace(doc, y, 16, pageH, topY)
-      y = drawSectionTitle(doc, "Proposal", y, mL, pageW, mR, colors)
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(7.5)
-      doc.setTextColor(55, 60, 64)
-      const introLines = doc.splitTextToSize(quote.introText.trim(), pageW - mL - mR)
-      for (const line of introLines) {
-        y = ensureSpace(doc, y, 5, pageH, topY)
-        doc.text(line, mL, y)
-        y += 3.4
-      }
-      y += 4
-    }
+    let y = drawHeader(ctx, quote)
+    y = drawPartyBlock(ctx, quote, y)
+    y = drawIntro(ctx, quote.introText, y)
 
     const tableBody = included.map((item, i) => [
       String(i + 1),
@@ -334,220 +571,53 @@ export async function POST(req: NextRequest) {
       formatMoney(item.qty * item.rate),
     ])
 
+    y = sectionHeader(ctx, "Quotation items", y)
+
     autoTable(doc, {
       startY: y,
-      head: [["#", "Item", "Supplier", "Qty", "Rate (PKR)", "Amount (PKR)"]],
-      body: tableBody.length ? tableBody : [["", "No items", "", "", "", ""]],
-      margin: { left: mL, right: mR, bottom: 18 },
+      head: [["#", "Item", "Supplier", "Qty", "Rate (PKR)", "Amount"]],
+      body: tableBody.length ? tableBody : [["—", "No items included", "", "", "", ""]],
+      margin: { left: mL, right: mR, bottom: ctx.footerReserve },
       styles: {
-        fontSize: 7.5,
-        cellPadding: { top: 1.6, bottom: 1.6, left: 1.6, right: 1.6 },
-        textColor: colors.dark,
-        lineColor: colors.line,
-        lineWidth: 0.15,
+        fontSize: 8,
+        cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 },
+        textColor: COLORS.ink,
+        lineColor: COLORS.line,
+        lineWidth: 0.2,
         font: FONT,
-        minCellHeight: 6,
+        minCellHeight: 7,
+        valign: "middle",
       },
       headStyles: {
-        fillColor: branded ? colors.teal : [45, 52, 56],
-        textColor: colors.white,
+        fillColor: COLORS.teal,
+        textColor: COLORS.white,
         fontStyle: "bold",
-        fontSize: 7,
+        fontSize: 7.5,
         font: FONT,
-        cellPadding: { top: 1.8, bottom: 1.8, left: 1.6, right: 1.6 },
+        cellPadding: { top: 2.4, bottom: 2.4, left: 2, right: 2 },
       },
       columnStyles: {
-        0: { cellWidth: 8, halign: "center" },
-        1: { cellWidth: 52 },
-        2: { cellWidth: 38 },
-        3: { cellWidth: 22, halign: "center" },
+        0: { cellWidth: 9, halign: "center" },
+        1: { cellWidth: 54 },
+        2: { cellWidth: 36 },
+        3: { cellWidth: 20, halign: "center" },
         4: { cellWidth: 28, halign: "right" },
-        5: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+        5: { cellWidth: 29, halign: "right", fontStyle: "bold" },
       },
-      alternateRowStyles: { fillColor: colors.wash },
-      tableLineColor: colors.line,
-      tableLineWidth: 0.15,
+      alternateRowStyles: { fillColor: COLORS.soft },
+      tableLineColor: COLORS.line,
+      tableLineWidth: 0.2,
     })
 
-    y = ((doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y) + 4
+    y = ((doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y) + 6
+    y = drawTotal(ctx, total, y)
+    y = drawProjects(ctx, quote, y)
+    y = drawWarranties(ctx, quote, y)
+    y = drawTestimonials(ctx, quote, y)
+    y = drawCustomSections(ctx, quote, y)
+    y = drawTerms(ctx, quote, y)
 
-    const totW = 62
-    const totX = pageW - mR - totW
-    y = ensureSpace(doc, y, 14, pageH, topY)
-    doc.setFillColor(...(branded ? colors.teal : colors.dark))
-    doc.roundedRect(totX, y, totW, 8, 1.2, 1.2, "F")
-    doc.setFont(FONT, "bold")
-    doc.setFontSize(8)
-    doc.setTextColor(...colors.white)
-    doc.text("Total", totX + 3, y + 5.4)
-    doc.text(`PKR ${formatMoney(total)}`, totX + totW - 3, y + 5.4, { align: "right" })
-    y += 12
-
-    const projects = quote.projects.filter(
-      (p) => p.title.trim() || p.summary.trim() || p.imageUrls.length,
-    )
-    if (projects.length) {
-      y = ensureSpace(doc, y, 20, pageH, topY)
-      y = drawSectionTitle(doc, "Recent projects", y, mL, pageW, mR, colors)
-      for (const project of projects) {
-        y = ensureSpace(doc, y, 24, pageH, topY)
-        if (project.title.trim()) {
-          doc.setFont(FONT, "bold")
-          doc.setFontSize(8)
-          doc.setTextColor(...colors.dark)
-          doc.text(project.title.trim(), mL, y)
-          y += 4
-        }
-        if (project.location.trim()) {
-          doc.setFont(FONT, "normal")
-          doc.setFontSize(7)
-          doc.setTextColor(...colors.gray)
-          doc.text(project.location.trim(), mL, y)
-          y += 3.5
-        }
-        if (project.summary.trim()) {
-          doc.setFont(FONT, "normal")
-          doc.setFontSize(7.2)
-          doc.setTextColor(55, 60, 64)
-          const sumLines = doc.splitTextToSize(project.summary.trim(), pageW - mL - mR)
-          for (const line of sumLines) {
-            y = ensureSpace(doc, y, 5, pageH, topY)
-            doc.text(line, mL, y)
-            y += 3.3
-          }
-          y += 1
-        }
-        const urls = project.imageUrls.filter(Boolean).slice(0, 6)
-        if (urls.length) {
-          const imgW = 42
-          const imgH = 28
-          const gap = 3
-          let x = mL
-          for (const url of urls) {
-            const filePath = resolvePublicFile(url)
-            const fmt = filePath ? imageFormatFromPath(filePath) : null
-            if (!filePath || !fmt) continue
-            if (x + imgW > pageW - mR) {
-              x = mL
-              y += imgH + gap
-            }
-            y = ensureSpace(doc, y, imgH + 4, pageH, topY)
-            try {
-              const b64 = fs.readFileSync(filePath).toString("base64")
-              const mime = fmt === "PNG" ? "image/png" : fmt === "WEBP" ? "image/webp" : "image/jpeg"
-              doc.addImage(`data:${mime};base64,${b64}`, fmt, x, y, imgW, imgH)
-              x += imgW + gap
-            } catch {
-              // skip broken image
-            }
-          }
-          y += imgH + 5
-        } else {
-          y += 3
-        }
-      }
-    }
-
-    const warranties = quote.warranties.filter(
-      (w) => w.productName.trim() || w.heading.trim() || w.bullets.length || w.plainText.trim(),
-    )
-    if (warranties.length) {
-      y = ensureSpace(doc, y, 18, pageH, topY)
-      y = drawSectionTitle(doc, "Product warranties", y, mL, pageW, mR, colors)
-      for (const w of warranties as QuoteWarrantySection[]) {
-        const title = [w.productName.trim(), w.heading.trim()].filter(Boolean).join(" — ")
-        y = drawHeadingBlock(doc, title, y, mL, pageW, mR, pageH, topY, colors)
-        y = drawPlainOrBullets(doc, {
-          bodyType: w.bodyType || "bullets",
-          bullets: w.bullets,
-          plainText: w.plainText || "",
-          y,
-          mL,
-          pageW,
-          mR,
-          pageH,
-          topY,
-          colors,
-        })
-      }
-    }
-
-    const testimonials = quote.testimonials.filter((t) => t.quote.trim() || t.name.trim())
-    if (testimonials.length) {
-      y = ensureSpace(doc, y, 18, pageH, topY)
-      y = drawSectionTitle(doc, "Client testimonials", y, mL, pageW, mR, colors)
-      for (const t of testimonials) {
-        y = ensureSpace(doc, y, 16, pageH, topY)
-        doc.setFont(FONT, "italic")
-        doc.setFontSize(7.2)
-        doc.setTextColor(55, 60, 64)
-        const qLines = doc.splitTextToSize(`"${t.quote.trim()}"`, pageW - mL - mR - 2)
-        for (const line of qLines) {
-          y = ensureSpace(doc, y, 5, pageH, topY)
-          doc.text(line, mL, y)
-          y += 3.3
-        }
-        doc.setFont(FONT, "normal")
-        doc.setFontSize(7)
-        doc.setTextColor(...colors.gray)
-        const attribution = [t.name.trim(), t.role.trim()].filter(Boolean).join(", ")
-        if (attribution) {
-          y = ensureSpace(doc, y, 5, pageH, topY)
-          doc.text(`— ${attribution}`, mL, y)
-          y += 5
-        } else {
-          y += 2
-        }
-      }
-    }
-
-    const customSections = quote.customSections.filter(
-      (s) => s.heading.trim() || s.bullets.length || s.plainText.trim(),
-    )
-    if (customSections.length) {
-      y = ensureSpace(doc, y, 18, pageH, topY)
-      y = drawSectionTitle(doc, "Additional details", y, mL, pageW, mR, colors)
-      for (const s of customSections as QuoteCustomSection[]) {
-        y = drawHeadingBlock(doc, s.heading, y, mL, pageW, mR, pageH, topY, colors)
-        y = drawPlainOrBullets(doc, {
-          bodyType: s.bodyType || "bullets",
-          bullets: s.bullets,
-          plainText: s.plainText || "",
-          y,
-          mL,
-          pageW,
-          mR,
-          pageH,
-          topY,
-          colors,
-        })
-      }
-    }
-
-    const terms = quote.terms.filter(
-      (t) => t.heading.trim() || t.bullets.some((b) => b.trim()) || (t.plainText || "").trim(),
-    )
-    if (terms.length) {
-      y = ensureSpace(doc, y, 18, pageH, topY)
-      y = drawSectionTitle(doc, "Terms & conditions", y, mL, pageW, mR, colors)
-      for (const section of terms as QuoteTermSection[]) {
-        y = drawHeadingBlock(doc, section.heading, y, mL, pageW, mR, pageH, topY, colors, true)
-        y = drawPlainOrBullets(doc, {
-          bodyType: section.bodyType || "bullets",
-          bullets: section.bullets,
-          plainText: section.plainText || "",
-          y,
-          mL,
-          pageW,
-          mR,
-          pageH,
-          topY,
-          colors,
-        })
-      }
-    }
-
-    applyPageFooters(doc, quote, branded, colors)
+    applyPageFooters(ctx, quote)
 
     const pdfBlob = doc.output("arraybuffer")
     return new NextResponse(pdfBlob, {

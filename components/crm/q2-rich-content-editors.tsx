@@ -128,15 +128,15 @@ export function Q2IntroField({
 }) {
   return (
     <label className="text-xs font-semibold space-y-1 block border-t pt-4">
-      <span>Proposal intro</span>
+      <span>Opening message</span>
       <p className="text-[10px] font-normal text-[hsl(var(--muted-foreground))]">
-        Cover letter shown at the top of the PDF (before line items).
+        Short note under the client details on the PDF. Leave blank to skip.
       </p>
       <textarea
         value={introText}
         onChange={(e) => onIntro(e.target.value)}
         rows={3}
-        placeholder="Thank you for considering Voltrix…"
+        placeholder="Thank you for the opportunity to quote…"
         className="w-full rounded-md border px-3 py-2 text-sm font-normal"
       />
     </label>
