@@ -10,10 +10,46 @@ export type ExtensiveQuoteLine = {
   included: boolean
 }
 
+export type QuoteBodyType = "bullets" | "plain"
+
 export type QuoteTermSection = {
   id: string
   heading: string
+  bodyType?: QuoteBodyType
   bullets: string[]
+  plainText?: string
+}
+
+export type QuoteProjectCard = {
+  id: string
+  title: string
+  location: string
+  summary: string
+  imageUrls: string[]
+}
+
+export type QuoteWarrantySection = {
+  id: string
+  productName: string
+  heading: string
+  bodyType: QuoteBodyType
+  bullets: string[]
+  plainText: string
+}
+
+export type QuoteTestimonial = {
+  id: string
+  name: string
+  role: string
+  quote: string
+}
+
+export type QuoteCustomSection = {
+  id: string
+  heading: string
+  bodyType: QuoteBodyType
+  bullets: string[]
+  plainText: string
 }
 
 export type ExtensiveQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired"
@@ -27,9 +63,15 @@ export type ExtensiveQuotation = {
   quoteDate: string
   validUntil: string
   notes: string
+  introText: string
+  footerText: string
   showBranding: boolean
   items: ExtensiveQuoteLine[]
   terms: QuoteTermSection[]
+  projects: QuoteProjectCard[]
+  warranties: QuoteWarrantySection[]
+  testimonials: QuoteTestimonial[]
+  customSections: QuoteCustomSection[]
   subtotal: number
   total: number
   status: ExtensiveQuotationStatus
@@ -38,6 +80,46 @@ export type ExtensiveQuotation = {
   ownerUserId?: string
 }
 
+/** Seed options for “Add from defaults” in Create Q2. */
+export const DEFAULT_Q2_TESTIMONIALS: Omit<QuoteTestimonial, "id">[] = [
+  {
+    name: "Ali Khan",
+    role: "Business Owner",
+    quote:
+      "Voltrix lithium batteries provide long-lasting power and excellent customer support. Truly a game-changer for our facility.",
+  },
+  {
+    name: "Sara Ahmed",
+    role: "Operations Manager",
+    quote:
+      "Reliable and efficient! Our operations have never been smoother since switching to Voltrix lithium battery energy systems.",
+  },
+  {
+    name: "Bilal Shah",
+    role: "Factory Director",
+    quote:
+      "Highly recommend Voltrix lithium batteries for their performance and durability. The ROI has been exceptional.",
+  },
+  {
+    name: "Usman Malik",
+    role: "Solar Consultant",
+    quote:
+      "The BMS on every Voltrix lithium battery pack is outstanding. Real-time Bluetooth monitoring gives us complete peace of mind.",
+  },
+  {
+    name: "Hina Raza",
+    role: "Homeowner",
+    quote:
+      "Switched from lead-acid to Voltrix LiFePO₄ lithium batteries — the difference is night and day. Zero maintenance headaches.",
+  },
+  {
+    name: "Tariq Butt",
+    role: "EV Fleet Manager",
+    quote:
+      "Our electric rickshaw fleet runs on Voltrix EV lithium battery packs. Range improved by 40% and downtime is near zero.",
+  },
+]
+
 export function includedQuoteTotal(items: ExtensiveQuoteLine[]): number {
   return items.reduce((sum, line) => {
     if (!line.included) return sum
@@ -45,6 +127,10 @@ export function includedQuoteTotal(items: ExtensiveQuoteLine[]): number {
     const rate = Math.max(0, Number(line.rate) || 0)
     return sum + qty * rate
   }, 0)
+}
+
+function mapBodyType(raw: unknown): QuoteBodyType {
+  return String(raw ?? "").toLowerCase() === "plain" ? "plain" : "bullets"
 }
 
 function mapLine(raw: unknown, idx: number): ExtensiveQuoteLine {
@@ -70,7 +156,62 @@ function mapTerm(raw: unknown, idx: number): QuoteTermSection {
   return {
     id: String(r.id ?? `term-${idx}`),
     heading: String(r.heading ?? "").trim(),
+    bodyType: mapBodyType(r.bodyType),
     bullets,
+    plainText: String(r.plainText ?? "").trim(),
+  }
+}
+
+function mapProject(raw: unknown, idx: number): QuoteProjectCard {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const imageUrls = Array.isArray(r.imageUrls)
+    ? r.imageUrls.map((u) => String(u ?? "").trim()).filter(Boolean)
+    : []
+  return {
+    id: String(r.id ?? `project-${idx}`),
+    title: String(r.title ?? "").trim(),
+    location: String(r.location ?? "").trim(),
+    summary: String(r.summary ?? "").trim(),
+    imageUrls,
+  }
+}
+
+function mapWarranty(raw: unknown, idx: number): QuoteWarrantySection {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const bullets = Array.isArray(r.bullets)
+    ? r.bullets.map((b) => String(b ?? "").trim()).filter(Boolean)
+    : []
+  return {
+    id: String(r.id ?? `warranty-${idx}`),
+    productName: String(r.productName ?? "").trim(),
+    heading: String(r.heading ?? "").trim(),
+    bodyType: mapBodyType(r.bodyType),
+    bullets,
+    plainText: String(r.plainText ?? "").trim(),
+  }
+}
+
+function mapTestimonial(raw: unknown, idx: number): QuoteTestimonial {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  return {
+    id: String(r.id ?? `testimonial-${idx}`),
+    name: String(r.name ?? "").trim(),
+    role: String(r.role ?? "").trim(),
+    quote: String(r.quote ?? "").trim(),
+  }
+}
+
+function mapCustomSection(raw: unknown, idx: number): QuoteCustomSection {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const bullets = Array.isArray(r.bullets)
+    ? r.bullets.map((b) => String(b ?? "").trim()).filter(Boolean)
+    : []
+  return {
+    id: String(r.id ?? `custom-${idx}`),
+    heading: String(r.heading ?? "").trim(),
+    bodyType: mapBodyType(r.bodyType),
+    bullets,
+    plainText: String(r.plainText ?? "").trim(),
   }
 }
 
@@ -86,9 +227,15 @@ export function rowToExtensiveQuotation(r: Record<string, unknown>): ExtensiveQu
     quoteDate: String(r.quoteDate ?? "").slice(0, 10),
     validUntil: String(r.validUntil ?? "").slice(0, 10),
     notes: String(r.notes ?? ""),
+    introText: String(r.introText ?? ""),
+    footerText: String(r.footerText ?? ""),
     showBranding: r.showBranding !== false,
     items,
     terms: Array.isArray(r.terms) ? r.terms.map(mapTerm) : [],
+    projects: Array.isArray(r.projects) ? r.projects.map(mapProject) : [],
+    warranties: Array.isArray(r.warranties) ? r.warranties.map(mapWarranty) : [],
+    testimonials: Array.isArray(r.testimonials) ? r.testimonials.map(mapTestimonial) : [],
+    customSections: Array.isArray(r.customSections) ? r.customSections.map(mapCustomSection) : [],
     subtotal: total,
     total: Number(r.total) || total,
     status: (String(r.status || "draft") as ExtensiveQuotationStatus) || "draft",
@@ -146,6 +293,13 @@ export async function generateExtensiveQuotationNumber(): Promise<string> {
   }
 }
 
+function cloneWithNewIds<T extends { id: string }>(rows: T[], prefix: string): T[] {
+  return rows.map((row, idx) => ({
+    ...row,
+    id: `dup-${prefix}-${Date.now()}-${idx}`,
+  }))
+}
+
 export function duplicateExtensiveQuotation(source: ExtensiveQuotation): ExtensiveQuotation {
   const today = new Date().toISOString().slice(0, 10)
   return {
@@ -163,7 +317,22 @@ export function duplicateExtensiveQuotation(source: ExtensiveQuotation): Extensi
       ...term,
       id: `dup-term-${Date.now()}-${idx}`,
       bullets: [...term.bullets],
+      plainText: term.plainText || "",
+      bodyType: term.bodyType || "bullets",
     })),
+    projects: cloneWithNewIds(
+      source.projects.map((p) => ({ ...p, imageUrls: [...p.imageUrls] })),
+      "project",
+    ),
+    warranties: cloneWithNewIds(
+      source.warranties.map((w) => ({ ...w, bullets: [...w.bullets] })),
+      "warranty",
+    ),
+    testimonials: cloneWithNewIds(source.testimonials, "testimonial"),
+    customSections: cloneWithNewIds(
+      source.customSections.map((s) => ({ ...s, bullets: [...s.bullets] })),
+      "custom",
+    ),
   }
 }
 

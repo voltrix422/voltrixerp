@@ -18,6 +18,15 @@ import {
 } from "@/lib/quote-rates"
 import { downloadExtensiveQuotationPDF } from "@/lib/generate-extensive-quotation-pdf"
 import {
+  Q2CustomSectionsEditor,
+  Q2FooterField,
+  Q2IntroField,
+  Q2ProjectsEditor,
+  Q2TermsEditor,
+  Q2TestimonialsEditor,
+  Q2WarrantiesEditor,
+} from "@/components/crm/q2-rich-content-editors"
+import {
   deleteExtensiveQuotation,
   duplicateExtensiveQuotation,
   EXTENSIVE_STATUS_COLORS,
@@ -29,7 +38,11 @@ import {
   type ExtensiveQuotation,
   type ExtensiveQuoteLine,
   type ExtensiveQuotationStatus,
+  type QuoteCustomSection,
+  type QuoteProjectCard,
   type QuoteTermSection,
+  type QuoteTestimonial,
+  type QuoteWarrantySection,
 } from "@/lib/extensive-quotations"
 
 function todayDate() {
@@ -288,14 +301,20 @@ function ExtensiveQuoteForm({
   const [quoteDate, setQuoteDate] = useState(source?.quoteDate || todayDate())
   const [validUntil, setValidUntil] = useState(source?.validUntil || "")
   const [notes, setNotes] = useState(source?.notes || "")
+  const [introText, setIntroText] = useState(source?.introText || "")
+  const [footerText, setFooterText] = useState(source?.footerText || "")
   const [showBranding, setShowBranding] = useState(source?.showBranding ?? true)
   const [status, setStatus] = useState<ExtensiveQuotationStatus>(duplicateFrom ? "draft" : source?.status || "draft")
   const [items, setItems] = useState<ExtensiveQuoteLine[]>(source?.items || [])
   const [terms, setTerms] = useState<QuoteTermSection[]>(
     source?.terms?.length
       ? source.terms
-      : [{ id: "term-1", heading: "", bullets: [""] }],
+      : [{ id: "term-1", heading: "", bodyType: "bullets", bullets: [""], plainText: "" }],
   )
+  const [projects, setProjects] = useState<QuoteProjectCard[]>(source?.projects || [])
+  const [warranties, setWarranties] = useState<QuoteWarrantySection[]>(source?.warranties || [])
+  const [testimonials, setTestimonials] = useState<QuoteTestimonial[]>(source?.testimonials || [])
+  const [customSections, setCustomSections] = useState<QuoteCustomSection[]>(source?.customSections || [])
   const [rates, setRates] = useState<QuoteRate[]>(initialRates)
   const [rateSearch, setRateSearch] = useState("")
   const [saving, setSaving] = useState(false)
@@ -355,15 +374,53 @@ function ExtensiveQuoteForm({
         quoteDate,
         validUntil,
         notes,
+        introText: introText.trim(),
+        footerText: footerText.trim(),
         showBranding,
         items,
         terms: terms
           .map((t) => ({
             ...t,
             heading: t.heading.trim(),
+            bodyType: t.bodyType || "bullets",
             bullets: t.bullets.map((b) => b.trim()).filter(Boolean),
+            plainText: (t.plainText || "").trim(),
           }))
-          .filter((t) => t.heading || t.bullets.length),
+          .filter((t) => t.heading || t.bullets.length || t.plainText),
+        projects: projects
+          .map((p) => ({
+            ...p,
+            title: p.title.trim(),
+            location: p.location.trim(),
+            summary: p.summary.trim(),
+            imageUrls: p.imageUrls.filter(Boolean),
+          }))
+          .filter((p) => p.title || p.summary || p.imageUrls.length),
+        warranties: warranties
+          .map((w) => ({
+            ...w,
+            productName: w.productName.trim(),
+            heading: w.heading.trim(),
+            bullets: w.bullets.map((b) => b.trim()).filter(Boolean),
+            plainText: w.plainText.trim(),
+          }))
+          .filter((w) => w.productName || w.heading || w.bullets.length || w.plainText),
+        testimonials: testimonials
+          .map((t) => ({
+            ...t,
+            name: t.name.trim(),
+            role: t.role.trim(),
+            quote: t.quote.trim(),
+          }))
+          .filter((t) => t.name || t.quote),
+        customSections: customSections
+          .map((s) => ({
+            ...s,
+            heading: s.heading.trim(),
+            bullets: s.bullets.map((b) => b.trim()).filter(Boolean),
+            plainText: s.plainText.trim(),
+          }))
+          .filter((s) => s.heading || s.bullets.length || s.plainText),
         subtotal: total,
         total,
         status,
@@ -482,6 +539,8 @@ function ExtensiveQuoteForm({
               Export with Voltrix branding
             </label>
           </div>
+
+          <Q2IntroField introText={introText} onIntro={setIntroText} />
 
           <div className="border-t pt-4 space-y-2">
             <p className="text-xs font-semibold">Add supplier rates</p>
@@ -604,94 +663,21 @@ function ExtensiveQuoteForm({
             <p className="text-sm font-semibold text-right">Total (included lines): {formatPkr(total)}</p>
           </div>
 
-          <div className="border-t pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold">Terms & conditions</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[10px]"
-                onClick={() =>
-                  setTerms((prev) => [...prev, { id: `term-${Date.now()}`, heading: "", bullets: [""] }])
-                }
-              >
-                Add heading
-              </Button>
-            </div>
-            {terms.map((section, sIdx) => (
-              <div key={section.id} className="rounded-md border p-3 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    value={section.heading}
-                    onChange={(e) =>
-                      setTerms((prev) => prev.map((t, i) => (i === sIdx ? { ...t, heading: e.target.value } : t)))
-                    }
-                    placeholder="Heading (e.g. Payment, Delivery, Warranty)"
-                    className="flex-1 h-8 rounded border px-2 text-sm font-medium"
-                  />
-                  <button
-                    type="button"
-                    className="text-red-600 text-xs cursor-pointer"
-                    onClick={() => setTerms((prev) => prev.filter((_, i) => i !== sIdx))}
-                  >
-                    Remove
-                  </button>
-                </div>
-                {section.bullets.map((bullet, bIdx) => (
-                  <div key={bIdx} className="flex gap-2">
-                    <span className="text-[hsl(var(--muted-foreground))] mt-1.5">•</span>
-                    <input
-                      value={bullet}
-                      onChange={(e) =>
-                        setTerms((prev) =>
-                          prev.map((t, i) =>
-                            i === sIdx
-                              ? { ...t, bullets: t.bullets.map((b, j) => (j === bIdx ? e.target.value : b)) }
-                              : t,
-                          ),
-                        )
-                      }
-                      placeholder="Bullet point"
-                      className="flex-1 h-8 rounded border px-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      className="text-xs text-[hsl(var(--muted-foreground))] cursor-pointer"
-                      onClick={() =>
-                        setTerms((prev) =>
-                          prev.map((t, i) =>
-                            i === sIdx ? { ...t, bullets: t.bullets.filter((_, j) => j !== bIdx) } : t,
-                          ),
-                        )
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="text-[11px] text-[#1faca6] cursor-pointer"
-                  onClick={() =>
-                    setTerms((prev) =>
-                      prev.map((t, i) => (i === sIdx ? { ...t, bullets: [...t.bullets, ""] } : t)),
-                    )
-                  }
-                >
-                  + Add bullet
-                </button>
-              </div>
-            ))}
-          </div>
+          <Q2ProjectsEditor projects={projects} onChange={setProjects} />
+          <Q2WarrantiesEditor warranties={warranties} onChange={setWarranties} />
+          <Q2TestimonialsEditor testimonials={testimonials} onChange={setTestimonials} />
+          <Q2CustomSectionsEditor sections={customSections} onChange={setCustomSections} />
+          <Q2TermsEditor terms={terms} onChange={setTerms} />
+          <Q2FooterField footerText={footerText} onFooter={setFooterText} />
 
-          <label className="text-xs font-semibold space-y-1 block">
+          <label className="text-xs font-semibold space-y-1 block border-t pt-4">
             <span>Internal notes</span>
+            <p className="text-[10px] font-normal text-[hsl(var(--muted-foreground))]">Not shown on the PDF.</p>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border px-3 py-2 text-sm font-normal"
             />
           </label>
         </div>
@@ -754,6 +740,12 @@ function ExtensiveQuoteDetail({
             Date {quote.quoteDate || "—"} · Valid {quote.validUntil || "—"} ·{" "}
             {quote.showBranding ? "Voltrix branding on" : "No branding"}
           </p>
+          {quote.introText ? (
+            <div>
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Intro</p>
+              <p className="text-xs whitespace-pre-wrap">{quote.introText}</p>
+            </div>
+          ) : null}
           <div className="rounded border divide-y">
             {included.map((line) => (
               <div key={line.id} className="px-3 py-2 text-xs flex justify-between gap-2">
@@ -766,16 +758,93 @@ function ExtensiveQuoteDetail({
             ))}
           </div>
           <p className="font-semibold text-right">{formatPkr(quote.total)}</p>
+          {quote.projects.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Projects</p>
+              {quote.projects.map((p) => (
+                <div key={p.id} className="rounded border p-2 text-xs space-y-1">
+                  <p className="font-semibold">{p.title || "Untitled project"}</p>
+                  {p.location ? <p className="text-[hsl(var(--muted-foreground))]">{p.location}</p> : null}
+                  {p.summary ? <p className="whitespace-pre-wrap">{p.summary}</p> : null}
+                  {p.imageUrls.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {p.imageUrls.map((url) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={url} src={url} alt="" className="w-12 h-12 rounded object-cover border" />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+          {quote.warranties.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Warranties</p>
+              {quote.warranties.map((w) => (
+                <div key={w.id}>
+                  <p className="text-xs font-semibold">
+                    {w.productName}
+                    {w.heading ? ` — ${w.heading}` : ""}
+                  </p>
+                  {w.bodyType === "plain" && w.plainText ? (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">{w.plainText}</p>
+                  ) : (
+                    <ul className="list-disc pl-4 text-xs text-[hsl(var(--muted-foreground))]">
+                      {w.bullets.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {quote.testimonials.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Testimonials</p>
+              {quote.testimonials.map((t) => (
+                <blockquote key={t.id} className="border-l-2 border-[#1faca6] pl-2 text-xs">
+                  <p className="italic">&ldquo;{t.quote}&rdquo;</p>
+                  <p className="mt-1 text-[hsl(var(--muted-foreground))]">
+                    — {t.name}
+                    {t.role ? `, ${t.role}` : ""}
+                  </p>
+                </blockquote>
+              ))}
+            </div>
+          )}
+          {quote.customSections.map((s) => (
+            <div key={s.id}>
+              <p className="text-xs font-semibold">{s.heading}</p>
+              {s.bodyType === "plain" && s.plainText ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">{s.plainText}</p>
+              ) : (
+                <ul className="list-disc pl-4 text-xs text-[hsl(var(--muted-foreground))]">
+                  {s.bullets.map((b, i) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
           {quote.terms.map((t) => (
             <div key={t.id}>
               <p className="text-xs font-semibold">{t.heading}</p>
-              <ul className="list-disc pl-4 text-xs text-[hsl(var(--muted-foreground))]">
-                {t.bullets.map((b, i) => (
-                  <li key={i}>{b}</li>
-                ))}
-              </ul>
+              {(t.bodyType || "bullets") === "plain" && t.plainText ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">{t.plainText}</p>
+              ) : (
+                <ul className="list-disc pl-4 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t.bullets.map((b, i) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
+          {quote.footerText ? (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] border-t pt-2">{quote.footerText}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2 px-4 py-3 border-t">
           {!readOnly && (
