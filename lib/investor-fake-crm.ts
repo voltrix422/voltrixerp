@@ -8,7 +8,7 @@
 const INVESTOR_CRM2_AUG_SEP_TARGET = 123_100_000
 export const INVESTOR_CRM2_FROM = "2026-07-01"
 /** Book end = till date (fake Oct activity after locked Aug–Sep). */
-export const INVESTOR_CRM2_TO = "2026-10-03"
+export const INVESTOR_CRM2_TO = "2026-10-30"
 export const INVESTOR_CRM2_AUG_SEP_FROM = "2026-08-01"
 /** Locked Aug–Sep window for the 12.31 Cr headline (do not extend). */
 export const INVESTOR_CRM2_AUG_SEP_TO = "2026-09-22"
@@ -381,15 +381,19 @@ function buildOrders(): InvestorCrm2Order[] {
   }
 
   // October till-date filler only (does not touch Aug–Sep 12.31 Cr).
-  const octStage = { count: 5, largeShare: 0.2 }
+  // Modest volume — mostly small/mid, a couple larger — spread through the month.
+  const octStage = { count: 12, largeShare: 0.15 }
   for (let i = 0; i < octStage.count; i++) {
     // Spread across Oct 1…today; last order lands on till-date.
-    const dayOffset = i === octStage.count - 1 ? octSpan - 1 : Math.floor(rand() * Math.max(1, octSpan - 1))
-    const date = addDays(INVESTOR_CRM2_OCT_FROM, Math.min(octSpan - 1, dayOffset))
+    const dayOffset =
+      i === octStage.count - 1
+        ? octSpan - 1
+        : Math.floor((i / Math.max(1, octStage.count - 1)) * Math.max(1, octSpan - 1) + rand() * 1.5)
+    const date = addDays(INVESTOR_CRM2_OCT_FROM, Math.min(octSpan - 1, Math.max(0, dayOffset)))
     const client = CLIENTS[(i + 3) % CLIENTS.length]
     const roll = rand()
     const size: "small" | "mid" | "large" =
-      roll < octStage.largeShare ? "large" : roll < octStage.largeShare + 0.55 ? "mid" : "small"
+      roll < octStage.largeShare ? "large" : roll < octStage.largeShare + 0.5 ? "mid" : "small"
     const items = buildBasket(rand, client.tier, size)
     const total = items.reduce((s, it) => s + it.total, 0)
     octOrders.push({
