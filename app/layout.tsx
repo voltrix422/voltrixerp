@@ -70,15 +70,18 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon-16x16.png?v=20261030-pwa", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png?v=20261030-pwa", sizes: "32x32", type: "image/png" },
+      // Google Search prefers square icons that are multiples of 48px
+      { url: "/voltrix-favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/voltrix-favicon-96.png", sizes: "96x96", type: "image/png" },
       { url: "/voltrix-pwa-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/favicon.ico?v=20261030-pwa" },
+      { url: "/favicon-32x32.png?v=20261030-g", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png?v=20261030-g", sizes: "16x16", type: "image/png" },
+      { url: "/favicon.ico?v=20261030-g" },
     ],
-    shortcut: "/favicon.ico?v=20261030-pwa",
-    apple: "/apple-touch-icon.png?v=20261030-pwa",
+    shortcut: "/favicon.ico?v=20261030-g",
+    apple: "/apple-touch-icon.png?v=20261030-g",
   },
-  manifest: "/manifest.json?v=20261030-pwa",
+  manifest: "/manifest.json?v=20261030-g",
   appleWebApp: {
     capable: true,
     title: "Voltrix ERP",

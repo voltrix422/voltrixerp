@@ -1,5 +1,5 @@
 /* Voltrix PWA service worker — lock-screen notifications + in-app updates */
-const APP_SW_VERSION = "2026-10-30-pwa-icon"
+const APP_SW_VERSION = "2026-10-30-google-favicon"
 
 self.addEventListener("install", (event) => {
   event.waitUntil(Promise.resolve())
