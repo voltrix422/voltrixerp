@@ -49,13 +49,13 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: `${SITE_NAME} | LiFePO₄ Batteries & Solar Inverters Pakistan`,
     description: SITE_DESCRIPTION,
-    images: [{ url: "/logo.png", alt: SITE_NAME }],
+    images: [{ url: "/og-image.png?v=20261030-logo", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE_NAME} | LiFePO₄ Batteries & Solar Inverters Pakistan`,
     description: SITE_DESCRIPTION,
-    images: ["/logo.png"],
+    images: ["/og-image.png?v=20261030-logo"],
   },
   robots: {
     index: true,
@@ -70,14 +70,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon-16x16.png?v=20260919-hq", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png?v=20260919-hq", sizes: "32x32", type: "image/png" },
-      { url: "/android-chrome-192x192.png?v=20260919-hq", sizes: "192x192", type: "image/png" },
+      { url: "/favicon-16x16.png?v=20261030-logo", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png?v=20261030-logo", sizes: "32x32", type: "image/png" },
+      { url: "/android-chrome-192x192.png?v=20261030-logo", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico?v=20261030-logo" },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png?v=20260919-hq",
+    shortcut: "/favicon.ico?v=20261030-logo",
+    apple: "/apple-touch-icon.png?v=20261030-logo",
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=20261030-logo",
   appleWebApp: {
     capable: true,
     title: "Voltrix ERP",

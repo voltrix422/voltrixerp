@@ -46,7 +46,7 @@ function useErpManifest() {
     document.querySelectorAll('link[rel="manifest"]').forEach((el) => el.remove())
     const link = document.createElement("link")
     link.rel = "manifest"
-    link.href = "/erp-manifest.json?v=20260919-hq"
+    link.href = "/erp-manifest.json?v=20261030-logo"
     document.head.appendChild(link)
   }, [])
 }
@@ -188,7 +188,7 @@ export function PwaProvider({ children }: { children?: ReactNode }) {
             <div className="absolute inset-x-0 top-0 h-1 bg-[#1a9f9a]" />
             <div className="flex gap-3 p-4">
               <img
-                src="/android-chrome-192x192.png?v=20260919-hq"
+                src="/android-chrome-192x192.png?v=20261030-logo"
                 alt=""
                 className="h-12 w-12 rounded-xl object-cover"
               />
@@ -234,7 +234,7 @@ export function PwaProvider({ children }: { children?: ReactNode }) {
             </button>
             <div className="flex gap-3 p-4 pr-10">
               <img
-                src="/android-chrome-192x192.png?v=20260919-hq"
+                src="/android-chrome-192x192.png?v=20261030-logo"
                 alt=""
                 className="h-12 w-12 rounded-xl object-cover"
               />
