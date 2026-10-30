@@ -151,7 +151,7 @@ export function showDesktopNotification(alert: IncomingAlert) {
   try {
     const notification = new Notification(alert.title, {
       body: (alert.body || "").slice(0, 180),
-      icon: "/android-chrome-192x192.png",
+      icon: "/voltrix-pwa-192.png",
       badge: "/favicon-32x32.png",
       tag: alert.tag,
       silent: false,

@@ -11,25 +11,31 @@
   "theme_color": "#1a9f9a",
   "icons": [
     {
-      "src": "/android-chrome-192x192.png?v=20261030-logo",
+      "src": "/voltrix-pwa-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/android-chrome-512x512.png?v=20261030-logo",
+      "src": "/voltrix-pwa-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/android-chrome-512x512.png?v=20261030-logo",
+      "src": "/voltrix-pwa-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/voltrix-pwa-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/app-icon-1024.png?v=20261030-logo",
+      "src": "/voltrix-pwa-1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
