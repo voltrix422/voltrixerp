@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, getPettyCashReceipts, getPettyCashReceiptById, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, getPettyCashReceiptById, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, rejectPettyCashAllocation, deletePettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText, FileDown } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText, FileDown, Search, Trash2 } from "lucide-react"
 import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
@@ -81,6 +81,9 @@ export function PettyCashDashboard() {
   const [migratingFinance, setMigratingFinance] = useState(false)
   const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
   const [pendingPdfBusy, setPendingPdfBusy] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -149,6 +152,27 @@ export function PettyCashDashboard() {
     } catch (error) {
       console.error("Error settling allocation:", error)
       toast({ title: "Error", message: "Failed to settle allocation", type: "error" })
+    }
+  }
+
+  async function handleDeleteAllocation(allocation: PettyCashAllocation) {
+    setDeleting(true)
+    try {
+      await deletePettyCashAllocation(allocation.id)
+      setAllocations((prev) => prev.filter((a) => a.id !== allocation.id))
+      setReceipts((prev) => prev.filter((r) => r.allocationId !== allocation.id))
+      if (selectedAllocation?.id === allocation.id) setSelectedAllocation(null)
+      setDeleteConfirm(null)
+      toast({ title: "Deleted", message: `${allocation.referenceNumber || "Allocation"} removed.`, type: "success" })
+    } catch (error) {
+      console.error("Error deleting allocation:", error)
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Failed to delete allocation",
+        type: "error",
+      })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -261,8 +285,15 @@ export function PettyCashDashboard() {
     all: displayAllocations.length,
   }
   const filteredAllocations = displayAllocations.filter((allocation) => {
-    if (allocationFilter === "all") return true
-    return allocation.status === allocationFilter
+    if (allocationFilter !== "all" && allocation.status !== allocationFilter) return false
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return true
+    return (
+      allocation.employeeName.toLowerCase().includes(q) ||
+      allocation.purpose.toLowerCase().includes(q) ||
+      (allocation.referenceNumber || "").toLowerCase().includes(q) ||
+      allocation.employeeRole.toLowerCase().includes(q)
+    )
   })
   const displayReceipts = canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)
   const personalLedger = findPersonalLedger(allocations, currentUserId, currentUser)
@@ -309,27 +340,24 @@ export function PettyCashDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <DollarSign className="h-6 w-6 text-green-600" />
-          <div>
-            <h2 className="text-xl font-bold">Petty Cash Management</h2>
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Request cash, add expense receipts, and track your petty cash balance
-            </p>
-          </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Petty Cash</h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+            Allocations, receipts, and balances
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowRequestForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Request
           </Button>
           {canManagePettyCash && (
-            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowAllocationForm(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
+            <Button size="sm" className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowAllocationForm(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate
             </Button>
           )}
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Receipt
           </Button>
         </div>
       </div>
@@ -533,46 +561,51 @@ export function PettyCashDashboard() {
       {/* Allocations Tab */}
       {activeTab === "allocations" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {ALLOCATION_FILTERS.map((filter) => {
-              const count = allocationFilterCounts[filter.id]
-              const selected = allocationFilter === filter.id
-              return (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => setAllocationFilter(filter.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    selected
-                      ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
-                      : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {filter.id === "settled" && <Archive className="h-3 w-3" />}
-                  {filter.label}
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ALLOCATION_FILTERS.map((filter) => {
+                const count = allocationFilterCounts[filter.id]
+                const selected = allocationFilter === filter.id
+                return (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setAllocationFilter(filter.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                       selected
-                        ? "bg-[#1faca6]/20 text-[#17857f]"
-                        : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                        ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
+                        : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                     }`}
                   >
-                    {count}
-                  </span>
-                </button>
-              )
-            })}
+                    {filter.id === "settled" && <Archive className="h-3 w-3" />}
+                    {filter.label}
+                    <span className="tabular-nums text-[10px] opacity-70">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name, ref, purpose…"
+                className="h-8 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-3 text-xs outline-none focus:border-[#1faca6]"
+              />
+            </div>
           </div>
 
           {filteredAllocations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <DollarSign className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <DollarSign className="h-10 w-10 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                {allocationFilter === "all"
-                  ? "No petty cash allocations found"
-                  : allocationFilter === "settled"
-                    ? "No archived (settled) petty cash yet"
-                    : `No ${allocationFilter} allocations`}
+                {searchQuery.trim()
+                  ? `No matches for “${searchQuery.trim()}”`
+                  : allocationFilter === "all"
+                    ? "No petty cash allocations found"
+                    : allocationFilter === "settled"
+                      ? "No archived petty cash yet"
+                      : `No ${allocationFilter} allocations`}
               </p>
               {allocationFilter === "active" && (
                 <>
@@ -599,26 +632,10 @@ export function PettyCashDashboard() {
             </div>
           ) : (
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
-                {allocationFilter === "settled" ? (
-                  <>
-                    <Archive className="inline h-3 w-3 mr-1 align-text-bottom" />
-                    Archived settled petty cash — closed ledgers only. Use filters above to switch views.
-                  </>
-                ) : (
-                  <>
-                    💡 Click any row for receipt history and approval.{" "}
-                    <span className="font-medium text-[hsl(var(--foreground))]">Balance</span> = cash given minus{" "}
-                    <span className="font-medium">approved</span> receipts.{" "}
-                    <span className="text-amber-700 dark:text-amber-300">Pending</span> is submitted but not yet approved.
-                    Settled items are kept under <span className="font-medium">Archived</span>.
-                  </>
-                )}
-              </p>
               <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full min-w-[1040px]">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--muted))]/40">
+                    <tr className="border-b bg-[hsl(var(--muted))]/30">
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ref</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Given</th>
@@ -627,11 +644,11 @@ export function PettyCashDashboard() {
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Pending</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Balance</th>
                       {canManagePettyCash && (
-                        <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Owed / over</th>
+                        <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Owed</th>
                       )}
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-24">Actions</th>
+                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] min-w-[7.5rem]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -792,6 +809,16 @@ export function PettyCashDashboard() {
                                   title="Settle allocation"
                                 >
                                   Settle
+                                </button>
+                              )}
+                              {canManagePettyCash && !isPersonalLedgerAllocation(allocation) && (
+                                <button
+                                  onClick={() => setDeleteConfirm(allocation)}
+                                  className="text-red-600 hover:text-red-800 text-[10px] font-medium transition-colors cursor-pointer inline-flex items-center gap-0.5"
+                                  title="Delete allocation"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  Delete
                                 </button>
                               )}
                             </div>
@@ -970,6 +997,21 @@ export function PettyCashDashboard() {
           setSettleConfirm(null)
         }}
         onCancel={() => setSettleConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirm}
+        title="Delete petty cash"
+        message={`Delete ${deleteConfirm?.referenceNumber || "this allocation"} for ${deleteConfirm?.employeeName}? This cannot be undone.`}
+        confirmText={deleting ? "Deleting…" : "Delete"}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteConfirm && !deleting) void handleDeleteAllocation(deleteConfirm)
+        }}
+        onCancel={() => {
+          if (!deleting) setDeleteConfirm(null)
+        }}
       />
 
       {/* Allocation Detail Modal */}

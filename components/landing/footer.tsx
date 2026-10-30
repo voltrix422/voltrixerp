@@ -25,9 +25,19 @@ const socialLinks = [
   { label: "Facebook", href: "https://www.facebook.com/p/Voltrix-Batteries-Pvt-LTD-61573607052471/", icon: FacebookIcon },
 ]
 
+const locationLinks: { label: string; href: string }[] = [
+  { label: "Islamabad", href: "/islamabad" },
+  { label: "Lahore", href: "/lahore" },
+  { label: "Attock", href: "/attock" },
+  { label: "Sargodha", href: "/sargodha" },
+  { label: "Fateh Jang", href: "/fateh-jang" },
+  { label: "Rawalpindi", href: "/rawalpindi" },
+  { label: "Wah Cantt", href: "/wah-cantt" },
+  { label: "Gujranwala", href: "/gujranwala" },
+]
+
 const links = {
   Company: ["About", "Outlets", "Dealerships", "Blog", "Careers"],
-  Locations: ["Islamabad", "Lahore", "Karachi"],
   Legal: ["Privacy", "Terms", "Cookies"],
   Resources: ["Documentation", "ERP"],
 }
@@ -71,9 +81,6 @@ export default function Footer() {
                                  item === "Dealerships" ? "/dealerships" :
                                  item === "Blog" ? "/blog" :
                                  item === "Careers" ? "/careers" :
-                                 item === "Islamabad" ? "/islamabad" :
-                                 item === "Lahore" ? "/lahore" :
-                                 item === "Karachi" ? "/karachi" :
                                  item === "Privacy" ? "/privacy" :
                                  item === "Terms" ? "/terms" :
                                  item === "Cookies" ? "/cookies" :
@@ -90,6 +97,18 @@ export default function Footer() {
                 </ul>
               </div>
             ))}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">Locations</p>
+              <ul className="space-y-2">
+                {locationLinks.map(({ label, href }) => (
+                  <li key={href}>
+                    <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer">
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
 
