@@ -251,13 +251,13 @@ function drawPartyBlock(ctx: Ctx, quote: ExtensiveQuotation, y: number): number 
   const gap = 4
   const leftW = contentW * 0.58
   const rightW = contentW - leftW - gap
-  const boxH = 28
+  const boxH = 34
 
   y = ensureSpace(ctx, y, boxH + 4)
 
   // Prepared for
   doc.setFillColor(...COLORS.soft)
-  doc.roundedRect(mL, y, leftW, boxH, 2, 2, "F")
+  doc.roundedRect(mL, y, leftW, boxH, 1.5, 1.5, "F")
   drawAccentBar(doc, mL + 2, y + 4, boxH - 8)
   doc.setFont(FONT, "bold")
   doc.setFontSize(6.5)
@@ -276,26 +276,38 @@ function drawPartyBlock(ctx: Ctx, quote: ExtensiveQuotation, y: number): number 
     const dLines = doc.splitTextToSize(detail, leftW - 12) as string[]
     doc.text(dLines.slice(0, 2), mL + 7, y + 19)
   }
+  if (quote.preparedBy?.trim()) {
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(6.5)
+    doc.setTextColor(...COLORS.teal)
+    doc.text("PREPARED BY", mL + 7, y + 28)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(...COLORS.ink)
+    doc.text(quote.preparedBy.trim(), mL + 36, y + 28)
+  }
 
   // Quote meta
   const rx = mL + leftW + gap
   doc.setFillColor(...COLORS.softTeal)
-  doc.roundedRect(rx, y, rightW, boxH, 2, 2, "F")
+  doc.roundedRect(rx, y, rightW, boxH, 1.5, 1.5, "F")
   const rows = [
     { label: "Quote date", value: formatDate(quote.quoteDate) },
     { label: "Valid until", value: quote.validUntil ? formatDate(quote.validUntil) : "—" },
     { label: "Reference", value: quote.quotationNumber },
+    { label: "Company", value: "Voltrix Batteries Pvt. Ltd" },
   ]
   rows.forEach((row, i) => {
-    const ry = y + 6 + i * 7
+    const ry = y + 6 + i * 6.5
     doc.setFont(FONT, "bold")
-    doc.setFontSize(6.5)
+    doc.setFontSize(6.2)
     doc.setTextColor(...COLORS.teal)
     doc.text(row.label.toUpperCase(), rx + 4, ry)
     doc.setFont(FONT, "normal")
-    doc.setFontSize(8.5)
+    doc.setFontSize(8)
     doc.setTextColor(...COLORS.ink)
-    doc.text(row.value, pageW - mR - 4, ry, { align: "right" })
+    const clipped = doc.splitTextToSize(row.value, rightW - 28) as string[]
+    doc.text(clipped[0] || "", pageW - mR - 4, ry, { align: "right" })
   })
 
   return y + boxH + 8
@@ -434,6 +446,50 @@ function drawWarranties(ctx: Ctx, quote: ExtensiveQuotation, y: number): number 
   )
   if (!warranties.length) return y
   y = sectionHeader(ctx, "Product warranties", y)
+
+  const tableLike = warranties.every(
+    (w) => (w.bodyType || "plain") === "plain" || (!w.bullets.filter(Boolean).length && w.plainText.trim()),
+  )
+
+  if (tableLike) {
+    const { doc, mL, mR, footerReserve } = ctx
+    autoTable(doc, {
+      startY: y,
+      head: [["Sr.", "Product", "Brand", "Warranty"]],
+      body: warranties.map((w, i) => [
+        String(i + 1),
+        w.productName.trim() || "—",
+        w.heading.trim() || "—",
+        w.plainText.trim() || "—",
+      ]),
+      margin: { left: mL, right: mR, bottom: footerReserve },
+      styles: {
+        fontSize: 7.5,
+        cellPadding: { top: 2, bottom: 2, left: 2, right: 2 },
+        textColor: COLORS.ink,
+        lineColor: COLORS.line,
+        lineWidth: 0.2,
+        font: FONT,
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: COLORS.darkTeal,
+        textColor: COLORS.white,
+        fontStyle: "bold",
+        fontSize: 7.5,
+        font: FONT,
+      },
+      columnStyles: {
+        0: { cellWidth: 12, halign: "center" },
+        1: { cellWidth: 95 },
+        2: { cellWidth: 42 },
+        3: { cellWidth: 33, halign: "center", fontStyle: "bold" },
+      },
+      alternateRowStyles: { fillColor: COLORS.soft },
+    })
+    return ((doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y) + 8
+  }
+
   for (const w of warranties as QuoteWarrantySection[]) {
     const title = [w.productName.trim(), w.heading.trim()].filter(Boolean).join("  ·  ")
     y = drawSubheading(ctx, title, y)
@@ -564,28 +620,28 @@ export async function POST(req: NextRequest) {
 
     const tableBody = included.map((item, i) => [
       String(i + 1),
-      item.itemName,
-      item.supplier,
+      item.lineKind === "expense" ? `${item.itemName}` : item.itemName,
+      item.lineKind === "expense" ? "Expense" : item.supplier || "—",
       `${item.qty} ${item.unit}`.trim(),
       formatMoney(item.rate),
       formatMoney(item.qty * item.rate),
     ])
 
-    y = sectionHeader(ctx, "Quotation items", y)
+    y = sectionHeader(ctx, "Commercial offer", y)
 
     autoTable(doc, {
       startY: y,
-      head: [["#", "Item", "Supplier", "Qty", "Rate (PKR)", "Amount"]],
+      head: [["#", "Description", "Supplier / Type", "Qty", "Unit (PKR)", "Amount (PKR)"]],
       body: tableBody.length ? tableBody : [["—", "No items included", "", "", "", ""]],
       margin: { left: mL, right: mR, bottom: ctx.footerReserve },
       styles: {
         fontSize: 8,
-        cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 },
+        cellPadding: { top: 2.4, bottom: 2.4, left: 2.2, right: 2.2 },
         textColor: COLORS.ink,
         lineColor: COLORS.line,
-        lineWidth: 0.2,
+        lineWidth: 0.15,
         font: FONT,
-        minCellHeight: 7,
+        minCellHeight: 7.5,
         valign: "middle",
       },
       headStyles: {
@@ -594,28 +650,52 @@ export async function POST(req: NextRequest) {
         fontStyle: "bold",
         fontSize: 7.5,
         font: FONT,
-        cellPadding: { top: 2.4, bottom: 2.4, left: 2, right: 2 },
+        cellPadding: { top: 2.6, bottom: 2.6, left: 2.2, right: 2.2 },
       },
       columnStyles: {
         0: { cellWidth: 9, halign: "center" },
-        1: { cellWidth: 54 },
-        2: { cellWidth: 36 },
-        3: { cellWidth: 20, halign: "center" },
-        4: { cellWidth: 28, halign: "right" },
-        5: { cellWidth: 29, halign: "right", fontStyle: "bold" },
+        1: { cellWidth: 58 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 18, halign: "center" },
+        4: { cellWidth: 26, halign: "right" },
+        5: { cellWidth: 27, halign: "right", fontStyle: "bold" },
       },
       alternateRowStyles: { fillColor: COLORS.soft },
       tableLineColor: COLORS.line,
-      tableLineWidth: 0.2,
+      tableLineWidth: 0.15,
     })
 
     y = ((doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y) + 6
     y = drawTotal(ctx, total, y)
-    y = drawProjects(ctx, quote, y)
-    y = drawWarranties(ctx, quote, y)
-    y = drawTestimonials(ctx, quote, y)
+
+    // Signature / prepared-by strip before optional marketing content
+    y = ensureSpace(ctx, y, 22)
+    doc.setDrawColor(...COLORS.line)
+    doc.setLineWidth(0.3)
+    doc.line(mL, y, mL + 55, y)
+    doc.line(pageW - mR - 55, y, pageW - mR, y)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(7)
+    doc.setTextColor(...COLORS.muted)
+    doc.text("Client acceptance", mL, y + 4)
+    doc.text(quote.preparedBy?.trim() || "Prepared by Voltrix", pageW - mR - 55, y + 4)
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(8)
+    doc.setTextColor(...COLORS.ink)
+    if (quote.preparedBy?.trim()) {
+      doc.text(quote.preparedBy.trim(), pageW - mR - 55, y + 9)
+    }
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(6.5)
+    doc.setTextColor(...COLORS.muted)
+    doc.text("Voltrix Batteries Pvt. Ltd", pageW - mR - 55, y + 13)
+    y += 20
+
     y = drawCustomSections(ctx, quote, y)
+    y = drawWarranties(ctx, quote, y)
     y = drawTerms(ctx, quote, y)
+    y = drawProjects(ctx, quote, y)
+    y = drawTestimonials(ctx, quote, y)
 
     applyPageFooters(ctx, quote)
 

@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       notes: String(data.notes ?? ""),
       introText: String(data.introText ?? ""),
       footerText: String(data.footerText ?? ""),
+      preparedBy: String(data.preparedBy ?? "").trim(),
       showBranding: data.showBranding !== false,
       items: (data.items ?? []) as Prisma.InputJsonValue,
       terms: (data.terms ?? []) as Prisma.InputJsonValue,

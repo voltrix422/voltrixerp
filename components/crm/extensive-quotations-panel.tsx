@@ -12,10 +12,18 @@ import {
   getQuoteRates,
   groupQuoteRates,
   rateTiming,
+  saveQuoteRate,
   todayIsoDate,
   type QuoteRate,
   type RateTiming,
 } from "@/lib/quote-rates"
+import {
+  createDefaultQ2CustomSections,
+  createDefaultQ2Terms,
+  createDefaultQ2Warranties,
+  DEFAULT_Q2_INTRO,
+  DEFAULT_Q2_PREPARED_BY,
+} from "@/lib/q2-defaults"
 import { downloadExtensiveQuotationPDF } from "@/lib/generate-extensive-quotation-pdf"
 import {
   Q2CustomSectionsEditor,
@@ -300,24 +308,36 @@ function ExtensiveQuoteForm({
   const [recipientAddress, setRecipientAddress] = useState(source?.recipientAddress || "")
   const [quoteDate, setQuoteDate] = useState(source?.quoteDate || todayDate())
   const [validUntil, setValidUntil] = useState(source?.validUntil || "")
+  const isNew = !source
   const [notes, setNotes] = useState(source?.notes || "")
-  const [introText, setIntroText] = useState(source?.introText || "")
+  const [introText, setIntroText] = useState(source?.introText || (isNew ? DEFAULT_Q2_INTRO : ""))
   const [footerText, setFooterText] = useState(source?.footerText || "")
+  const [preparedBy, setPreparedBy] = useState(source?.preparedBy || (isNew ? DEFAULT_Q2_PREPARED_BY : ""))
   const [showBranding, setShowBranding] = useState(source?.showBranding ?? true)
   const [status, setStatus] = useState<ExtensiveQuotationStatus>(duplicateFrom ? "draft" : source?.status || "draft")
   const [items, setItems] = useState<ExtensiveQuoteLine[]>(source?.items || [])
   const [terms, setTerms] = useState<QuoteTermSection[]>(
-    source?.terms?.length
-      ? source.terms
-      : [{ id: "term-1", heading: "", bodyType: "bullets", bullets: [""], plainText: "" }],
+    source?.terms?.length ? source.terms : isNew ? createDefaultQ2Terms() : [],
   )
   const [projects, setProjects] = useState<QuoteProjectCard[]>(source?.projects || [])
-  const [warranties, setWarranties] = useState<QuoteWarrantySection[]>(source?.warranties || [])
+  const [warranties, setWarranties] = useState<QuoteWarrantySection[]>(
+    source?.warranties?.length ? source.warranties : isNew ? createDefaultQ2Warranties() : [],
+  )
   const [testimonials, setTestimonials] = useState<QuoteTestimonial[]>(source?.testimonials || [])
-  const [customSections, setCustomSections] = useState<QuoteCustomSection[]>(source?.customSections || [])
+  const [customSections, setCustomSections] = useState<QuoteCustomSection[]>(
+    source?.customSections?.length ? source.customSections : isNew ? createDefaultQ2CustomSections() : [],
+  )
   const [rates, setRates] = useState<QuoteRate[]>(initialRates)
   const [rateSearch, setRateSearch] = useState("")
   const [saving, setSaving] = useState(false)
+  const [showNewRate, setShowNewRate] = useState(false)
+  const [newRateItem, setNewRateItem] = useState("")
+  const [newRateSupplier, setNewRateSupplier] = useState("")
+  const [newRateAmount, setNewRateAmount] = useState("")
+  const [newRateDate, setNewRateDate] = useState(todayDate())
+  const [savingRate, setSavingRate] = useState(false)
+  const [expenseName, setExpenseName] = useState("")
+  const [expenseAmount, setExpenseAmount] = useState("")
 
   useEffect(() => {
     void getQuoteRates().then(setRates)
@@ -336,6 +356,7 @@ function ExtensiveQuoteForm({
       ...prev,
       {
         id: `${Date.now()}-${prev.length}`,
+        lineKind: "rate",
         rateId: rate.id,
         itemName: rate.itemName,
         supplier: rate.supplier,
@@ -346,6 +367,96 @@ function ExtensiveQuoteForm({
         included: true,
       },
     ])
+  }
+
+  function addExpense() {
+    const name = expenseName.trim()
+    const amount = Number(expenseAmount) || 0
+    if (!name) {
+      toast({ title: "Name required", message: "Enter a name for the expense (e.g. Transport).", type: "error" })
+      return
+    }
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `expense-${Date.now()}-${prev.length}`,
+        lineKind: "expense",
+        itemName: name,
+        supplier: "—",
+        rate: amount,
+        rateDate: todayDate(),
+        qty: 1,
+        unit: "job",
+        included: true,
+      },
+    ])
+    setExpenseName("")
+    setExpenseAmount("")
+  }
+
+  async function handleSaveNewRate(addToQuote: boolean) {
+    const itemName = newRateItem.trim()
+    const supplier = newRateSupplier.trim()
+    const rate = Number(newRateAmount) || 0
+    if (!itemName || !supplier) {
+      toast({ title: "Item & supplier required", type: "error" })
+      return
+    }
+    setSavingRate(true)
+    try {
+      const saved = await saveQuoteRate({
+        itemName,
+        supplier,
+        rate,
+        rateDate: newRateDate || todayDate(),
+        createdBy: currentUser,
+        notes: "",
+      })
+      setRates((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)])
+      if (addToQuote) addRate(saved)
+      setShowNewRate(false)
+      setNewRateItem("")
+      setNewRateSupplier("")
+      setNewRateAmount("")
+      setNewRateDate(todayDate())
+      toast({
+        title: addToQuote ? "Saved to rate book & quote" : "Saved to rate book",
+        type: "success",
+      })
+    } catch (err) {
+      toast({
+        title: "Could not save rate",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+    } finally {
+      setSavingRate(false)
+    }
+  }
+
+  async function saveLineToRateBook(line: ExtensiveQuoteLine) {
+    if (line.lineKind === "expense") return
+    try {
+      const saved = await saveQuoteRate({
+        itemName: line.itemName.trim(),
+        supplier: line.supplier.trim() || "General",
+        rate: line.rate,
+        rateDate: line.rateDate || todayDate(),
+        createdBy: currentUser,
+        notes: "",
+      })
+      setRates((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)])
+      setItems((prev) =>
+        prev.map((x) => (x.id === line.id ? { ...x, rateId: saved.id, lineKind: "rate" } : x)),
+      )
+      toast({ title: "Added to rate book", type: "success" })
+    } catch (err) {
+      toast({
+        title: "Could not save to rate book",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+    }
   }
 
   function fillFromClient(client: Client) {
@@ -376,8 +487,15 @@ function ExtensiveQuoteForm({
         notes,
         introText: introText.trim(),
         footerText: footerText.trim(),
+        preparedBy: preparedBy.trim(),
         showBranding,
-        items,
+        items: items.map((line) => ({
+          ...line,
+          lineKind: line.lineKind || "rate",
+          itemName: line.itemName.trim(),
+          supplier: line.supplier.trim(),
+          unit: line.unit.trim() || (line.lineKind === "expense" ? "job" : "pcs"),
+        })),
         terms: terms
           .map((t) => ({
             ...t,
@@ -543,10 +661,68 @@ function ExtensiveQuoteForm({
           <Q2IntroField introText={introText} onIntro={setIntroText} />
 
           <div className="border-t pt-4 space-y-2">
-            <p className="text-xs font-semibold">Add supplier rates</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              Every date for that item and supplier is listed: upcoming, current, and past.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold">Add supplier rates</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Every date for that item and supplier is listed: upcoming, current, and past. Click to add to quote.
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setShowNewRate((v) => !v)}>
+                <Plus className="h-3 w-3 mr-1" />
+                {showNewRate ? "Close" : "New rate"}
+              </Button>
+            </div>
+            {showNewRate && (
+              <div className="rounded-md border p-3 grid sm:grid-cols-4 gap-2 bg-[hsl(var(--muted))]/20">
+                <input
+                  value={newRateItem}
+                  onChange={(e) => setNewRateItem(e.target.value)}
+                  placeholder="Item name"
+                  className="h-8 rounded border px-2 text-xs sm:col-span-2"
+                />
+                <input
+                  value={newRateSupplier}
+                  onChange={(e) => setNewRateSupplier(e.target.value)}
+                  placeholder="Supplier"
+                  className="h-8 rounded border px-2 text-xs"
+                />
+                <input
+                  type="number"
+                  value={newRateAmount}
+                  onChange={(e) => setNewRateAmount(e.target.value)}
+                  placeholder="Rate PKR"
+                  className="h-8 rounded border px-2 text-xs"
+                />
+                <input
+                  type="date"
+                  value={newRateDate}
+                  onChange={(e) => setNewRateDate(e.target.value)}
+                  className="h-8 rounded border px-2 text-xs"
+                />
+                <div className="sm:col-span-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f]"
+                    disabled={savingRate}
+                    onClick={() => void handleSaveNewRate(true)}
+                  >
+                    Save to book & add to quote
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={savingRate}
+                    onClick={() => void handleSaveNewRate(false)}
+                  >
+                    Save to book only
+                  </Button>
+                </div>
+              </div>
+            )}
             <input
               value={rateSearch}
               onChange={(e) => setRateSearch(e.target.value)}
@@ -555,7 +731,7 @@ function ExtensiveQuoteForm({
             />
             <div className="max-h-64 overflow-auto rounded border text-xs">
               {groupedRates.length === 0 ? (
-                <p className="p-3 text-[hsl(var(--muted-foreground))]">No rates. Add them in Rate book first.</p>
+                <p className="p-3 text-[hsl(var(--muted-foreground))]">No rates yet. Use New rate above or the Rate book tab.</p>
               ) : (
                 groupedRates.map((item) => (
                   <div key={item.itemName} className="border-b last:border-0">
@@ -590,16 +766,45 @@ function ExtensiveQuoteForm({
             </div>
           </div>
 
+          <div className="rounded-md border p-3 space-y-2">
+            <p className="text-xs font-semibold">Custom expense</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Transport, logistics, or any named cost — not required in the rate book.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={expenseName}
+                onChange={(e) => setExpenseName(e.target.value)}
+                placeholder="Name (e.g. Transport)"
+                className="h-8 flex-1 min-w-[160px] rounded border px-2 text-xs"
+              />
+              <input
+                type="number"
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                placeholder="Amount PKR"
+                className="h-8 w-32 rounded border px-2 text-xs"
+              />
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addExpense}>
+                <Plus className="h-3 w-3 mr-1" />
+                Add expense
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <p className="text-xs font-semibold">Lines on this quotation</p>
             {items.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Click a rate above to add it. Uncheck Include to keep it off the PDF/total.</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Pick rates above or add a custom expense. Uncheck Include to keep a line off the PDF/total.
+              </p>
             ) : (
               <div className="overflow-x-auto rounded border">
-                <table className="w-full min-w-[720px] text-xs">
+                <table className="w-full min-w-[900px] text-xs">
                   <thead>
                     <tr className="bg-[hsl(var(--muted))]/40">
                       <th className="px-2 py-2 text-left">Include</th>
+                      <th className="px-2 py-2 text-left">Type</th>
                       <th className="px-2 py-2 text-left">Item</th>
                       <th className="px-2 py-2 text-left">Supplier</th>
                       <th className="px-2 py-2 text-left">Date</th>
@@ -623,9 +828,52 @@ function ExtensiveQuoteForm({
                             }
                           />
                         </td>
-                        <td className="px-2 py-1.5">{line.itemName}</td>
-                        <td className="px-2 py-1.5">{line.supplier}</td>
-                        <td className="px-2 py-1.5">{line.rateDate}</td>
+                        <td className="px-2 py-1.5">
+                          <span
+                            className={`inline-flex rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                              line.lineKind === "expense"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-teal-50 text-teal-800"
+                            }`}
+                          >
+                            {line.lineKind === "expense" ? "Expense" : "Rate"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            value={line.itemName}
+                            onChange={(e) =>
+                              setItems((prev) =>
+                                prev.map((x) => (x.id === line.id ? { ...x, itemName: e.target.value } : x)),
+                              )
+                            }
+                            className="w-full min-w-[120px] h-7 rounded border px-1"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            value={line.supplier}
+                            onChange={(e) =>
+                              setItems((prev) =>
+                                prev.map((x) => (x.id === line.id ? { ...x, supplier: e.target.value } : x)),
+                              )
+                            }
+                            className="w-full min-w-[90px] h-7 rounded border px-1"
+                            disabled={line.lineKind === "expense"}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="date"
+                            value={line.rateDate}
+                            onChange={(e) =>
+                              setItems((prev) =>
+                                prev.map((x) => (x.id === line.id ? { ...x, rateDate: e.target.value } : x)),
+                              )
+                            }
+                            className="h-7 rounded border px-1"
+                          />
+                        </td>
                         <td className="px-2 py-1.5">
                           <input
                             type="number"
@@ -639,13 +887,33 @@ function ExtensiveQuoteForm({
                             className="w-16 h-7 rounded border px-1 text-right"
                           />
                         </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">
-                          {line.rate.toLocaleString("en-PK")}
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            value={line.rate}
+                            onChange={(e) =>
+                              setItems((prev) =>
+                                prev.map((x) => (x.id === line.id ? { ...x, rate: Number(e.target.value) || 0 } : x)),
+                              )
+                            }
+                            className="w-24 h-7 rounded border px-1 text-right tabular-nums"
+                          />
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">
                           {line.included ? (line.qty * line.rate).toLocaleString("en-PK") : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-right">
+                        <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                          {line.lineKind !== "expense" && (
+                            <button
+                              type="button"
+                              className="text-[#1faca6] mr-2 cursor-pointer text-[10px]"
+                              onClick={() => void saveLineToRateBook(line)}
+                              title="Save this line into the rate book"
+                            >
+                              To book
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="text-red-600 cursor-pointer"
@@ -663,11 +931,29 @@ function ExtensiveQuoteForm({
             <p className="text-sm font-semibold text-right">Total (included lines): {formatPkr(total)}</p>
           </div>
 
+          <label className="text-xs font-semibold space-y-1 block">
+            <span>Prepared by</span>
+            <input
+              value={preparedBy}
+              onChange={(e) => setPreparedBy(e.target.value)}
+              className="w-full h-9 rounded-md border px-3 text-sm"
+              placeholder={DEFAULT_Q2_PREPARED_BY}
+            />
+          </label>
+
           <Q2ProjectsEditor projects={projects} onChange={setProjects} />
-          <Q2WarrantiesEditor warranties={warranties} onChange={setWarranties} />
+          <Q2WarrantiesEditor
+            warranties={warranties}
+            onChange={setWarranties}
+            onResetDefaults={() => setWarranties(createDefaultQ2Warranties())}
+          />
           <Q2TestimonialsEditor testimonials={testimonials} onChange={setTestimonials} />
           <Q2CustomSectionsEditor sections={customSections} onChange={setCustomSections} />
-          <Q2TermsEditor terms={terms} onChange={setTerms} />
+          <Q2TermsEditor
+            terms={terms}
+            onChange={setTerms}
+            onResetDefaults={() => setTerms(createDefaultQ2Terms())}
+          />
           <Q2FooterField footerText={footerText} onFooter={setFooterText} />
 
           <label className="text-xs font-semibold space-y-1 block border-t pt-4">

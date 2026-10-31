@@ -1084,6 +1084,7 @@ model CrmExtensiveQuotation {
   notes            String   @default("")
   introText        String   @default("") @map("intro_text")
   footerText       String   @default("") @map("footer_text")
+  preparedBy       String   @default("") @map("prepared_by")
   showBranding     Boolean  @default(true) @map("show_branding")
   items            Json     @default("[]")
   terms            Json     @default("[]")

@@ -330,85 +330,119 @@ export function Q2ProjectsEditor({
 export function Q2WarrantiesEditor({
   warranties,
   onChange,
+  onResetDefaults,
 }: {
   warranties: QuoteWarrantySection[]
   onChange: (next: QuoteWarrantySection[]) => void
+  onResetDefaults?: () => void
 }) {
   return (
     <div className="border-t pt-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold">Product warranties</p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Per-product warranty details with bullets or plain text.
+            Pre-filled table — edit Product, Brand, and Warranty freely.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-[10px]"
-          onClick={() =>
-            onChange([
-              ...warranties,
-              {
-                id: `warranty-${Date.now()}`,
-                productName: "",
-                heading: "Warranty",
-                bodyType: "bullets",
-                bullets: [""],
-                plainText: "",
-              },
-            ])
-          }
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Add warranty
-        </Button>
-      </div>
-      {warranties.map((row) => (
-        <div key={row.id} className="rounded-md border p-3 space-y-2">
-          <div className="flex gap-2">
-            <input
-              value={row.productName}
-              onChange={(e) =>
-                onChange(warranties.map((w) => (w.id === row.id ? { ...w, productName: e.target.value } : w)))
-              }
-              placeholder="Product name"
-              className="flex-1 h-8 rounded border px-2 text-sm font-medium"
-            />
-            <button
-              type="button"
-              className="text-red-600 text-xs cursor-pointer"
-              onClick={() => onChange(warranties.filter((w) => w.id !== row.id))}
-            >
-              Remove
-            </button>
-          </div>
-          <input
-            value={row.heading}
-            onChange={(e) =>
-              onChange(warranties.map((w) => (w.id === row.id ? { ...w, heading: e.target.value } : w)))
+        <div className="flex gap-1.5">
+          {onResetDefaults && (
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={onResetDefaults}>
+              Reset defaults
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px]"
+            onClick={() =>
+              onChange([
+                ...warranties,
+                {
+                  id: `warranty-${Date.now()}`,
+                  productName: "",
+                  heading: "",
+                  bodyType: "plain",
+                  bullets: [],
+                  plainText: "",
+                },
+              ])
             }
-            placeholder="Section heading (e.g. 5+5 Year Replacement)"
-            className="w-full h-8 rounded border px-2 text-sm"
-          />
-          <BulletsOrPlainFields
-            bodyType={row.bodyType}
-            bullets={row.bullets}
-            plainText={row.plainText}
-            onBodyType={(bodyType) =>
-              onChange(warranties.map((w) => (w.id === row.id ? { ...w, bodyType } : w)))
-            }
-            onBullets={(bullets) =>
-              onChange(warranties.map((w) => (w.id === row.id ? { ...w, bullets } : w)))
-            }
-            onPlainText={(plainText) =>
-              onChange(warranties.map((w) => (w.id === row.id ? { ...w, plainText } : w)))
-            }
-          />
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Add row
+          </Button>
         </div>
-      ))}
+      </div>
+      <div className="overflow-x-auto rounded border">
+        <table className="w-full min-w-[640px] text-xs">
+          <thead>
+            <tr className="bg-[hsl(var(--muted))]/40">
+              <th className="px-2 py-2 text-left w-10">#</th>
+              <th className="px-2 py-2 text-left">Product</th>
+              <th className="px-2 py-2 text-left">Brand</th>
+              <th className="px-2 py-2 text-left w-28">Warranty</th>
+              <th className="px-2 py-2 w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {warranties.map((row, idx) => (
+              <tr key={row.id}>
+                <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{idx + 1}</td>
+                <td className="px-2 py-1.5">
+                  <textarea
+                    value={row.productName}
+                    onChange={(e) =>
+                      onChange(
+                        warranties.map((w) =>
+                          w.id === row.id ? { ...w, productName: e.target.value, bodyType: "plain" } : w,
+                        ),
+                      )
+                    }
+                    rows={2}
+                    placeholder="Product / warranty name"
+                    className="w-full rounded border px-2 py-1 text-xs"
+                  />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input
+                    value={row.heading}
+                    onChange={(e) =>
+                      onChange(warranties.map((w) => (w.id === row.id ? { ...w, heading: e.target.value } : w)))
+                    }
+                    placeholder="Brand"
+                    className="w-full h-8 rounded border px-2 text-xs"
+                  />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input
+                    value={row.plainText}
+                    onChange={(e) =>
+                      onChange(
+                        warranties.map((w) =>
+                          w.id === row.id ? { ...w, plainText: e.target.value, bodyType: "plain", bullets: [] } : w,
+                        ),
+                      )
+                    }
+                    placeholder="e.g. 10 years"
+                    className="w-full h-8 rounded border px-2 text-xs"
+                  />
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  <button
+                    type="button"
+                    className="text-red-600 text-[10px] cursor-pointer"
+                    onClick={() => onChange(warranties.filter((w) => w.id !== row.id))}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -589,28 +623,42 @@ export function Q2CustomSectionsEditor({
 export function Q2TermsEditor({
   terms,
   onChange,
+  onResetDefaults,
 }: {
   terms: QuoteTermSection[]
   onChange: (next: QuoteTermSection[]) => void
+  onResetDefaults?: () => void
 }) {
   return (
     <div className="border-t pt-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold">Terms & conditions</p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-[10px]"
-          onClick={() =>
-            onChange([
-              ...terms,
-              { id: `term-${Date.now()}`, heading: "", bodyType: "bullets", bullets: [""], plainText: "" },
-            ])
-          }
-        >
-          Add heading
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold">Terms & conditions</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Pre-reqs, payment terms, notes — all editable.
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          {onResetDefaults && (
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={onResetDefaults}>
+              Reset defaults
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px]"
+            onClick={() =>
+              onChange([
+                ...terms,
+                { id: `term-${Date.now()}`, heading: "", bodyType: "bullets", bullets: [""], plainText: "" },
+              ])
+            }
+          >
+            Add heading
+          </Button>
+        </div>
       </div>
       {terms.map((section) => {
         const bodyType = section.bodyType || "bullets"

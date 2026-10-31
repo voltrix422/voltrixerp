@@ -1,5 +1,9 @@
+export type ExtensiveQuoteLineKind = "rate" | "expense"
+
 export type ExtensiveQuoteLine = {
   id: string
+  /** rate = from rate book (or saved to it); expense = custom named cost (transport, etc.) */
+  lineKind?: ExtensiveQuoteLineKind
   rateId?: string
   itemName: string
   supplier: string
@@ -65,6 +69,8 @@ export type ExtensiveQuotation = {
   notes: string
   introText: string
   footerText: string
+  /** Shown on PDF as Prepared by (editable; default Engr. Fasi Ur Rehman). */
+  preparedBy: string
   showBranding: boolean
   items: ExtensiveQuoteLine[]
   terms: QuoteTermSection[]
@@ -135,15 +141,18 @@ function mapBodyType(raw: unknown): QuoteBodyType {
 
 function mapLine(raw: unknown, idx: number): ExtensiveQuoteLine {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const kindRaw = String(r.lineKind ?? "").toLowerCase()
+  const lineKind: ExtensiveQuoteLineKind = kindRaw === "expense" ? "expense" : "rate"
   return {
     id: String(r.id ?? `line-${idx}`),
+    lineKind,
     rateId: r.rateId ? String(r.rateId) : undefined,
     itemName: String(r.itemName ?? "").trim(),
     supplier: String(r.supplier ?? "").trim(),
     rate: Number(r.rate) || 0,
     rateDate: String(r.rateDate ?? "").slice(0, 10),
     qty: Math.max(0, Number(r.qty) || 0),
-    unit: String(r.unit ?? "pcs").trim() || "pcs",
+    unit: String(r.unit ?? (lineKind === "expense" ? "job" : "pcs")).trim() || (lineKind === "expense" ? "job" : "pcs"),
     included: r.included !== false,
   }
 }
@@ -229,6 +238,7 @@ export function rowToExtensiveQuotation(r: Record<string, unknown>): ExtensiveQu
     notes: String(r.notes ?? ""),
     introText: String(r.introText ?? ""),
     footerText: String(r.footerText ?? ""),
+    preparedBy: String(r.preparedBy ?? "").trim(),
     showBranding: r.showBranding !== false,
     items,
     terms: Array.isArray(r.terms) ? r.terms.map(mapTerm) : [],
@@ -309,6 +319,7 @@ export function duplicateExtensiveQuotation(source: ExtensiveQuotation): Extensi
     status: "draft",
     createdAt: "",
     quoteDate: today,
+    preparedBy: source.preparedBy || "",
     items: source.items.map((item, idx) => ({
       ...item,
       id: `dup-${Date.now()}-${idx}`,
