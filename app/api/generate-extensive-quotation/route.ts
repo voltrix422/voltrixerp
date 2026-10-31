@@ -69,14 +69,14 @@ function imageFormatFromPath(filePath: string): "PNG" | "JPEG" | "WEBP" | null {
   return null
 }
 
-/** Quiet professional palette — mostly ink / gray, one subtle accent. */
+/** Quiet professional palette — ink / gray, minimal chrome. */
 const C = {
-  ink: [28, 28, 28] as [number, number, number],
-  muted: [110, 110, 110] as [number, number, number],
-  softMuted: [140, 140, 140] as [number, number, number],
-  line: [210, 210, 210] as [number, number, number],
-  rule: [55, 55, 55] as [number, number, number],
-  headBg: [245, 245, 245] as [number, number, number],
+  ink: [32, 32, 32] as [number, number, number],
+  muted: [100, 100, 100] as [number, number, number],
+  softMuted: [130, 130, 130] as [number, number, number],
+  line: [220, 220, 220] as [number, number, number],
+  rule: [60, 60, 60] as [number, number, number],
+  headBg: [248, 248, 248] as [number, number, number],
   altRow: [252, 252, 252] as [number, number, number],
   white: [255, 255, 255] as [number, number, number],
   accent: [26, 120, 116] as [number, number, number],
@@ -102,28 +102,27 @@ function ensureSpace(ctx: Ctx, y: number, need: number): number {
   return y
 }
 
-function hairline(ctx: Ctx, y: number, weight = 0.35): number {
+function hairline(ctx: Ctx, y: number, weight = 0.25): number {
   const { doc, mL, pageW, mR } = ctx
   doc.setDrawColor(...C.line)
   doc.setLineWidth(weight)
   doc.line(mL, y, pageW - mR, y)
-  return y + 4
+  return y + 5
 }
 
 function sectionHeader(ctx: Ctx, title: string, y: number): number {
-  y = ensureSpace(ctx, y, 12)
-  const { doc, mL, contentW } = ctx
+  y = ensureSpace(ctx, y, 11)
+  const { doc, mL } = ctx
   doc.setFont(FONT, "bold")
   doc.setFontSize(9)
   doc.setTextColor(...C.ink)
   doc.text(title.toUpperCase(), mL, y)
-  doc.setDrawColor(...C.rule)
-  doc.setLineWidth(0.5)
-  doc.line(mL, y + 2.2, mL + contentW, y + 2.2)
-  doc.setDrawColor(...C.line)
-  doc.setLineWidth(0.25)
-  doc.line(mL, y + 3.2, mL + contentW, y + 3.2)
-  return y + 9
+  // Short accent underline under the title only — not a full-width double rule
+  const tw = doc.getTextWidth(title.toUpperCase())
+  doc.setDrawColor(...C.accent)
+  doc.setLineWidth(0.7)
+  doc.line(mL, y + 2, mL + Math.min(tw, 48), y + 2)
+  return y + 8
 }
 
 function writeWrapped(
@@ -190,30 +189,37 @@ function drawSubheading(ctx: Ctx, heading: string, y: number, skipGeneric = fals
 
 function tableDefaults(ctx: Ctx) {
   return {
+    theme: "plain" as const,
     margin: { left: ctx.mL, right: ctx.mR, bottom: ctx.footerReserve },
     styles: {
       fontSize: 8,
-      cellPadding: { top: 2.4, bottom: 2.4, left: 2.2, right: 2.2 },
+      cellPadding: { top: 2.6, bottom: 2.6, left: 2, right: 2 },
       textColor: C.ink,
       lineColor: C.line,
-      lineWidth: 0.2,
+      lineWidth: 0,
       font: FONT,
-      minCellHeight: 7,
-      valign: "middle" as const,
+      minCellHeight: 6.5,
+      valign: "top" as const,
+      overflow: "linebreak" as const,
     },
     headStyles: {
       fillColor: C.headBg,
       textColor: C.ink,
       fontStyle: "bold" as const,
-      fontSize: 7.5,
+      fontSize: 7,
       font: FONT,
-      lineWidth: 0.25,
+      lineWidth: { bottom: 0.45 },
+      lineColor: C.rule,
+      cellPadding: { top: 2.8, bottom: 2.8, left: 2, right: 2 },
+      valign: "middle" as const,
+    },
+    bodyStyles: {
+      lineWidth: { bottom: 0.15 },
       lineColor: C.line,
-      cellPadding: { top: 2.6, bottom: 2.6, left: 2.2, right: 2.2 },
     },
     alternateRowStyles: { fillColor: C.altRow },
     tableLineColor: C.line,
-    tableLineWidth: 0.2,
+    tableLineWidth: 0,
   }
 }
 
@@ -254,8 +260,8 @@ function drawHeader(ctx: Ctx, quote: ExtensiveQuotation): number {
     doc.text(quote.quotationNumber, pageW - mR, y + 9, { align: "right" })
 
     y = 30
-    doc.setDrawColor(...C.rule)
-    doc.setLineWidth(0.7)
+    doc.setDrawColor(...C.accent)
+    doc.setLineWidth(0.6)
     doc.line(mL, y, pageW - mR, y)
     return y + 8
   }
@@ -268,8 +274,8 @@ function drawHeader(ctx: Ctx, quote: ExtensiveQuotation): number {
   doc.setFontSize(9)
   doc.setTextColor(...C.muted)
   doc.text(quote.quotationNumber, pageW - mR, y + 2, { align: "right" })
-  doc.setDrawColor(...C.rule)
-  doc.setLineWidth(0.7)
+  doc.setDrawColor(...C.accent)
+  doc.setLineWidth(0.6)
   doc.line(mL, y + 6, pageW - mR, y + 6)
   return y + 12
 }
@@ -349,93 +355,114 @@ function drawIntro(ctx: Ctx, intro: string, y: number): number {
 }
 
 function drawTotal(ctx: Ctx, total: number, y: number): number {
-  const { doc, pageW, mR, mL } = ctx
-  y = ensureSpace(ctx, y, 14)
-  doc.setDrawColor(...C.rule)
-  doc.setLineWidth(0.4)
-  doc.line(pageW - mR - 72, y, pageW - mR, y)
-  y += 6
+  const { doc, pageW, mR } = ctx
+  y = ensureSpace(ctx, y, 12)
+  y += 2
   doc.setFont(FONT, "bold")
   doc.setFontSize(9)
-  doc.setTextColor(...C.ink)
-  doc.text("TOTAL", pageW - mR - 72, y)
+  doc.setTextColor(...C.muted)
+  doc.text("TOTAL", pageW - mR - 70, y)
   doc.setFontSize(11)
+  doc.setTextColor(...C.ink)
   doc.text(`PKR ${formatMoney(total)}`, pageW - mR, y, { align: "right" })
-  // keep left margin unused warning quiet
-  void mL
   return y + 10
 }
 
 function drawProjects(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
   const projects = quote.projects.filter(
-    (p) => p.title.trim() || p.summary.trim() || p.imageUrls.length,
+    (p) =>
+      p.title.trim() ||
+      (p.client || p.location || "").trim() ||
+      p.summary.trim() ||
+      (p.projectValue || "").trim() ||
+      (p.capacityMw || "").trim() ||
+      (p.completionDate || "").trim() ||
+      p.imageUrls.length,
   )
   if (!projects.length) return y
-  y = sectionHeader(ctx, "Recent projects", y)
-  const { doc, mL, contentW } = ctx
+  y = sectionHeader(ctx, "Our previous projects", y)
+  const { doc } = ctx
 
-  for (const project of projects) {
-    const urls = project.imageUrls.filter(Boolean).slice(0, 4)
-    y = ensureSpace(ctx, y, 24)
-    let innerY = y
+  const tableLike = projects.some(
+    (p) => (p.client || p.location || p.projectValue || p.capacityMw || p.completionDate || "").trim(),
+  )
 
-    if (project.title.trim()) {
-      doc.setFont(FONT, "bold")
-      doc.setFontSize(9.5)
-      doc.setTextColor(...C.ink)
-      doc.text(project.title.trim(), mL, innerY)
-      innerY += 5
-    }
-    if (project.location.trim()) {
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(7.5)
-      doc.setTextColor(...C.muted)
-      doc.text(project.location.trim(), mL, innerY)
-      innerY += 4.5
-    }
-    if (project.summary.trim()) {
-      doc.setFont(FONT, "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(...C.ink)
-      const sum = doc.splitTextToSize(project.summary.trim(), contentW) as string[]
-      for (const line of sum.slice(0, 4)) {
-        innerY = ensureSpace(ctx, innerY, 5)
-        doc.text(line, mL, innerY)
-        innerY += 3.6
+  if (tableLike) {
+    autoTable(doc, {
+      startY: y,
+      head: [["#", "Project", "Client", "Description", "Value (M)", "MW", "Completed"]],
+      body: projects.map((p, i) => [
+        String(i + 1),
+        p.title.trim() || "—",
+        (p.client || p.location || "").trim() || "—",
+        p.summary.trim() || "—",
+        (p.projectValue || "").trim() || "—",
+        (p.capacityMw || "").trim() || "—",
+        (p.completionDate || "").trim() || "—",
+      ]),
+      ...tableDefaults(ctx),
+      styles: {
+        ...tableDefaults(ctx).styles,
+        fontSize: 6.5,
+        cellPadding: { top: 2, bottom: 2, left: 1.4, right: 1.4 },
+        valign: "top",
+      },
+      headStyles: {
+        ...tableDefaults(ctx).headStyles,
+        fontSize: 6.2,
+        cellPadding: { top: 2.2, bottom: 2.2, left: 1.4, right: 1.4 },
+      },
+      columnStyles: {
+        0: { cellWidth: 7, halign: "center" },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 72 },
+        4: { cellWidth: 16, halign: "right" },
+        5: { cellWidth: 12, halign: "center" },
+        6: { cellWidth: 25 },
+      },
+    })
+    y = ((doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y) + 6
+  } else {
+    for (const project of projects) {
+      y = ensureSpace(ctx, y, 14)
+      if (project.title.trim()) {
+        doc.setFont(FONT, "bold")
+        doc.setFontSize(9)
+        doc.setTextColor(...C.ink)
+        doc.text(project.title.trim(), ctx.mL, y)
+        y += 4.5
       }
-      innerY += 2
-    }
-
-    if (urls.length) {
-      const imgW = (contentW - (Math.min(urls.length, 3) - 1) * 3) / Math.min(urls.length, 3)
-      const h = 28
-      let x = mL
-      for (let i = 0; i < urls.length; i++) {
-        const filePath = resolvePublicFile(urls[i])
-        const fmt = filePath ? imageFormatFromPath(filePath) : null
-        if (!filePath || !fmt) continue
-        if (i > 0 && i % 3 === 0) {
-          x = mL
-          innerY += h + 3
-        }
-        innerY = ensureSpace(ctx, innerY, h + 4)
-        try {
-          const b64 = fs.readFileSync(filePath).toString("base64")
-          const mime = fmt === "PNG" ? "image/png" : fmt === "WEBP" ? "image/webp" : "image/jpeg"
-          doc.addImage(`data:${mime};base64,${b64}`, fmt, x, innerY, imgW, h)
-          x += imgW + 3
-        } catch {
-          /* skip */
-        }
+      if (project.summary.trim()) {
+        y = writeWrapped(ctx, project.summary.trim(), y, { size: 8, color: C.muted, lineH: 3.6 }) + 2
       }
-      innerY += h + 3
     }
-
-    doc.setDrawColor(...C.line)
-    doc.setLineWidth(0.25)
-    doc.line(mL, innerY, mL + contentW, innerY)
-    y = innerY + 6
   }
+
+  // Optional photos under the table (if any)
+  for (const project of projects) {
+    const urls = project.imageUrls.filter(Boolean).slice(0, 3)
+    if (!urls.length) continue
+    const imgW = (ctx.contentW - (urls.length - 1) * 3) / urls.length
+    const h = 24
+    y = ensureSpace(ctx, y, h + 6)
+    let x = ctx.mL
+    for (const url of urls) {
+      const filePath = resolvePublicFile(url)
+      const fmt = filePath ? imageFormatFromPath(filePath) : null
+      if (!filePath || !fmt) continue
+      try {
+        const b64 = fs.readFileSync(filePath).toString("base64")
+        const mime = fmt === "PNG" ? "image/png" : fmt === "WEBP" ? "image/webp" : "image/jpeg"
+        doc.addImage(`data:${mime};base64,${b64}`, fmt, x, y, imgW, h)
+        x += imgW + 3
+      } catch {
+        /* skip */
+      }
+    }
+    y += h + 5
+  }
+
   return y
 }
 
@@ -544,53 +571,48 @@ function drawTerms(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
 
 function drawSignatures(ctx: Ctx, quote: ExtensiveQuotation, y: number): number {
   const { doc, mL, mR, pageW } = ctx
-  y = ensureSpace(ctx, y, 28)
-  y += 4
+  y = ensureSpace(ctx, y, 26)
+  y += 6
   doc.setDrawColor(...C.line)
-  doc.setLineWidth(0.35)
-  doc.line(mL, y, mL + 58, y)
-  doc.line(pageW - mR - 58, y, pageW - mR, y)
+  doc.setLineWidth(0.3)
+  doc.line(mL, y, mL + 55, y)
+  doc.line(pageW - mR - 55, y, pageW - mR, y)
 
   doc.setFont(FONT, "normal")
   doc.setFontSize(7)
   doc.setTextColor(...C.softMuted)
   doc.text("Client acceptance", mL, y + 4.5)
-  doc.text("For Voltrix Batteries Pvt. Ltd", pageW - mR - 58, y + 4.5)
+  doc.text("For Voltrix Batteries Pvt. Ltd", pageW - mR - 55, y + 4.5)
 
   if (quote.preparedBy?.trim()) {
     doc.setFont(FONT, "bold")
     doc.setFontSize(8.5)
     doc.setTextColor(...C.ink)
-    doc.text(quote.preparedBy.trim(), pageW - mR - 58, y + 10)
+    doc.text(quote.preparedBy.trim(), pageW - mR - 55, y + 10)
     doc.setFont(FONT, "normal")
     doc.setFontSize(7)
     doc.setTextColor(...C.muted)
-    doc.text("Prepared by", pageW - mR - 58, y + 14.5)
+    doc.text("Prepared by", pageW - mR - 55, y + 14.5)
   }
-  return y + 22
+  return y + 20
 }
 
 function applyPageFooters(ctx: Ctx, quote: ExtensiveQuotation) {
   const { doc, pageW, pageH, mL, mR, branded } = ctx
   const pageCount = doc.getNumberOfPages()
   const base = branded ? "Voltrix Batteries Pvt. Ltd" : "Quotation"
-  // Only show short custom footer lines (avoid dumping notes into the footer)
   const custom = quote.footerText.trim()
   const shortFooter = custom.length > 0 && custom.length <= 60 ? custom : ""
 
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setDrawColor(...C.line)
-    doc.setLineWidth(0.35)
-    doc.line(mL, pageH - 12, pageW - mR, pageH - 12)
     doc.setFont(FONT, "normal")
-    doc.setFontSize(7)
+    doc.setFontSize(6.5)
     doc.setTextColor(...C.softMuted)
-    doc.text(base, mL, pageH - 7)
-    doc.text(`${i} / ${pageCount}`, pageW - mR, pageH - 7, { align: "right" })
+    doc.text(base, mL, pageH - 8)
+    doc.text(`${i} / ${pageCount}`, pageW - mR, pageH - 8, { align: "right" })
     if (shortFooter) {
-      doc.setFontSize(6.5)
-      doc.text(shortFooter, pageW / 2, pageH - 7, { align: "center" })
+      doc.text(shortFooter, pageW / 2, pageH - 8, { align: "center" })
     }
   }
 }
@@ -657,10 +679,10 @@ export async function POST(req: NextRequest) {
     y = drawTotal(ctx, total, y)
     y = drawSignatures(ctx, quote, y)
 
+    y = drawProjects(ctx, quote, y)
     y = drawCustomSections(ctx, quote, y)
     y = drawWarranties(ctx, quote, y)
     y = drawTerms(ctx, quote, y)
-    y = drawProjects(ctx, quote, y)
     y = drawTestimonials(ctx, quote, y)
 
     applyPageFooters(ctx, quote)

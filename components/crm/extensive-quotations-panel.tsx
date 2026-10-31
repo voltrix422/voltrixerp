@@ -19,6 +19,7 @@ import {
 } from "@/lib/quote-rates"
 import {
   createDefaultQ2CustomSections,
+  createDefaultQ2Projects,
   createDefaultQ2Terms,
   createDefaultQ2Warranties,
   DEFAULT_Q2_INTRO,
@@ -319,7 +320,9 @@ function ExtensiveQuoteForm({
   const [terms, setTerms] = useState<QuoteTermSection[]>(
     source?.terms?.length ? source.terms : isNew ? createDefaultQ2Terms() : [],
   )
-  const [projects, setProjects] = useState<QuoteProjectCard[]>(source?.projects || [])
+  const [projects, setProjects] = useState<QuoteProjectCard[]>(
+    source?.projects?.length ? source.projects : isNew ? createDefaultQ2Projects() : [],
+  )
   const [warranties, setWarranties] = useState<QuoteWarrantySection[]>(
     source?.warranties?.length ? source.warranties : isNew ? createDefaultQ2Warranties() : [],
   )
@@ -509,11 +512,24 @@ function ExtensiveQuoteForm({
           .map((p) => ({
             ...p,
             title: p.title.trim(),
-            location: p.location.trim(),
+            client: (p.client || p.location || "").trim(),
+            location: (p.location || p.client || "").trim(),
             summary: p.summary.trim(),
+            projectValue: (p.projectValue || "").trim(),
+            capacityMw: (p.capacityMw || "").trim(),
+            completionDate: (p.completionDate || "").trim(),
             imageUrls: p.imageUrls.filter(Boolean),
           }))
-          .filter((p) => p.title || p.summary || p.imageUrls.length),
+          .filter(
+            (p) =>
+              p.title ||
+              p.client ||
+              p.summary ||
+              p.projectValue ||
+              p.capacityMw ||
+              p.completionDate ||
+              p.imageUrls.length,
+          ),
         warranties: warranties
           .map((w) => ({
             ...w,
@@ -941,14 +957,22 @@ function ExtensiveQuoteForm({
             />
           </label>
 
-          <Q2ProjectsEditor projects={projects} onChange={setProjects} />
+          <Q2ProjectsEditor
+            projects={projects}
+            onChange={setProjects}
+            onResetDefaults={() => setProjects(createDefaultQ2Projects())}
+          />
           <Q2WarrantiesEditor
             warranties={warranties}
             onChange={setWarranties}
             onResetDefaults={() => setWarranties(createDefaultQ2Warranties())}
           />
           <Q2TestimonialsEditor testimonials={testimonials} onChange={setTestimonials} />
-          <Q2CustomSectionsEditor sections={customSections} onChange={setCustomSections} />
+          <Q2CustomSectionsEditor
+            sections={customSections}
+            onChange={setCustomSections}
+            onResetDefaults={() => setCustomSections(createDefaultQ2CustomSections())}
+          />
           <Q2TermsEditor
             terms={terms}
             onChange={setTerms}
@@ -1046,20 +1070,25 @@ function ExtensiveQuoteDetail({
           <p className="font-semibold text-right">{formatPkr(quote.total)}</p>
           {quote.projects.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Projects</p>
-              {quote.projects.map((p) => (
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Previous projects</p>
+              {quote.projects.map((p, i) => (
                 <div key={p.id} className="rounded border p-2 text-xs space-y-1">
-                  <p className="font-semibold">{p.title || "Untitled project"}</p>
-                  {p.location ? <p className="text-[hsl(var(--muted-foreground))]">{p.location}</p> : null}
-                  {p.summary ? <p className="whitespace-pre-wrap">{p.summary}</p> : null}
-                  {p.imageUrls.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {p.imageUrls.map((url) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={url} src={url} alt="" className="w-12 h-12 rounded object-cover border" />
-                      ))}
-                    </div>
-                  ) : null}
+                  <p className="font-semibold">
+                    {i + 1}. {p.title || "Project"}
+                    {p.client || p.location ? ` — ${p.client || p.location}` : ""}
+                  </p>
+                  {p.summary ? <p className="whitespace-pre-wrap text-[hsl(var(--muted-foreground))]">{p.summary}</p> : null}
+                  {(p.projectValue || p.capacityMw || p.completionDate) && (
+                    <p className="text-[hsl(var(--muted-foreground))]">
+                      {[
+                        p.projectValue ? `Value: ${p.projectValue} M` : "",
+                        p.capacityMw ? `${p.capacityMw} MW` : "",
+                        p.completionDate || "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

@@ -167,16 +167,36 @@ export function Q2FooterField({
   )
 }
 
+function emptyProject(id = `project-${Date.now()}`): QuoteProjectCard {
+  return {
+    id,
+    title: "Solar Power Plants",
+    client: "",
+    location: "",
+    summary: "",
+    projectValue: "",
+    capacityMw: "",
+    completionDate: "",
+    imageUrls: [],
+  }
+}
+
 export function Q2ProjectsEditor({
   projects,
   onChange,
+  onResetDefaults,
 }: {
   projects: QuoteProjectCard[]
   onChange: (next: QuoteProjectCard[]) => void
+  onResetDefaults?: () => void
 }) {
   const { toast } = useToast()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  function patch(id: string, partial: Partial<QuoteProjectCard>) {
+    onChange(projects.map((p) => (p.id === id ? { ...p, ...partial } : p)))
+  }
 
   async function handleUpload(projectId: string, files: FileList | null) {
     if (!files?.length) return
@@ -201,127 +221,145 @@ export function Q2ProjectsEditor({
 
   return (
     <div className="border-t pt-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold">Recent projects</p>
+          <p className="text-xs font-semibold">Our previous projects</p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Showcase completed work with multiple photos per project.
+            Pre-filled recent projects — edit freely. Photos optional.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-[10px]"
-          onClick={() =>
-            onChange([
-              ...projects,
-              {
-                id: `project-${Date.now()}`,
-                title: "",
-                location: "",
-                summary: "",
-                imageUrls: [],
-              },
-            ])
-          }
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Add project
-        </Button>
+        <div className="flex gap-1.5">
+          {onResetDefaults && (
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={onResetDefaults}>
+              Reset defaults
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px]"
+            onClick={() => onChange([...projects, emptyProject()])}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Add project
+          </Button>
+        </div>
       </div>
       {projects.length === 0 ? (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">No projects added yet.</p>
       ) : (
-        projects.map((project) => (
-          <div key={project.id} className="rounded-md border p-3 space-y-2">
-            <div className="flex gap-2">
-              <input
-                value={project.title}
-                onChange={(e) =>
-                  onChange(projects.map((p) => (p.id === project.id ? { ...p, title: e.target.value } : p)))
-                }
-                placeholder="Project title"
-                className="flex-1 h-8 rounded border px-2 text-sm font-medium"
+        <div className="space-y-3">
+          {projects.map((project, idx) => (
+            <div key={project.id} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">#{idx + 1}</p>
+                <button
+                  type="button"
+                  className="text-red-600 text-xs cursor-pointer shrink-0"
+                  onClick={() => onChange(projects.filter((p) => p.id !== project.id))}
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <input
+                  value={project.title}
+                  onChange={(e) => patch(project.id, { title: e.target.value })}
+                  placeholder="Project type"
+                  className="h-8 rounded border px-2 text-sm"
+                />
+                <input
+                  value={project.client || project.location}
+                  onChange={(e) => patch(project.id, { client: e.target.value, location: e.target.value })}
+                  placeholder="Client"
+                  className="h-8 rounded border px-2 text-sm"
+                />
+              </div>
+              <textarea
+                value={project.summary}
+                onChange={(e) => patch(project.id, { summary: e.target.value })}
+                rows={3}
+                placeholder="Description of the project"
+                className="w-full rounded border px-2 py-1.5 text-sm"
               />
-              <button
-                type="button"
-                className="text-red-600 text-xs cursor-pointer shrink-0"
-                onClick={() => onChange(projects.filter((p) => p.id !== project.id))}
-              >
-                Remove
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="text-[10px] space-y-0.5">
+                  <span className="text-[hsl(var(--muted-foreground))]">Value (M)</span>
+                  <input
+                    value={project.projectValue || ""}
+                    onChange={(e) => patch(project.id, { projectValue: e.target.value })}
+                    placeholder="e.g. 11.937"
+                    className="w-full h-8 rounded border px-2 text-sm"
+                  />
+                </label>
+                <label className="text-[10px] space-y-0.5">
+                  <span className="text-[hsl(var(--muted-foreground))]">Capacity (MW)</span>
+                  <input
+                    value={project.capacityMw || ""}
+                    onChange={(e) => patch(project.id, { capacityMw: e.target.value })}
+                    placeholder="e.g. 5"
+                    className="w-full h-8 rounded border px-2 text-sm"
+                  />
+                </label>
+                <label className="text-[10px] space-y-0.5">
+                  <span className="text-[hsl(var(--muted-foreground))]">Completion</span>
+                  <input
+                    value={project.completionDate || ""}
+                    onChange={(e) => patch(project.id, { completionDate: e.target.value })}
+                    placeholder="e.g. 05 June 2024"
+                    className="w-full h-8 rounded border px-2 text-sm"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {project.imageUrls.map((url) => (
+                  <div key={url} className="relative w-14 h-14 rounded border overflow-hidden bg-[hsl(var(--muted))]/30">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded p-0.5 cursor-pointer"
+                      onClick={() =>
+                        patch(project.id, { imageUrls: project.imageUrls.filter((u) => u !== url) })
+                      }
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <input
+                  ref={(el) => {
+                    fileRefs.current[project.id] = el
+                  }}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    void handleUpload(project.id, e.target.files)
+                    e.target.value = ""
+                  }}
+                />
+                <button
+                  type="button"
+                  className="w-14 h-14 rounded border border-dashed flex flex-col items-center justify-center text-[10px] text-[hsl(var(--muted-foreground))] cursor-pointer hover:bg-[hsl(var(--muted))]/30"
+                  disabled={uploadingId === project.id}
+                  onClick={() => fileRefs.current[project.id]?.click()}
+                >
+                  {uploadingId === project.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="h-3.5 w-3.5 mb-0.5" />
+                      Photo
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <input
-              value={project.location}
-              onChange={(e) =>
-                onChange(projects.map((p) => (p.id === project.id ? { ...p, location: e.target.value } : p)))
-              }
-              placeholder="Location (city / site)"
-              className="w-full h-8 rounded border px-2 text-sm"
-            />
-            <textarea
-              value={project.summary}
-              onChange={(e) =>
-                onChange(projects.map((p) => (p.id === project.id ? { ...p, summary: e.target.value } : p)))
-              }
-              rows={2}
-              placeholder="Short project summary"
-              className="w-full rounded border px-2 py-1.5 text-sm"
-            />
-            <div className="flex flex-wrap gap-2">
-              {project.imageUrls.map((url) => (
-                <div key={url} className="relative w-16 h-16 rounded border overflow-hidden bg-[hsl(var(--muted))]/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded p-0.5 cursor-pointer"
-                    onClick={() =>
-                      onChange(
-                        projects.map((p) =>
-                          p.id === project.id
-                            ? { ...p, imageUrls: p.imageUrls.filter((u) => u !== url) }
-                            : p,
-                        ),
-                      )
-                    }
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <input
-                ref={(el) => {
-                  fileRefs.current[project.id] = el
-                }}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  void handleUpload(project.id, e.target.files)
-                  e.target.value = ""
-                }}
-              />
-              <button
-                type="button"
-                className="w-16 h-16 rounded border border-dashed flex flex-col items-center justify-center text-[10px] text-[hsl(var(--muted-foreground))] cursor-pointer hover:bg-[hsl(var(--muted))]/30"
-                disabled={uploadingId === project.id}
-                onClick={() => fileRefs.current[project.id]?.click()}
-              >
-                {uploadingId === project.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <ImagePlus className="h-4 w-4 mb-0.5" />
-                    Photos
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   )
@@ -546,40 +584,49 @@ export function Q2TestimonialsEditor({
 export function Q2CustomSectionsEditor({
   sections,
   onChange,
+  onResetDefaults,
 }: {
   sections: QuoteCustomSection[]
   onChange: (next: QuoteCustomSection[]) => void
+  onResetDefaults?: () => void
 }) {
   return (
     <div className="border-t pt-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold">Custom sections</p>
+          <p className="text-xs font-semibold">Unit generation & custom sections</p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Free-form headings with bullet lists or plain paragraphs (scope, company profile, etc.).
+            Unit generation averages and other free-form headings — all editable.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-[10px]"
-          onClick={() =>
-            onChange([
-              ...sections,
-              {
-                id: `custom-${Date.now()}`,
-                heading: "",
-                bodyType: "bullets",
-                bullets: [""],
-                plainText: "",
-              },
-            ])
-          }
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Add section
-        </Button>
+        <div className="flex gap-1.5">
+          {onResetDefaults && (
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={onResetDefaults}>
+              Reset defaults
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px]"
+            onClick={() =>
+              onChange([
+                ...sections,
+                {
+                  id: `custom-${Date.now()}`,
+                  heading: "",
+                  bodyType: "bullets",
+                  bullets: [""],
+                  plainText: "",
+                },
+              ])
+            }
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Add section
+          </Button>
+        </div>
       </div>
       {sections.map((row) => (
         <div key={row.id} className="rounded-md border p-3 space-y-2">

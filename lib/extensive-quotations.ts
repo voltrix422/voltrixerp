@@ -26,9 +26,20 @@ export type QuoteTermSection = {
 
 export type QuoteProjectCard = {
   id: string
+  /** Project type / category, e.g. Solar Power Plants */
   title: string
+  /** Client name */
+  client: string
+  /** Legacy field; prefer client */
   location: string
+  /** Project description */
   summary: string
+  /** Project value in millions (display string) */
+  projectValue: string
+  /** Capacity in MW (display string) */
+  capacityMw: string
+  /** Completion date / year */
+  completionDate: string
   imageUrls: string[]
 }
 
@@ -176,11 +187,16 @@ function mapProject(raw: unknown, idx: number): QuoteProjectCard {
   const imageUrls = Array.isArray(r.imageUrls)
     ? r.imageUrls.map((u) => String(u ?? "").trim()).filter(Boolean)
     : []
+  const client = String(r.client ?? "").trim() || String(r.location ?? "").trim()
   return {
     id: String(r.id ?? `project-${idx}`),
     title: String(r.title ?? "").trim(),
+    client,
     location: String(r.location ?? "").trim(),
     summary: String(r.summary ?? "").trim(),
+    projectValue: String(r.projectValue ?? "").trim(),
+    capacityMw: String(r.capacityMw ?? "").trim(),
+    completionDate: String(r.completionDate ?? "").trim(),
     imageUrls,
   }
 }

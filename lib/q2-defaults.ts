@@ -1,4 +1,9 @@
-import type { QuoteCustomSection, QuoteTermSection, QuoteWarrantySection } from "@/lib/extensive-quotations"
+import type {
+  QuoteCustomSection,
+  QuoteProjectCard,
+  QuoteTermSection,
+  QuoteWarrantySection,
+} from "@/lib/extensive-quotations"
 
 export const DEFAULT_Q2_PREPARED_BY = "Engr. Fasi Ur Rehman"
 
@@ -83,13 +88,123 @@ export function createDefaultQ2Terms(stamp = Date.now()): QuoteTermSection[] {
   return rows.map((row, i) => ({ ...row, id: `term-default-${stamp}-${i}` }))
 }
 
+/** Recent / previous solar projects — table defaults for Q2. */
+export function createDefaultQ2Projects(stamp = Date.now()): QuoteProjectCard[] {
+  const rows: Omit<QuoteProjectCard, "id">[] = [
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited",
+      location: "",
+      summary:
+        "Electrical Works for Solar Project (PV Panel Interconnection, DC/AC & MV/LV Cable Laying and Termination, Transformer & LV/MV Panel Installation, Overhead Transmission Line Works, Grounding & Lightning Protection, Street Lighting & Electrical Distribution Works)",
+      projectValue: "11.937",
+      capacityMw: "5",
+      completionDate: "05 June 2024",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited",
+      location: "",
+      summary:
+        "Electrical Works (PV Module Stringing, Inverter Mounting, DC/AC Cable Laying & Termination, PV & Structure Earthing, LV Panel Installation, MV/LV/DC Excavation & MV Cable Works)",
+      projectValue: "15.000",
+      capacityMw: "10",
+      completionDate: "11 November 2024",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited",
+      location: "",
+      summary:
+        "Electrical Works for Solar Project (DC & AC Cable Laying, Communication Cable Laying, Cable Termination & Testing, Cable Tray Installation, Combiner Panel Installation, Earthing Cable Laying & Connection)",
+      projectValue: "1.000",
+      capacityMw: "0.850",
+      completionDate: "20 January 2025",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited",
+      location: "",
+      summary:
+        "Electrical Works (PV Module Stringing & Inverter Mounting, DC/AC Cable Laying & Termination, PV/Structure Earthing & LV Panel Installation, Communication & MV Cable Works, MV Excavation/Trenching & Earthing Bores, Transformer Sheds)",
+      projectValue: "11.030",
+      capacityMw: "10",
+      completionDate: "13 August 2024",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited",
+      location: "",
+      summary:
+        "Electrical Works (Installation of Electrical Power & Control Equipment, Motors/VFDs/MCCs Installation, I/O Panels Installation, Equipment Tagging, Electrical Installation Works, Testing & Completion Works)",
+      projectValue: "4.7923",
+      capacityMw: "3",
+      completionDate: "12 May 2026",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Fauji Cement Company Limited (FCCL)",
+      location: "",
+      summary:
+        "Full Scope Electrical, Mechanical, Civil & Structural Installation (PV module stringing & inverter mounting, AC/DC cable laying & termination, LV panels & MV terminations, earthing system & bores, MV trenching & cable laying, testing & commissioning)",
+      projectValue: "11.030",
+      capacityMw: "5",
+      completionDate: "13 August 2024",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "TechX",
+      location: "",
+      summary:
+        "Solar PV Project (New & Existing Structure Installation, LV Panels, Earthing, Electrical Installation, Testing & Commissioning)",
+      projectValue: "45.000",
+      capacityMw: "4.3",
+      completionDate: "06 February 2025",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "TECH X",
+      location: "",
+      summary:
+        "Electrical, Mechanical, Civil & Structural Installation and Services for 4 MW Solar Plant (Electrical installation, mechanical installation, civil works, structural works, testing & commissioning, complete system operationalization)",
+      projectValue: "—",
+      capacityMw: "4",
+      completionDate: "07 June 2024",
+      imageUrls: [],
+    },
+    {
+      title: "Solar Power Plants",
+      client: "Foundation Solar Energy (Pvt.) Limited",
+      location: "",
+      summary:
+        "Electrical Material for 5 MW Ground Mount Solar Power Plant (Cable trays & ladders, UPVC/flexible conduits, cable glands/lugs & termination/joint kits, earthing materials, lightning protection, cable-management accessories)",
+      projectValue: "4.55629",
+      capacityMw: "5",
+      completionDate: "29 January 2021",
+      imageUrls: [],
+    },
+  ]
+  return rows.map((row, i) => ({ ...row, id: `project-default-${stamp}-${i}` }))
+}
+
 export function createDefaultQ2CustomSections(stamp = Date.now()): QuoteCustomSection[] {
   return [
     {
       id: `custom-unit-gen-${stamp}`,
       heading: "Unit Generation",
-      bodyType: "plain",
-      bullets: [],
+      bodyType: "bullets",
+      bullets: [
+        "Daily production average ≈ 4,000 kWh",
+        "Monthly production average ≈ 120,000 kWh",
+        "Annual production average ≈ 1,440,000 kWh",
+      ],
       plainText: "",
     },
   ]
