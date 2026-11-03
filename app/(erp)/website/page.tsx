@@ -6,12 +6,13 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store, BarChart3, Megaphone } from "lucide-react"
+import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store, BarChart3, Megaphone, Wallet } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
 import WebsiteDealPopupManager from "@/components/website/website-deal-popup-manager"
 import OutletsManager from "@/components/website/outlets-manager"
 import DealershipsManager from "@/components/website/dealerships-manager"
 import WebsiteAnalyticsDashboard from "@/components/website/website-analytics-dashboard"
+import InstallerCashbackManager from "@/components/website/installer-cashback-manager"
 import { WarrantyManager } from "@/components/warranty/warranty-manager"
 import BlogManager from "@/components/blog/blog-manager"
 import JobManager from "@/components/careers/job-manager"
@@ -43,10 +44,10 @@ const statusColors: Record<string, string> = {
 
 const statusOptions = ["new", "in_review", "quoted", "closed"]
 
-type WebsiteTab = "quotations" | "products" | "deal" | "outlets" | "dealerships" | "warranty" | "blog" | "careers" | "analytics"
+type WebsiteTab = "quotations" | "products" | "deal" | "outlets" | "dealerships" | "warranty" | "blog" | "careers" | "analytics" | "cashback"
 
 function parseWebsiteTab(value: string | null): WebsiteTab {
-  const allowed: WebsiteTab[] = ["quotations", "products", "deal", "outlets", "dealerships", "warranty", "blog", "careers", "analytics"]
+  const allowed: WebsiteTab[] = ["quotations", "products", "deal", "outlets", "dealerships", "warranty", "blog", "careers", "analytics", "cashback"]
   if (value && (allowed as string[]).includes(value)) return value as WebsiteTab
   return "quotations"
 }
@@ -170,10 +171,16 @@ export default function WebsitePage() {
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "analytics" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <BarChart3 className="w-3.5 h-3.5" /> Analytics
         </button>
+        <button onClick={() => selectTab("cashback")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "cashback" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <Wallet className="w-3.5 h-3.5" /> Installer cashback
+        </button>
       </div>
 
       {tab === "analytics" ? (
         <WebsiteAnalyticsDashboard />
+      ) : tab === "cashback" ? (
+        <InstallerCashbackManager />
       ) : tab === "products" ? (
         <ProductsManager />
       ) : tab === "deal" ? (

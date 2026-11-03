@@ -61,6 +61,7 @@ export const MARKETING_ROUTES: {
   { path: "/dealerships", changeFrequency: "weekly", priority: 0.8 },
   { path: "/outlets", changeFrequency: "weekly", priority: 0.8 },
   { path: "/warranty", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/installer-cashback", changeFrequency: "monthly", priority: 0.7 },
   { path: "/blog", changeFrequency: "weekly", priority: 0.65 },
   { path: "/blog/lifepo4-battery-price-pakistan-2026", changeFrequency: "monthly", priority: 0.7 },
   { path: "/blog/lithium-vs-tubular-battery-pakistan", changeFrequency: "monthly", priority: 0.7 },

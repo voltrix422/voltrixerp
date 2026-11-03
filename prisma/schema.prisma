@@ -1832,3 +1832,29 @@ model ErpCashRequest {
   @@index([neededOn])
   @@map("erp_cash_requests")
 }
+
+/** Public installer cashback claims submitted from the website. */
+model ErpInstallerCashbackRequest {
+  id              String    @id @default(cuid())
+  fullName        String    @map("full_name")
+  cnic            String
+  phone           String
+  installPlace    String    @map("install_place")
+  productId       String    @default("") @map("product_id")
+  productName     String    @map("product_name")
+  quantity        Int       @default(1)
+  imageUrls       Json      @default("[]") @map("image_urls")
+  notes           String    @default("")
+  cashbackAmount  Float?    @map("cashback_amount")
+  status          String    @default("new")
+  adminNotes      String    @default("") @map("admin_notes")
+  reviewedBy      String    @default("") @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([phone])
+  @@index([cnic])
+  @@map("erp_installer_cashback_requests")
+}
