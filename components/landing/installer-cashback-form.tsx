@@ -126,10 +126,6 @@ export default function InstallerCashbackForm() {
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-neutral-900">
             Installer cashback
           </h1>
-          <p className="text-sm sm:text-base text-neutral-500 max-w-lg mx-auto leading-relaxed">
-            Installed a Voltrix product? Upload site photos, select the product, and request your cashback.
-            Our team reviews every claim.
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-8 space-y-5 shadow-sm">
