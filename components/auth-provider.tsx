@@ -46,6 +46,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/dealerships",
   "/technology",
   "/warranty",
+  "/installer-cashback",
   "/blog",
   "/careers",
   "/privacy",
