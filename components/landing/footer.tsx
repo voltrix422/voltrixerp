@@ -37,9 +37,9 @@ const locationLinks: { label: string; href: string }[] = [
 ]
 
 const links = {
-  Company: ["About", "Outlets", "Dealerships", "Blog", "Careers"],
+  Company: ["About", "Outlets", "Dealerships", "Blog", "Careers", "Installer Cashback"],
   Legal: ["Privacy", "Terms", "Cookies"],
-  Resources: ["Documentation", "Installer Cashback", "ERP"],
+  Resources: ["Documentation", "Warranty", "ERP"],
 }
 
 export default function Footer() {
@@ -86,6 +86,7 @@ export default function Footer() {
                                  item === "Cookies" ? "/cookies" :
                                  item === "Documentation" ? "/documentation" :
                                  item === "Installer Cashback" ? "/installer-cashback" :
+                                 item === "Warranty" ? "/warranty" :
                                  item === "ERP" ? "/login" : "#"
                     return (
                       <li key={item}>

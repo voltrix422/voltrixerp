@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,25 +6,29 @@ import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { usePathname } from "next/navigation"
 
-const primaryLinks = [
-  { label: "Products",            hash: "products"  },
-  { label: "Solar Calculator",    href: "/solar-calculator" },
-  { label: "Services",            hash: "services"  },
-  { label: "Vision & Mission",    hash: "vision"    },
-  { label: "Technology & Partners", hash: "rd"        },
-  { label: "About Us",            hash: "about"     },
-  { label: "Contact",             hash: "contact"   },
-]
+type NavLink = {
+  label: string
+  short?: string
+  href?: string
+  hash?: string
+  accent?: boolean
+}
 
-const secondaryLinks = [
+/** Exact site nav order requested for the marketing site. */
+const navLinks: NavLink[] = [
+  { label: "Products", hash: "products" },
+  { label: "Solar Calculator", short: "Calculator", href: "/solar-calculator" },
+  { label: "Services", hash: "services" },
+  { label: "Vision & Mission", short: "Vision", hash: "vision" },
+  { label: "Technology & Partners", short: "Technology", hash: "rd" },
+  { label: "About Us", short: "About", hash: "about" },
+  { label: "Contact", hash: "contact" },
   { label: "Dealerships", href: "/dealerships" },
-  { label: "Blog",        href: "/blog" },
-  { label: "Warranty",    href: "/warranty" },
-  { label: "Cashback",    href: "/installer-cashback" },
-  { label: "ERP",         href: "/login" },
+  { label: "Blog", href: "/blog" },
+  { label: "Warranty", href: "/warranty" },
+  { label: "Cashback", href: "/installer-cashback", accent: true },
+  { label: "ERP", href: "/login" },
 ]
-
-const allLinks = [...primaryLinks, ...secondaryLinks]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -33,11 +36,11 @@ export default function Navbar() {
   const [visible, setVisible] = useState(false)
   const pathname = usePathname()
   const isHome = pathname === "/"
+  const isCashback = pathname === "/installer-cashback"
 
-  // Home hero is white — always use dark nav text; glass only after scroll.
   const glass = !isHome || scrolled
-
-  const getHref = (hash?: string) => hash ? (isHome ? `#${hash}` : `/#${hash}`) : ""
+  const getHref = (link: NavLink) =>
+    link.href || (link.hash ? (isHome ? `#${link.hash}` : `/#${link.hash}`) : "#")
   const closeMenu = () => setOpen(false)
 
   useEffect(() => {
@@ -56,20 +59,12 @@ export default function Navbar() {
   }, [])
 
   const navClass = glass
-    ? "bg-white/80 backdrop-blur-xl border-neutral-200/80 shadow-lg border"
+    ? "bg-white/90 backdrop-blur-xl border-neutral-200/80 shadow-lg border"
     : "bg-transparent border-transparent shadow-none"
-
-  const linkClass = "text-neutral-900 hover:text-neutral-500"
-
-  const dividerClass = "bg-neutral-300"
-
-  const toggleClass = "text-neutral-500 hover:text-neutral-900"
-
-  const logoClass = "h-7 w-auto object-contain"
 
   return (
     <div
-      className="fixed left-0 right-0 top-4 z-50 flex flex-col items-center gap-2 px-4"
+      className="fixed left-0 right-0 top-3 z-50 flex flex-col items-center gap-2 px-3 sm:px-4"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(-20px)",
@@ -78,75 +73,91 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-x-3 xl:gap-x-5 px-4 sm:px-5 xl:px-7 py-2.5 rounded-xl w-full max-w-7xl transition-all duration-500 ${navClass}`}
+        className={`relative flex items-center gap-2 xl:gap-3 px-3 sm:px-4 xl:px-5 py-2 rounded-2xl w-full max-w-[96rem] transition-all duration-500 ${navClass}`}
       >
-        <a href="/" onClick={closeMenu} className="shrink-0 flex items-center">
+        <a href="/" onClick={closeMenu} className="shrink-0 flex items-center pr-1">
           <Image
             src="/logo.png"
             alt="Voltrix"
             width={100}
             height={32}
-            className={`${logoClass} h-7 w-auto min-w-[88px]`}
+            className="h-7 w-auto min-w-[84px] object-contain"
             priority
           />
         </a>
 
-        <div className="hidden lg:flex items-center justify-center min-w-0 gap-x-3 xl:gap-x-4">
-          <div className="flex items-center gap-x-3 xl:gap-x-4">
-            {primaryLinks.map((l) => (
-              <a
-                key={l.label}
-                href={l.href || getHref(l.hash)}
-                className={`text-[13px] xl:text-sm transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
-                style={{ letterSpacing: "-0.2px" }}
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
-
-          <span className={`hidden xl:block w-px h-3.5 shrink-0 ${dividerClass}`} aria-hidden />
-
-          <div className="flex items-center gap-x-3 xl:gap-x-4">
-            {secondaryLinks.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className={`text-[13px] xl:text-sm transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
-                style={{ letterSpacing: "-0.2px" }}
-              >
-                {l.label}
-              </a>
-            ))}
+        {/* Desktop links — compact, no wrap, CTA never clipped */}
+        <div className="hidden xl:flex flex-1 items-center justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center gap-x-1 2xl:gap-x-2 px-1">
+            {navLinks.map((l) => {
+              const active = l.href ? pathname === l.href : false
+              const accent = l.accent || (l.href === "/installer-cashback" && isCashback)
+              return (
+                <a
+                  key={l.label}
+                  href={getHref(l)}
+                  className={[
+                    "px-2 2xl:px-2.5 py-1.5 rounded-lg text-[12px] 2xl:text-[13px] font-medium whitespace-nowrap transition-colors",
+                    accent
+                      ? "text-[#1a9f9a] bg-[#1a9f9a]/10 hover:bg-[#1a9f9a]/15"
+                      : active
+                        ? "text-neutral-900 bg-neutral-100"
+                        : "text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100/80",
+                  ].join(" ")}
+                  style={{ letterSpacing: "-0.2px" }}
+                >
+                  <span className="2xl:hidden">{l.short || l.label}</span>
+                  <span className="hidden 2xl:inline">{l.label}</span>
+                </a>
+              )
+            })}
           </div>
         </div>
 
-        <div className="hidden lg:flex shrink-0 items-center pl-3 xl:pl-4">
-          <GetQuoteButton variant="solid" />
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <div className="hidden xl:block">
+            <GetQuoteButton variant="solid" className="!text-sm !h-9" />
+          </div>
+          <a
+            href="/installer-cashback"
+            onClick={closeMenu}
+            className="xl:hidden inline-flex items-center h-8 px-2.5 rounded-full text-[11px] font-semibold text-[#1a9f9a] bg-[#1a9f9a]/10 border border-[#1a9f9a]/20"
+          >
+            Cashback
+          </a>
+          <button
+            type="button"
+            className="xl:hidden p-2 rounded-lg text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100/80 transition-colors"
+            onClick={() => setOpen(!open)}
+            aria-label={open ? "Close menu" : "Open menu"}
+          >
+            {open ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
         </div>
-
-        <button
-          className={`lg:hidden col-start-3 transition-colors ${toggleClass}`}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-        </button>
       </nav>
 
       {open && (
-        <div className="absolute top-14 left-4 right-4 bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl p-5 flex flex-col gap-4 lg:hidden">
-          {allLinks.map((l) => (
-            <a
-              key={l.label}
-              href={l.href || getHref(l.hash)}
-              onClick={closeMenu}
-              className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer"
-            >
-              {l.label}
-            </a>
-          ))}
-          <div className="pt-3 border-t border-neutral-100">
-            <GetQuoteButton onClick={closeMenu} />
+        <div className="absolute top-[3.6rem] left-3 right-3 sm:left-4 sm:right-4 bg-white/95 backdrop-blur-xl border border-neutral-200/80 rounded-2xl shadow-xl p-3 flex flex-col gap-0.5 xl:hidden max-h-[min(78vh,640px)] overflow-y-auto">
+          {navLinks.map((l) => {
+            const accent = l.accent
+            return (
+              <a
+                key={l.label}
+                href={getHref(l)}
+                onClick={closeMenu}
+                className={[
+                  "px-3 py-2.5 rounded-xl text-[15px] font-medium transition-colors",
+                  accent
+                    ? "text-[#1a9f9a] bg-[#1a9f9a]/10"
+                    : "text-neutral-900 hover:bg-neutral-100",
+                ].join(" ")}
+              >
+                {l.label}
+              </a>
+            )
+          })}
+          <div className="pt-2 mt-1 border-t border-neutral-100 px-1 pb-1">
+            <GetQuoteButton onClick={closeMenu} className="w-full justify-center" />
           </div>
         </div>
       )}
