@@ -1018,24 +1018,24 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block rounded-lg border overflow-x-auto">
+          <div className="hidden md:block rounded-xl border overflow-x-auto bg-[hsl(var(--card))] shadow-sm">
           <table className="w-full min-w-[1120px] table-fixed">
             <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[7%]">Order #</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[11%]">Source</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[14%]">Client</th>
-                <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[5%]">Qty</th>
-                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Total</th>
-                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Paid</th>
-                <th className="h-9 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Credit</th>
-                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%] whitespace-nowrap">Payment</th>
-                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[10%] whitespace-nowrap">Status</th>
-                <th className="h-9 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[8%]">Date</th>
-                <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Actions</th>
+              <tr className="border-b bg-[hsl(var(--muted))]/35">
+                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[7%]">Order #</th>
+                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[11%]">Source</th>
+                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[14%]">Client</th>
+                <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[5%]">Qty</th>
+                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Total</th>
+                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Paid</th>
+                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Credit</th>
+                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%] whitespace-nowrap">Payment</th>
+                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[10%] whitespace-nowrap">Status</th>
+                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[8%]">Date</th>
+                <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-[hsl(var(--border))]/70">
               {filtered.map(order => {
                 const paid = getOrderAmountPaid(order)
                 const due = getOrderCreditBalance(order)
@@ -1044,41 +1044,45 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 const notCredit = !isOrderOnCredit(order)
                 const returned = isOrderReturned(order)
                 return (
-                <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <td className="px-3 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
-                    <span className="whitespace-nowrap">{order.orderNumber || "—"}</span>
+                <tr
+                  key={order.id}
+                  className="group/row cursor-pointer transition-all duration-150 hover:bg-[#1faca6]/[0.06] hover:shadow-[inset_3px_0_0_0_#1faca6]"
+                  onClick={() => setSelected(order)}
+                >
+                  <td className="px-2.5 py-2 text-xs font-semibold text-[#1faca6]">
+                    <span className="whitespace-nowrap group-hover/row:underline underline-offset-2">{order.orderNumber || "—"}</span>
                   </td>
-                  <td className="px-3 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2.5 py-2">
                     <OrderSourceBadge order={order} />
                   </td>
-                  <td className="px-3 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2.5 py-2 text-xs font-medium">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
+                      <p className="text-[13px] font-medium truncate leading-tight">{order.clientName || "—"}</p>
                       {order.warrantyHolderName?.trim() && (
-                        <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
+                        <p className="text-[10px] text-[#1a9f9a] truncate mt-0.5">Warranty: {order.warrantyHolderName}</p>
                       )}
                       {order.referrerName?.trim() && (
-                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
                       )}
                     </div>
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 text-xs text-center">
                     {returned ? (
                       <span className="text-[hsl(var(--muted-foreground))]">0</span>
                     ) : (
                       <CrmItemsQtyCell items={order.items} />
                     )}
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-right font-semibold whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 text-xs text-right font-semibold tabular-nums whitespace-nowrap">
                     {formatOrderPkr(netTotal)}
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-right tabular-nums text-emerald-700 whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 text-xs text-right tabular-nums text-emerald-700 whitespace-nowrap">
                     {formatOrderPkr(paid)}
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-right tabular-nums text-amber-700 whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 text-xs text-right tabular-nums text-amber-700 whitespace-nowrap">
                     {formatOrderPkr(due)}
                   </td>
-                  <td className="px-2 py-2.5 cursor-pointer whitespace-nowrap" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 whitespace-nowrap">
                     {onCredit ? (
                       <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
                         On Credit
@@ -1093,16 +1097,19 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2.5 cursor-pointer whitespace-nowrap" onClick={() => setSelected(order)}>
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <OrderStatusBadge status={order.status} />
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
-                  <td className="px-2 py-2.5 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-2 py-2 text-[11px] text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
+                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5 opacity-70 group-hover/row:opacity-100 transition-opacity">
                       <button
+                        type="button"
                         onClick={(e) => void handleListDownloadPdf(order, e)}
                         disabled={pdfDownloadingId === order.id}
-                        className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-[#1a9f9a] hover:bg-[#1a9f9a]/10 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Download PDF"
                       >
                         {pdfDownloadingId === order.id ? (
@@ -1112,11 +1119,12 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                         )}
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           setDeleteConfirmOrder(order)
                         }}
-                        className="text-red-500 hover:text-red-700 cursor-pointer transition-colors"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
                         title="Delete order"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -2220,94 +2228,78 @@ function OrderDetail({
         }}
       />
     )}
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
-      <div className="w-full max-w-6xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-2 px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
-          <div className="flex items-start gap-2 sm:gap-4 min-w-0 flex-1">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <OrderSourceBadge order={detailOrder} />
-                <p className="text-base sm:text-xl font-bold text-[hsl(var(--primary))] truncate">{detailOrder.orderNumber}</p>
-                <OrderStatusBadge status={detailOrder.status} className="sm:text-xs sm:px-3 sm:py-1" />
-              </div>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{detailOrder.clientName}</p>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-3" onClick={onClose}>
+      <div className="w-full max-w-[92rem] rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[94vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3 border-b shrink-0">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <OrderSourceBadge order={detailOrder} />
+              <p className="text-base sm:text-lg font-bold text-[#1faca6] truncate">{detailOrder.orderNumber}</p>
+              <OrderStatusBadge status={detailOrder.status} />
+              <p className="text-sm font-medium truncate">{detailOrder.clientName}</p>
               {detailOrder.warrantyHolderName?.trim() && (
-                <p className="text-xs text-[#1a9f9a] mt-0.5 truncate">Warranty: {detailOrder.warrantyHolderName}</p>
+                <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {detailOrder.warrantyHolderName}</p>
               )}
-              <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
-                {detailOrder.deliveryDate && (
-                  <div>
-                    <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Delivery</p>
-                    <p className="mt-0.5">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Created</p>
-                  <p className="mt-0.5">{new Date(detailOrder.createdAt).toLocaleDateString()}</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px]">
+              {detailOrder.deliveryDate && (
+                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
+                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Delivery</p>
+                  <p className="mt-0.5 font-medium tabular-nums">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
                 </div>
+              )}
+              <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
+                <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Source</p>
+                <OrderSourceLabel order={detailOrder} className="mt-0.5 block truncate" />
               </div>
-            </div>
-            {detailOrder.deliveryDate && (
-              <div className="hidden lg:block border-l pl-6 shrink-0">
-                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
-                <p className="text-sm mt-1">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
+              <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
+                <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Created</p>
+                <p className="mt-0.5 font-medium truncate">{new Date(detailOrder.createdAt).toLocaleDateString()} · {detailOrder.createdBy}</p>
               </div>
-            )}
-            <div className="hidden lg:block border-l pl-6 shrink-0">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
-              <OrderSourceLabel order={detailOrder} className="text-sm mt-1 block" />
-            </div>
-            <div className="hidden lg:block border-l pl-6 shrink-0">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>
-              <p className="text-sm mt-1">{new Date(detailOrder.createdAt).toLocaleDateString()} by {detailOrder.createdBy}</p>
+              {detailOrder.deliveryAddress && (
+                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15 sm:col-span-2">
+                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Delivery address</p>
+                  <p className="mt-0.5 font-medium line-clamp-2 whitespace-pre-wrap">{detailOrder.deliveryAddress}</p>
+                </div>
+              )}
+              {detailOrder.referrerName?.trim() && (
+                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
+                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Referrer</p>
+                  <p className="mt-0.5 font-medium truncate">{detailOrder.referrerName}</p>
+                  <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Internal only</p>
+                </div>
+              )}
+              {detailOrder.dispatcher && (
+                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
+                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Dispatcher</p>
+                  <p className="mt-0.5 font-medium truncate">{detailOrder.dispatcher}</p>
+                </div>
+              )}
+              {detailOrder.notes && (
+                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15 sm:col-span-2 lg:col-span-3">
+                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Notes</p>
+                  <p className="mt-0.5 font-medium line-clamp-2 whitespace-pre-wrap">{detailOrder.notes}</p>
+                </div>
+              )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={onClose}>
+            <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 space-y-5 sm:space-y-6">
-          {detailOrder.dispatcher && (
-            <div className="border-b pb-4">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Dispatcher</p>
-              <p className="text-sm font-medium">{detailOrder.dispatcher}</p>
-            </div>
-          )}
-
-          {detailOrder.deliveryAddress && (
-            <div className="border-b pb-4">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Delivery address</p>
-              <p className="text-sm whitespace-pre-wrap">{detailOrder.deliveryAddress}</p>
-            </div>
-          )}
-
-          {detailOrder.referrerName?.trim() && (
-            <div className="border-b pb-4">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Referrer</p>
-              <p className="text-sm">{detailOrder.referrerName}</p>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">Internal only — not on the invoice.</p>
-            </div>
-          )}
-
-          {detailOrder.notes && (
-            <div className="border-b pb-4">
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
-              <p className="text-sm whitespace-pre-wrap">{detailOrder.notes}</p>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3">
 
           {detailOrder.status === "delivered" && (
-            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-4 space-y-2">
+            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-3 space-y-2">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-[#1a9f9a]" />
-                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+                <Shield className="h-3.5 w-3.5 text-[#1a9f9a]" />
+                <p className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
                   Warranty name
                 </p>
               </div>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                Person or company who will start this warranty — not the client ({detailOrder.clientName}).
-                They must type this name when they scan. After start, this name appears on the warranty.
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                Not the client ({detailOrder.clientName}). Used when they scan to start warranty.
               </p>
               {workspace?.readOnly ? (
                 <p className="text-sm font-medium">{detailOrder.warrantyHolderName?.trim() || "Not set"}</p>
@@ -2366,15 +2358,8 @@ function OrderDetail({
             </div>
           )}
 
-          <div>
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order Items</p>
-            <CrmLineItemsDisplay items={detailOrder.items} size="md" />
-          </div>
-
-          <CrmOrderSummaryDisplay order={detailOrder} />
-
           {hasReturns && (
-            <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/40 p-4 space-y-3">
+            <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/40 p-3 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-orange-900 dark:text-orange-100">
                   {isOrderReturned(detailOrder) ? "Order return" : "Partial return"}
@@ -2509,8 +2494,18 @@ function OrderDetail({
             </div>
           )}
 
-          <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
-            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+          <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-3 items-start">
+          <div className="rounded-lg border p-3 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
+            <CrmLineItemsDisplay items={detailOrder.items} size="sm" />
+            <div className="mt-2">
+              <CrmOrderSummaryDisplay order={detailOrder} />
+            </div>
+          </div>
+
+          <div className="space-y-3 min-w-0">
+          <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-3 min-w-0">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
                 {hasOutstandingCredit(detailOrder) && (
@@ -2599,7 +2594,7 @@ function OrderDetail({
           </div>
 
           {detailOrder.payments && detailOrder.payments.length > 0 && (
-            <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3">
+            <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3 mt-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-green-900 dark:text-green-100 mb-2">Payments Received</p>
               <div className="space-y-2">
                 {getBalanceSubmittedPayments(detailOrder.payments, detailOrder.status).map(p => {
@@ -2705,9 +2700,11 @@ function OrderDetail({
               </div>
             </div>
           )}
+          </div>
+          </div>
 
           {(detailOrder.cashbackPayments?.length ?? 0) > 0 && (
-            <div className="rounded-lg border bg-violet-50 dark:bg-violet-950/40 p-4 space-y-3">
+            <div className="rounded-lg border bg-violet-50 dark:bg-violet-950/40 p-3 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-violet-900 dark:text-violet-100 flex items-center gap-1.5">
                   <Gift className="h-3.5 w-3.5" />
@@ -2790,20 +2787,20 @@ function OrderDetail({
           )}
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-1.5 px-3 sm:px-4 py-2.5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {canEditOrder && (
-            <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm cursor-pointer" onClick={() => setShowEdit(true)}>
-              <Edit className="h-4 w-4 mr-2" /> Edit order
+            <Button size="sm" variant="outline" className="h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={() => setShowEdit(true)}>
+              <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
             </Button>
           )}
           {canFinalize && (
-            <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
-              <FileText className="h-4 w-4 mr-2" /> Finalize Order
+            <Button size="sm" className="h-8 text-xs bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
+              <FileText className="h-3.5 w-3.5 mr-1.5" /> Finalize
             </Button>
           )}
               {canManagePayments && (
-                <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button size="sm" className="h-8 text-xs bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
                   {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
                 </Button>
               )}
@@ -2811,42 +2808,42 @@ function OrderDetail({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 text-sm border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
+                  className="h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
                   onClick={() => setShowCashback(true)}
                 >
-                  <Gift className="h-4 w-4 mr-2" />
-                  Add cashback
+                  <Gift className="h-3.5 w-3.5 mr-1.5" />
+                  Cashback
                 </Button>
               )}
               {canAddFreeItem && (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                  className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 cursor-pointer"
                   onClick={() => setShowFreeItem(true)}
                 >
-                  <Gift className="h-4 w-4 mr-2" />
-                  Add free item
+                  <Gift className="h-3.5 w-3.5 mr-1.5" />
+                  Free item
                 </Button>
               )}
           {canReturn && (
             <Button
               size="sm"
-              className="h-10 text-sm bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
+              className="h-8 text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
               onClick={() => setShowReturn(true)}
             >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              {hasReturns ? "Return more items" : "Return items"}
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              {hasReturns ? "Return more" : "Return"}
             </Button>
           )}
           {canManageReturnPayments && (
             <Button
               size="sm"
               variant="outline"
-              className="h-10 text-sm cursor-pointer border-orange-300 text-orange-800 hover:bg-orange-50"
+              className="h-8 text-xs cursor-pointer border-orange-300 text-orange-800 hover:bg-orange-50"
               onClick={() => setShowReturnPayment(true)}
             >
-              <Plus className="h-4 w-4 mr-2" /> Return payment
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Return payment
             </Button>
           )}
           {canEditInvoice && (
