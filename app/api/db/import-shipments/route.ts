@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import { isErpAdmin } from "@/lib/auth"
 import {
   applyLandedCostToItems,
   calculateLandedCost,
@@ -17,6 +18,28 @@ import {
   type ImportSro,
   type FlowHistoryEntry,
 } from "@/lib/import-shipment"
+
+/** Import ledger writes: admin / superadmin only. */
+async function assertImportAdmin(actorUserId: unknown) {
+  const userId = String(actorUserId || "").trim()
+  if (!userId) {
+    return { ok: false as const, response: NextResponse.json({ error: "Sign in required" }, { status: 401 }) }
+  }
+  const user = await prisma.erpUser.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, name: true },
+  })
+  if (!user || !isErpAdmin(user.role)) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "Only admin or superadmin can edit the import ledger" },
+        { status: 403 },
+      ),
+    }
+  }
+  return { ok: true as const, user }
+}
 
 function asArray<T>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : []
@@ -137,6 +160,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+    const auth = await assertImportAdmin(body.actorUserId)
+    if (!auth.ok) return auth.response
     const data = payload(body)
     const recalculate = Boolean(body.recalculateLandedCost) || Boolean(body.lockLandedCost)
 
@@ -224,7 +249,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json()
+    const body = await req.json()
+    const auth = await assertImportAdmin(body.actorUserId)
+    if (!auth.ok) return auth.response
+    const id = String(body.id || "").trim()
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
     await prisma.erpImportShipment.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (error) {
@@ -236,6 +265,8 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
+    const auth = await assertImportAdmin(body.actorUserId)
+    if (!auth.ok) return auth.response
     const id = String(body.id || "").trim()
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 

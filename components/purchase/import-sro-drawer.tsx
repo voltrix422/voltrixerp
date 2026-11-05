@@ -18,12 +18,14 @@ export function ImportSroDrawer({
   sroLibrary,
   onAdd,
   onRemove,
+  readOnly = false,
 }: {
   open: boolean
   onClose: () => void
   sroLibrary: ImportSro[]
   onAdd: (partial?: Partial<ImportSro>) => void
   onRemove: (id: string) => void
+  readOnly?: boolean
 }) {
   const [mounted, setMounted] = useState(false)
   const [code, setCode] = useState("")
@@ -70,7 +72,7 @@ export function ImportSroDrawer({
               SRO library
             </p>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Saved here · quick-add on any GD
+              {readOnly ? "View only · admin can edit" : "Saved here · quick-add on any GD"}
             </p>
           </div>
           <Button
@@ -85,62 +87,66 @@ export function ImportSroDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">SRO code</label>
-              <input
-                value={code}
-                onChange={e => setCode(e.target.value)}
-                className={inputCls}
-                placeholder="SRO 1125(I)/2011"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Title</label>
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className={inputCls}
-                placeholder="Short title"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Notes</label>
-              <input
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                className={inputCls}
-                placeholder="Optional"
-              />
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 text-xs w-full cursor-pointer transition-all hover:brightness-95 hover:shadow-sm"
-              onClick={handleAdd}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add SRO
-            </Button>
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Quick add
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_ADD_SROS.map(q => (
-                <button
-                  key={q.code}
+          {!readOnly && (
+            <>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">SRO code</label>
+                  <input
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    className={inputCls}
+                    placeholder="SRO 1125(I)/2011"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Title</label>
+                  <input
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    className={inputCls}
+                    placeholder="Short title"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Notes</label>
+                  <input
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    className={inputCls}
+                    placeholder="Optional"
+                  />
+                </div>
+                <Button
                   type="button"
-                  onClick={() => onAdd(q)}
-                  className={chipCls}
-                  title={q.title}
+                  size="sm"
+                  className="h-8 text-xs w-full cursor-pointer transition-all hover:brightness-95 hover:shadow-sm"
+                  onClick={handleAdd}
                 >
-                  + {q.code}
-                </button>
-              ))}
-            </div>
-          </div>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add SRO
+                </Button>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  Quick add
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ADD_SROS.map(q => (
+                    <button
+                      key={q.code}
+                      type="button"
+                      onClick={() => onAdd(q)}
+                      className={chipCls}
+                      title={q.title}
+                    >
+                      + {q.code}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
@@ -148,7 +154,7 @@ export function ImportSroDrawer({
             </p>
             {sroLibrary.length === 0 ? (
               <p className="text-[11px] text-[hsl(var(--muted-foreground))] border border-dashed rounded-md px-3 py-4 text-center">
-                No SROs saved yet — type one or use quick-add above.
+                No SROs saved yet{readOnly ? "." : " — type one or use quick-add above."}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -164,14 +170,16 @@ export function ImportSroDrawer({
                         <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{s.description}</p>
                       ) : null}
                     </div>
-                    <button
-                      type="button"
-                      className="text-red-600 shrink-0 p-1 rounded cursor-pointer transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
-                      onClick={() => onRemove(s.id)}
-                      aria-label={`Remove ${s.code}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className="text-red-600 shrink-0 p-1 rounded cursor-pointer transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
+                        onClick={() => onRemove(s.id)}
+                        aria-label={`Remove ${s.code}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -879,7 +879,9 @@ export async function getImportShipment(id: string): Promise<ImportShipment> {
   return res.json()
 }
 
-export async function saveImportShipment(shipment: Partial<ImportShipment> & { purchaseScopeId: string }): Promise<ImportShipment> {
+export async function saveImportShipment(
+  shipment: Partial<ImportShipment> & { purchaseScopeId: string; actorUserId?: string },
+): Promise<ImportShipment> {
   const payload: Record<string, unknown> = { ...shipment }
   if (!payload.id || payload.shipmentNumber === "(auto)" || !payload.shipmentNumber) {
     delete payload.shipmentNumber
@@ -896,13 +898,16 @@ export async function saveImportShipment(shipment: Partial<ImportShipment> & { p
   return res.json()
 }
 
-export async function deleteImportShipment(id: string): Promise<void> {
+export async function deleteImportShipment(id: string, actorUserId?: string): Promise<void> {
   const res = await fetch("/api/db/import-shipments", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ id, actorUserId: actorUserId || "" }),
   })
-  if (!res.ok) throw new Error("Failed to delete shipment")
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || "Failed to delete shipment")
+  }
 }
 
 /** Archive / restore — archived imports stay in Purchase but leave Finance money-out. */
@@ -911,6 +916,7 @@ export async function setImportShipmentArchived(opts: {
   archived: boolean
   remark?: string
   by?: string
+  actorUserId?: string
 }): Promise<ImportShipment> {
   const res = await fetch("/api/db/import-shipments", {
     method: "PATCH",
@@ -920,6 +926,7 @@ export async function setImportShipmentArchived(opts: {
       archived: opts.archived,
       archiveRemark: opts.remark || "",
       archivedBy: opts.by || "",
+      actorUserId: opts.actorUserId || "",
     }),
   })
   if (!res.ok) {

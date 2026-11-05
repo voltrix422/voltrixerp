@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { getSuppliers, saveSupplier, type Supplier } from "@/lib/purchase"
 import {
   CHARGE_CATEGORIES,
@@ -117,6 +118,8 @@ export function ImportedPurchasesTab({
   const { user } = useAuth()
   const { confirm } = useDialog()
   const { toast } = useToast()
+  /** Import ledger edits: admin / superadmin only. Others can view + export. */
+  const canEditImports = isErpAdmin(user?.role)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [shipments, setShipments] = useState<ImportShipment[]>([])
@@ -237,6 +240,10 @@ export function ImportedPurchasesTab({
 
   async function confirmArchive() {
     if (!archiveTarget?.id) return
+    if (!canEditImports) {
+      toast({ type: "error", title: "Admin only", message: "Only admin or superadmin can edit imports." })
+      return
+    }
     setArchiveBusy(true)
     try {
       await setImportShipmentArchived({
@@ -244,6 +251,7 @@ export function ImportedPurchasesTab({
         archived: true,
         remark: archiveRemark.trim(),
         by: user?.name || user?.email || "",
+        actorUserId: user?.id,
       })
       toast({
         type: "success",
@@ -266,6 +274,10 @@ export function ImportedPurchasesTab({
 
   async function restoreFromArchive(s: ImportShipment) {
     if (!s.id) return
+    if (!canEditImports) {
+      toast({ type: "error", title: "Admin only", message: "Only admin or superadmin can edit imports." })
+      return
+    }
     const ok = await confirm({
       type: "confirm",
       title: "Restore from archive?",
@@ -278,6 +290,7 @@ export function ImportedPurchasesTab({
         id: s.id,
         archived: false,
         by: user?.name || user?.email || "",
+        actorUserId: user?.id,
       })
       toast({ type: "success", title: "Restored", message: "Back in Active list and Finance." })
       await load()
@@ -331,6 +344,10 @@ export function ImportedPurchasesTab({
   }
 
   function openNew() {
+    if (!canEditImports) {
+      toast({ type: "error", title: "Admin only", message: "Only admin or superadmin can create imports." })
+      return
+    }
     const base = emptyShipment(purchaseScopeId, user?.name || user?.email || "")
     const local: ImportShipment = {
       ...base,
@@ -389,6 +406,10 @@ export function ImportedPurchasesTab({
 
   async function persist(extra?: Record<string, unknown>) {
     if (!draft) return null
+    if (!canEditImports) {
+      toast({ type: "error", title: "Admin only", message: "Only admin or superadmin can edit imports." })
+      return null
+    }
     setSaving(true)
     try {
       const shipmentNumber =
@@ -399,6 +420,7 @@ export function ImportedPurchasesTab({
         shipmentNumber: shipmentNumber as string | undefined,
         purchaseScopeId,
         createdBy: draft.createdBy || user?.name || "",
+        actorUserId: user?.id,
         ...extra,
       })
       setDraft({
@@ -437,6 +459,10 @@ export function ImportedPurchasesTab({
   }
 
   async function handleDelete(id: string) {
+    if (!canEditImports) {
+      toast({ type: "error", title: "Admin only", message: "Only admin or superadmin can delete imports." })
+      return
+    }
     const ok = await confirm({
       type: "confirm",
       title: "Delete import shipment?",
@@ -444,7 +470,7 @@ export function ImportedPurchasesTab({
       confirmLabel: "Delete",
     })
     if (!ok) return
-    await deleteImportShipment(id)
+    await deleteImportShipment(id, user?.id)
     closeShipment()
     toast({ type: "success", title: "Deleted" })
   }
@@ -454,19 +480,20 @@ export function ImportedPurchasesTab({
     patch,
     setDraft,
     saving,
+    canEdit: canEditImports,
     onBack: closeShipment,
     onSave: () => void persist(),
     onPersist: persist,
     onStep: goStep,
-    onDelete: draft.id ? () => void handleDelete(draft.id) : undefined,
+    onDelete: canEditImports && draft.id ? () => void handleDelete(draft.id) : undefined,
     importedSuppliers,
     purchaseScopeId,
     onSuppliersRefresh: refreshSuppliers,
     agentLibrary,
-    onAgentsChange: persistAgents,
+    onAgentsChange: canEditImports ? persistAgents : () => {},
     userName: user?.name || user?.email || "",
     sroLibrary,
-    onAddSroToLibrary: addSroToLibrary,
+    onAddSroToLibrary: canEditImports ? addSroToLibrary : () => {},
     onOpenSroLibrary: () => setSroDrawerOpen(true),
     viewMode,
     onViewModeChange: setViewMode,
@@ -482,6 +509,7 @@ export function ImportedPurchasesTab({
           sroLibrary={sroLibrary}
           onAdd={addSroToLibrary}
           onRemove={removeSroFromLibrary}
+          readOnly={!canEditImports}
         />
         {pendingOpen && (
           <ImportOpenViewChooser
@@ -541,6 +569,7 @@ export function ImportedPurchasesTab({
           sroLibrary={sroLibrary}
           onAdd={addSroToLibrary}
           onRemove={removeSroFromLibrary}
+          readOnly={!canEditImports}
         />
       </>
     )
@@ -621,12 +650,19 @@ export function ImportedPurchasesTab({
             <HelpCircle className="h-3.5 w-3.5 mr-1" />
             Help
           </Button>
-          <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            New import
-          </Button>
+          {canEditImports && (
+            <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              New import
+            </Button>
+          )}
         </div>
       </div>
+      {!canEditImports && (
+        <div className="rounded-md border border-amber-200/80 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100">
+          View only — import ledger can be edited by admin or superadmin.
+        </div>
+      )}
 
       {showHelp && <ImportShipmentManual defaultOpen />}
 
@@ -636,6 +672,7 @@ export function ImportedPurchasesTab({
         sroLibrary={sroLibrary}
         onAdd={addSroToLibrary}
         onRemove={removeSroFromLibrary}
+        readOnly={!canEditImports}
       />
 
       {archiveTarget && (
@@ -763,7 +800,7 @@ export function ImportedPurchasesTab({
               ? "Archive an import from the Active list to hide it from Finance."
               : "Create a shipment to track containers, PSW clearance, and landed cost."}
           </p>
-          {listTab === "active" && (
+          {listTab === "active" && canEditImports && (
             <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Start first shipment
             </Button>
@@ -785,7 +822,9 @@ export function ImportedPurchasesTab({
                     <th className="px-2.5 py-1.5 font-semibold">Remark</th>
                   )}
                   <th className="px-2.5 py-1.5 font-semibold w-16 text-center">PDF</th>
-                  <th className="px-2.5 py-1.5 font-semibold w-20 text-center">Archive</th>
+                  {canEditImports && (
+                    <th className="px-2.5 py-1.5 font-semibold w-20 text-center">Archive</th>
+                  )}
                   <th className="px-2.5 py-1.5 font-semibold w-8" />
                 </tr>
               </thead>
@@ -879,34 +918,36 @@ export function ImportedPurchasesTab({
                           <FileDown className="h-3.5 w-3.5" />
                         </Button>
                       </td>
-                      <td className="px-2.5 py-2 text-center" onClick={e => e.stopPropagation()}>
-                        {listTab === "archived" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2 text-[10px] ${btnHover}`}
-                            title="Restore to Active (include in Finance)"
-                            onClick={() => void restoreFromArchive(s)}
-                          >
-                            <ArchiveRestore className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2 text-[10px] ${btnHover}`}
-                            title="Archive (hide from Finance)"
-                            onClick={() => {
-                              setArchiveRemark("")
-                              setArchiveTarget(s)
-                            }}
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </td>
+                      {canEditImports && (
+                        <td className="px-2.5 py-2 text-center" onClick={e => e.stopPropagation()}>
+                          {listTab === "archived" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className={`h-7 px-2 text-[10px] ${btnHover}`}
+                              title="Restore to Active (include in Finance)"
+                              onClick={() => void restoreFromArchive(s)}
+                            >
+                              <ArchiveRestore className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className={`h-7 px-2 text-[10px] ${btnHover}`}
+                              title="Archive (hide from Finance)"
+                              onClick={() => {
+                                setArchiveRemark("")
+                                setArchiveTarget(s)
+                              }}
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </td>
+                      )}
                       <td className="px-2.5 py-2">
                         <ChevronRight className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                       </td>
@@ -1007,6 +1048,7 @@ function ShipmentDetail({
   patch,
   setDraft,
   saving,
+  canEdit = true,
   onBack,
   onSave,
   onPersist,
@@ -1028,6 +1070,7 @@ function ShipmentDetail({
   patch: (p: Partial<ImportShipment>) => void
   setDraft: Dispatch<SetStateAction<ImportShipment | null>>
   saving: boolean
+  canEdit?: boolean
   onBack: () => void
   onSave: () => void
   onPersist: (extra?: Record<string, unknown>) => Promise<ImportShipment | null>
@@ -1048,7 +1091,7 @@ function ShipmentDetail({
   const { toast } = useToast()
   const locked = draft.landedCostLocked
   const step = normalizeImportStep(draft.currentStep || 1)
-  const readOnly = locked && step < 6
+  const readOnly = !canEdit || (locked && step < 6)
   const [helpOpen, setHelpOpen] = useState(false)
   const isNew = !draft.id || draft.shipmentNumber === "(auto)"
   const displayName = isNew ? "New import" : importDisplayName(draft)
@@ -1093,6 +1136,7 @@ function ShipmentDetail({
             <p className={`text-[hsl(var(--muted-foreground))] truncate ${isFull ? "text-xs" : "text-[10px]"}`}>
               {draft.supplierName || "Untitled"} · {STATUS_LABELS[draft.status]}
               {locked ? " · cost locked" : ""}
+              {!canEdit ? " · view only" : ""}
             </p>
           </div>
         </div>
@@ -1151,15 +1195,17 @@ function ShipmentDetail({
           >
             <HelpCircle className="h-3 w-3 mr-1" /> Help
           </Button>
-          {onDelete && (
+          {canEdit && onDelete && (
             <Button type="button" variant="outline" size="sm" className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} text-red-600 ${btnHover}`} onClick={onDelete}>
               <Trash2 className="h-3 w-3 mr-1" /> Delete
             </Button>
           )}
-          <Button type="button" size="sm" className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`} disabled={saving} onClick={onSave}>
-            {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
-            Save
-          </Button>
+          {canEdit && (
+            <Button type="button" size="sm" className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`} disabled={saving} onClick={onSave}>
+              {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+              Save
+            </Button>
+          )}
         </div>
       </div>
 
