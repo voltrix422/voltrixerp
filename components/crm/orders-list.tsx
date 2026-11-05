@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle } from "lucide-react"
+import { Plus, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle, SlidersHorizontal } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
@@ -609,9 +609,72 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   return (
     <div className="space-y-4">
-      {/* Filter Panel */}
+      <div className="flex items-center justify-end gap-2">
+        {!workspace?.readOnly && (
+          <Button
+            size="sm"
+            className="h-8 text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" /> Order
+          </Button>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
+            showFilters
+              ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
+              : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+          }`}
+          aria-label="Filters and exports"
+          title="Filters · ledger · export"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {hasActiveFilters && !showFilters && (
+            <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
+          )}
+        </button>
+      </div>
+
       {showFilters && (
-        <div className="space-y-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
+        <div className="space-y-3 p-3 rounded-2xl border bg-[hsl(var(--card))] shadow-sm">
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              Client ledger
+            </p>
+            <ClientLedgerPicker
+              clients={clients}
+              orders={orders}
+              selectedIds={ledgerClientIds}
+              onChange={selectLedgerClients}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <CrmExcelExportButton
+              onExport={exportListExcel}
+              exporting={exportingExcel}
+              disabled={loading || filtered.length === 0 || exportingPdf}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+              disabled={loading || filtered.length === 0 || exportingPdf}
+              onClick={() => void exportListPdf()}
+            >
+              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+            </Button>
+            {hasActiveFilters && (
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer ml-auto" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+          </div>
+
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
               Status
@@ -765,60 +828,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
               />
             </div>
-            {hasActiveFilters && (
-              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={clearFilters}>
-                Clear
-              </Button>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
-              disabled={loading || filtered.length === 0 || exportingPdf}
-              onClick={() => void exportListPdf()}
-            >
-              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-            </Button>
           </div>
         </div>
       )}
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-          <ClientLedgerPicker
-            clients={clients}
-            orders={orders}
-            selectedIds={ledgerClientIds}
-            onChange={selectLedgerClients}
-          />
-          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-          <CrmExcelExportButton
-            onExport={exportListExcel}
-            exporting={exportingExcel}
-            disabled={loading || filtered.length === 0 || exportingPdf}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
-            disabled={loading || filtered.length === 0 || exportingPdf}
-            onClick={() => void exportListPdf()}
-          >
-            {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
-            {showFilters ? "Hide Filters" : "Filters"}
-          </Button>
-          {!workspace?.readOnly && (
-          <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Order
-          </Button>
-          )}
-          </div>
-      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
