@@ -54,11 +54,18 @@ export function PostLoginSplash({ force = false, onErpEntry = false, onDone }: P
       markErpEntrySplashDone()
     }
 
-    fadeTimer = window.setTimeout(() => setFading(true), 2100)
-    doneTimer = window.setTimeout(() => {
-      setActive(false)
-      onDone?.()
-    }, 2600)
+    // Navigating away: keep the splash fully opaque until onDone runs so the
+    // login form never flashes between animation end and the next page.
+    if (onDone) {
+      doneTimer = window.setTimeout(() => {
+        onDone()
+      }, 2400)
+    } else {
+      fadeTimer = window.setTimeout(() => setFading(true), 2100)
+      doneTimer = window.setTimeout(() => {
+        setActive(false)
+      }, 2600)
+    }
 
     return () => {
       if (fadeTimer) window.clearTimeout(fadeTimer)

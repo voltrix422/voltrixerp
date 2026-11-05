@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
@@ -85,10 +85,11 @@ export default function LoginPage() {
     }
   }
 
-  function finishEnterApp() {
+  const finishEnterApp = useCallback(() => {
     markErpEntrySplashDone()
+    // Hard navigation while splash still covers the page (splash stays mounted until unload).
     window.location.assign(homePathRef.current || "/dashboard")
-  }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -98,7 +99,12 @@ export default function LoginPage() {
   return (
     <PwaProvider>
     {enteringApp && <PostLoginSplash force onDone={finishEnterApp} />}
-    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+    <div
+      className={`min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))] ${
+        enteringApp ? "invisible pointer-events-none" : ""
+      }`}
+      aria-hidden={enteringApp}
+    >
 
       {/* Left — branding panel */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16" style={{ backgroundColor: "#1a9f9a" }}>

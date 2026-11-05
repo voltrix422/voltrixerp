@@ -223,7 +223,7 @@ export function Sidebar() {
         else toggleCollapsed()
       }}
       className={cn(
-        "flex h-12 w-full items-center border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/5 transition-colors",
+        "flex h-12 w-full items-center shrink-0 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/5 transition-colors",
         collapsed && !opts?.mobile ? "justify-center px-1" : "justify-center px-4",
       )}
       title={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}

@@ -19,10 +19,20 @@ import {
 
 function dashboardGreeting(name: string) {
   const first = (name || "").trim().split(/\s+/)[0] || "there"
+  // Capitalize first letter for a cleaner Apple-style title
+  const pretty = first.charAt(0).toUpperCase() + first.slice(1)
   const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${first}`
-  if (hour < 17) return `Good afternoon, ${first}`
-  return `Good evening, ${first}`
+  if (hour < 12) return `Good morning, ${pretty}`
+  if (hour < 17) return `Good afternoon, ${pretty}`
+  return `Good evening, ${pretty}`
+}
+
+function dashboardDateLabel() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })
 }
 
 export default function DashboardPage() {
@@ -43,11 +53,12 @@ export default function DashboardPage() {
   if (!user) return null
 
   const greeting = dashboardGreeting(user.name)
+  const dateLabel = dashboardDateLabel()
 
   if (!isErpAdmin(user.role)) {
     return (
       <>
-        <Topbar title={greeting} description="Dashboard" />
+        <Topbar title={greeting} description={dateLabel} />
         <ComingSoon title="Dashboard" />
       </>
     )
@@ -57,7 +68,7 @@ export default function DashboardPage() {
     <>
       <Topbar
         title={greeting}
-        description="Dashboard"
+        description={dateLabel}
       />
       <DashboardShell>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
