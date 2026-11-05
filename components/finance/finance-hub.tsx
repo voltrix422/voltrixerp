@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, Download, FileSpreadsheet, Scale } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, ChevronDown, X, Download, FileSpreadsheet, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
@@ -1386,12 +1386,6 @@ export function FinanceHub({
                 />
               )}
 
-              <Link
-                href="/finance?tab=manage&section=finance&add=loan"
-                className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer w-fit"
-              >
-                <Plus className="h-3 w-3" /> Add loan
-              </Link>
             </div>
           )}
         </section>
