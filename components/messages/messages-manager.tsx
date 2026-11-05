@@ -550,10 +550,15 @@ export function MessagesManager() {
             ) : loadingMessages && messages.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Loading chat...</p>
             ) : messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-center">
+              <div className="h-full flex items-center justify-center text-center px-4">
                 <div>
-                  <p className="text-sm font-medium">No messages yet</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/[0.04] dark:bg-white/8">
+                    <MessageSquare className="h-4 w-4 text-[#aeaeb2]" strokeWidth={1.75} />
+                  </span>
+                  <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    No messages
+                  </p>
+                  <p className="text-[11px] text-[#86868b] mt-1">
                     Say hello to {selectedUser.name.split(" ")[0]}
                   </p>
                 </div>

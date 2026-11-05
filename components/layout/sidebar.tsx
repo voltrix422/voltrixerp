@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Suspense, useEffect, useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
+  BookOpen, Globe, Package, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -45,11 +45,6 @@ const NAV_ORDER: Array<{
 
 const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any; module?: Module }> = [
   { href: "/manage-users", label: "Manage Users", icon: Users2, module: "users" },
-]
-
-const navSecondary = [
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/help", label: "Get Help", icon: HelpCircle },
 ]
 
 function NavContent({
@@ -192,24 +187,6 @@ function NavContent({
           )
         })}
       </nav>
-
-      <div className={cn("py-3 border-t space-y-0.5", collapsed ? "px-1.5" : "px-3")}>
-        {navSecondary.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            title={label}
-            className={cn(
-              "flex items-center rounded-md text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] transition-colors",
-              collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-2 py-2",
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{label}</span>}
-          </Link>
-        ))}
-      </div>
     </>
   )
 }

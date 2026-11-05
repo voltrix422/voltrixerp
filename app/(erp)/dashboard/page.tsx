@@ -17,6 +17,14 @@ import {
   type DashboardMainTab,
 } from "@/components/dashboard/dashboard-ui"
 
+function dashboardGreeting(name: string) {
+  const first = (name || "").trim().split(/\s+/)[0] || "there"
+  const hour = new Date().getHours()
+  if (hour < 12) return `Good morning, ${first}`
+  if (hour < 17) return `Good afternoon, ${first}`
+  return `Good evening, ${first}`
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const router = useRouter()
@@ -34,10 +42,12 @@ export default function DashboardPage() {
 
   if (!user) return null
 
+  const greeting = dashboardGreeting(user.name)
+
   if (!isErpAdmin(user.role)) {
     return (
       <>
-        <Topbar title="Dashboard" description={`Welcome, ${user.name}`} />
+        <Topbar title={greeting} description="Dashboard" />
         <ComingSoon title="Dashboard" />
       </>
     )
@@ -46,8 +56,8 @@ export default function DashboardPage() {
   return (
     <>
       <Topbar
-        title="Dashboard"
-        description={`Welcome, ${user.name}`}
+        title={greeting}
+        description="Dashboard"
       />
       <DashboardShell>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
