@@ -275,7 +275,7 @@ export default function DashboardPage() {
         description={`Welcome, ${user.name}`}
       />
       <DashboardShell>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <DashboardMainTabs
             active={mainTab}
             onChange={setMainTab}
@@ -301,11 +301,11 @@ export default function DashboardPage() {
         ) : mainTab === "backup" ? (
           <FullBackupCard />
         ) : (
-          <section className="space-y-4">
+          <section className="space-y-2.5">
             <div>
-              <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">Pending approvals</h2>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                Review client orders, purchase orders, branch transfers, petty cash, and employee cash requests.
+              <h2 className="text-[13px] font-semibold text-[hsl(var(--foreground))]">Pending approvals</h2>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Orders, POs, transfers, petty cash, and cash requests.
               </p>
             </div>
 
@@ -321,7 +321,7 @@ export default function DashboardPage() {
               ]}
             />
 
-            <div className="min-h-[280px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <div className="min-h-[260px] rounded-lg border border-[hsl(var(--border))]/80 bg-[hsl(var(--card))] p-3">
               <div className={approvalTab === "orders" ? "" : "hidden"}>
                 <ClientOrdersApproval />
               </div>

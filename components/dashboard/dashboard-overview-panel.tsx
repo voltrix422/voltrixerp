@@ -73,12 +73,14 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
     { label: "Delivered", value: formatCurrency(stats?.deliveredValue ?? 0), href: crmHref, isMoney: true },
   ]
 
-  const chartPalette = ["#93c5fd", "#86efac", "#fde68a", "#c4b5fd", "#fbcfe8", "#99f6e4", "#bfdbfe"]
+  const chartPalette = ["#5eead4", "#2dd4bf", "#14b8a6", "#0d9488", "#99f6e4", "#67e8f9", "#a5b4fc"]
   const deliveredTrend = charts?.deliveredTrend ?? []
   const deliveredYDomain = chartAmountDomain(deliveredTrend.map((d) => d.amount))
   const pettyCashByEmployee = charts?.pettyCashByEmployee ?? []
   const inventoryTrend = charts?.inventoryTrend ?? []
   const ticketTrend = charts?.ticketTrend ?? []
+
+  const axisTick = { fontSize: 9, fill: "hsl(var(--muted-foreground))" }
 
   return (
     <>
@@ -91,13 +93,22 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         onToggleMoney={toggleShowMoney}
       />
 
-      <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
+      <DashboardBlock
+        action={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] hidden sm:inline">
+              Charts
+            </span>
+            <RangeToggle value={rangeDays} onChange={setRangeDays} />
+          </div>
+        }
+      >
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
           <ChartCard
             title="Delivered order amount"
             tall
             footer={
-              <span className="flex flex-wrap gap-4 justify-between">
+              <span className="flex flex-wrap gap-3 justify-between">
                 <span>
                   <strong className="text-[hsl(var(--foreground))]">
                     {formatRsFull(charts?.deliveredTotal ?? 0)}
@@ -114,16 +125,16 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={deliveredTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                <AreaChart data={deliveredTrend} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="miniDeliveredFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1faca6" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#1faca6" stopOpacity={0.05} />
+                      <stop offset="5%" stopColor="#1a9f9a" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#1a9f9a" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                  <YAxis domain={deliveredYDomain} tickFormatter={formatRsAxis} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={42} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.45} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={deliveredYDomain} tickFormatter={formatRsAxis} tick={axisTick} tickLine={false} axisLine={false} width={36} />
                   <Tooltip
                     contentStyle={CHART_TOOLTIP_STYLE}
                     formatter={(value) => formatRsFull(Number(value ?? 0))}
@@ -135,7 +146,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
                       return ids ? `${day} · ${ids}` : day
                     }}
                   />
-                  <Area type="monotone" dataKey="amount" stroke="#1faca6" strokeWidth={2.5} fill="url(#miniDeliveredFill)" />
+                  <Area type="monotone" dataKey="amount" stroke="#1a9f9a" strokeWidth={2} fill="url(#miniDeliveredFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -146,12 +157,12 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={inventoryTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={36} />
+                <LineChart data={inventoryTrend} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.45} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={axisTick} tickLine={false} axisLine={false} width={28} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => `${Number(v ?? 0).toLocaleString()} qty`} />
-                  <Line type="monotone" dataKey="quantity" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="quantity" stroke="#0f766e" strokeWidth={2} dot={{ r: 2, fill: "#0f766e" }} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -164,12 +175,18 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pettyCashByEmployee.slice(0, 6)} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatRsAxis} />
-                  <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")} />
+                <BarChart data={pettyCashByEmployee.slice(0, 6)} layout="vertical" margin={{ top: 2, right: 6, left: 0, bottom: 2 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
+                  <XAxis type="number" tick={axisTick} tickFormatter={formatRsAxis} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={64}
+                    tick={axisTick}
+                    tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")}
+                  />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => formatRsFull(Number(v ?? 0))} />
-                  <Bar dataKey="amount" radius={[0, 6, 6, 0]}>
+                  <Bar dataKey="amount" radius={[0, 4, 4, 0]} barSize={12}>
                     {pettyCashByEmployee.slice(0, 6).map((entry, idx) => (
                       <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
                     ))}
@@ -184,13 +201,13 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ticketTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={28} />
+                <AreaChart data={ticketTrend} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.45} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis allowDecimals={false} tick={axisTick} tickLine={false} axisLine={false} width={24} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                  <Area type="monotone" dataKey="opened" stroke="#f59e0b" fill="#f59e0b22" strokeWidth={2} />
-                  <Area type="monotone" dataKey="closed" stroke="#10b981" fill="#10b98118" strokeWidth={2} />
+                  <Area type="monotone" dataKey="opened" stroke="#d97706" fill="#d9770618" strokeWidth={1.75} />
+                  <Area type="monotone" dataKey="closed" stroke="#059669" fill="#05966914" strokeWidth={1.75} />
                 </AreaChart>
               </ResponsiveContainer>
             )}

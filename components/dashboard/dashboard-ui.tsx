@@ -33,7 +33,7 @@ export function chartAmountDomain(values: number[]): [number, number] {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-5 sm:py-5 space-y-5">{children}</div>
+      <div className="mx-auto w-full max-w-[1600px] px-3 py-3 sm:px-4 sm:py-3.5 space-y-3">{children}</div>
     </div>
   )
 }
@@ -48,7 +48,7 @@ export function DashboardBlock({
   className?: string
 }) {
   return (
-    <section className={cn("space-y-3", className)}>
+    <section className={cn("space-y-2", className)}>
       {action && <div className="flex justify-end">{action}</div>}
       {children}
     </section>
@@ -65,16 +65,16 @@ export function RangeToggle({
   options?: readonly (7 | 14 | 30)[]
 }) {
   return (
-    <div className="inline-flex items-center rounded-lg border border-[hsl(var(--border))] p-0.5 bg-[hsl(var(--muted))]/25">
+    <div className="inline-flex items-center gap-0.5 rounded-md bg-[hsl(var(--muted))]/40 p-0.5">
       {options.map((days) => (
         <button
           key={days}
           type="button"
           onClick={() => onChange(days)}
           className={cn(
-            "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer",
+            "px-2 py-0.5 text-[10px] font-semibold rounded transition-colors cursor-pointer tabular-nums",
             value === days
-              ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]"
+              ? "bg-[#1a9f9a] text-white"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
           )}
         >
@@ -99,9 +99,9 @@ export function DashboardMetricsStrip({
   const hasMoney = items.some((i) => i.isMoney)
 
   return (
-    <div className="flex items-stretch rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-x-auto">
-      <div className="flex items-center min-w-0 flex-1">
-        {items.map((item, index) => {
+    <div className="relative rounded-lg border border-[hsl(var(--border))]/80 bg-[hsl(var(--card))] overflow-hidden">
+      <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 divide-x divide-y divide-[hsl(var(--border))]/70">
+        {items.map((item) => {
           const displayValue =
             loading
               ? "—"
@@ -110,46 +110,46 @@ export function DashboardMetricsStrip({
                 : item.value
 
           const inner = (
-            <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap px-3 py-2">
-              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{item.label}</span>
+            <div className="flex flex-col gap-0.5 px-2.5 py-2 min-h-[52px] justify-center">
+              <span className="text-[9px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] truncate">
+                {item.label}
+              </span>
               <span
                 className={cn(
-                  "text-sm font-semibold tabular-nums text-[hsl(var(--foreground))]",
+                  "text-[13px] font-semibold tabular-nums text-[hsl(var(--foreground))] leading-tight truncate",
                   item.isMoney && "tracking-tight",
                 )}
               >
                 {displayValue}
               </span>
-            </span>
+            </div>
           )
 
-          return (
-            <div key={item.label} className="flex items-center shrink-0">
-              {index > 0 && <span className="w-px self-stretch my-2 bg-[hsl(var(--border))]" aria-hidden />}
-              {item.href ? (
-                <Link href={item.href} className="hover:bg-[hsl(var(--muted))]/25 transition-colors">
-                  {inner}
-                </Link>
-              ) : (
-                inner
-              )}
+          return item.href ? (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="hover:bg-[hsl(var(--muted))]/30 transition-colors min-w-0"
+            >
+              {inner}
+            </Link>
+          ) : (
+            <div key={item.label} className="min-w-0">
+              {inner}
             </div>
           )
         })}
       </div>
       {hasMoney && (
-        <>
-          <span className="w-px self-stretch my-2 bg-[hsl(var(--border))] shrink-0" aria-hidden />
-          <button
-            type="button"
-            onClick={onToggleMoney}
-            className="shrink-0 px-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
-            title={showMoney ? "Hide amounts" : "Show amounts"}
-            aria-label={showMoney ? "Hide amounts" : "Show amounts"}
-          >
-            {showMoney ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={onToggleMoney}
+          className="absolute top-1.5 right-1.5 h-6 w-6 rounded-md flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40 transition-colors cursor-pointer"
+          title={showMoney ? "Hide amounts" : "Show amounts"}
+          aria-label={showMoney ? "Hide amounts" : "Show amounts"}
+        >
+          {showMoney ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </button>
       )}
     </div>
   )
@@ -171,19 +171,19 @@ export function ChartCard({
   tall?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[hsl(var(--border))]">
+    <div className="rounded-lg border border-[hsl(var(--border))]/80 bg-[hsl(var(--card))] overflow-hidden flex flex-col min-w-0">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-[hsl(var(--border))]/60">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{title}</p>
+          <p className="text-[11px] font-semibold text-[hsl(var(--foreground))] truncate">{title}</p>
           {subtitle && (
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{subtitle}</p>
+            <p className="text-[9px] text-[hsl(var(--muted-foreground))] truncate">{subtitle}</p>
           )}
         </div>
         {action}
       </div>
-      <div className={cn("px-1.5 pb-1", tall ? "h-[176px]" : "h-[152px]")}>{children}</div>
+      <div className={cn("px-1 pb-0.5", tall ? "h-[148px]" : "h-[128px]")}>{children}</div>
       {footer && (
-        <div className="px-3 py-2 border-t border-[hsl(var(--border))] text-[11px] text-[hsl(var(--muted-foreground))]">
+        <div className="px-2.5 py-1.5 border-t border-[hsl(var(--border))]/60 text-[10px] text-[hsl(var(--muted-foreground))]">
           {footer}
         </div>
       )}
@@ -194,16 +194,17 @@ export function ChartCard({
 export function ChartLoading() {
   return (
     <div className="h-full flex items-center justify-center">
-      <div className="h-6 w-6 rounded-full border-2 border-[hsl(var(--foreground))]/20 border-t-[hsl(var(--foreground))] animate-spin" />
+      <div className="h-5 w-5 rounded-full border-2 border-[#1a9f9a]/25 border-t-[#1a9f9a] animate-spin" />
     </div>
   )
 }
 
 export const CHART_TOOLTIP_STYLE = {
-  borderRadius: "8px",
+  borderRadius: "6px",
   border: "1px solid hsl(var(--border))",
   background: "hsl(var(--card))",
-  fontSize: "11px",
+  fontSize: "10px",
+  padding: "6px 8px",
 }
 
 export type DashboardMainTab = "overview" | "approvals" | "finance" | "backup"
@@ -225,22 +226,22 @@ export function DashboardMainTabs({
   ]
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-[hsl(var(--border))] p-0.5 bg-[hsl(var(--muted))]/20">
+    <div className="inline-flex items-center gap-0.5 rounded-md bg-[hsl(var(--muted))]/35 p-0.5">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
           className={cn(
-            "relative px-4 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer inline-flex items-center gap-2",
+            "relative px-2.5 py-1.5 text-[11px] font-semibold rounded transition-colors cursor-pointer inline-flex items-center gap-1.5",
             active === tab.id
-              ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+              ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm ring-1 ring-[hsl(var(--border))]/80"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
           )}
         >
           {tab.label}
           {tab.id === "approvals" && approvalsPending > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1faca6] px-1.5 text-[10px] font-bold text-white tabular-nums">
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a9f9a] px-1 text-[9px] font-bold text-white tabular-nums">
               {approvalsPending > 99 ? "99+" : approvalsPending}
             </span>
           )}
@@ -260,14 +261,14 @@ export function ApprovalTabs({
   onChange: (id: string) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1 border-b border-[hsl(var(--border))]">
+    <div className="flex flex-wrap gap-0.5 border-b border-[hsl(var(--border))]/70">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
           className={cn(
-            "relative px-3 py-2 text-xs font-medium transition-colors cursor-pointer inline-flex items-center gap-1.5",
+            "relative px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1",
             active === tab.id
               ? "text-[hsl(var(--foreground))]"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
@@ -275,10 +276,10 @@ export function ApprovalTabs({
         >
           {tab.label}
           {tab.count != null && tab.count > 0 && (
-            <span className="tabular-nums text-[10px] font-semibold text-[#1faca6]">{tab.count}</span>
+            <span className="tabular-nums text-[9px] font-bold text-[#1a9f9a]">{tab.count}</span>
           )}
           {active === tab.id && (
-            <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#1faca6] rounded-full" />
+            <span className="absolute bottom-0 left-1.5 right-1.5 h-0.5 bg-[#1a9f9a] rounded-full" />
           )}
         </button>
       ))}
@@ -294,17 +295,17 @@ export function ApprovalsSummaryChips({
   const visible = items.filter((i) => i.count > 0)
   if (visible.length === 0) {
     return (
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">All caught up — nothing pending approval.</p>
+      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">All caught up — nothing pending.</p>
     )
   }
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       {visible.map((item) => (
         <span
           key={item.label}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 py-1 text-xs text-[hsl(var(--muted-foreground))]"
+          className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--border))]/80 bg-[hsl(var(--muted))]/15 px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]"
         >
-          <span className="font-semibold tabular-nums text-[#0d6b67]">{item.count}</span>
+          <span className="font-bold tabular-nums text-[#0d6b67]">{item.count}</span>
           {item.label}
         </span>
       ))}

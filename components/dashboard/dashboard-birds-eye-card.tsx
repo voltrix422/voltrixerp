@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, FileSpreadsheet, Loader2, Eye } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Download, FileSpreadsheet, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import {
   buildBirdsEyeFromOverview,
@@ -47,28 +46,25 @@ export function DashboardBirdsEyeCard() {
   }
 
   return (
-    <div className="rounded-xl border bg-[hsl(var(--card))] shadow-sm overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3.5">
+    <div className="rounded-lg border border-[hsl(var(--border))]/80 bg-[hsl(var(--card))] overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-2.5 py-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold flex items-center gap-2">
-            <Eye className="h-4 w-4 text-[#1faca6]" />
-            Financial summary
-          </p>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-            Sales · Imports · Expenses — one page, totals only
+          <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">Financial summary</p>
+          <p className="text-[9px] text-[hsl(var(--muted-foreground))]">
+            Sales · Imports · Expenses — totals only
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="inline-flex items-center gap-0.5 rounded-md bg-[hsl(var(--muted))]/40 p-0.5">
             {PERIODS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 disabled={!!busy}
                 onClick={() => setPeriod(p.id)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-colors ${
                   period === p.id
-                    ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+                    ? "bg-[#1a9f9a] text-white"
                     : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                 }`}
               >
@@ -76,40 +72,37 @@ export function DashboardBirdsEyeCard() {
               </button>
             ))}
           </div>
-          <Button
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5 text-xs"
             disabled={!!busy}
             onClick={() => void download("excel")}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-[hsl(var(--border))] px-2 text-[10px] font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40 disabled:opacity-60 cursor-pointer"
           >
             {busy === "excel" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <FileSpreadsheet className="h-3 w-3" />
             )}
-            {busy === "excel" ? "Building…" : "Excel"}
-          </Button>
-          <Button
+            Excel
+          </button>
+          <button
             type="button"
-            size="sm"
-            className="h-8 gap-1.5 text-xs bg-[#1a9f9a] hover:bg-[#158a85] text-white"
             disabled={!!busy}
             onClick={() => void download("pdf")}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-[#1a9f9a] px-2 text-[10px] font-semibold text-white hover:bg-[#158a85] disabled:opacity-60 cursor-pointer"
           >
             {busy === "pdf" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-3 w-3" />
             )}
-            {busy === "pdf" ? "Building…" : "PDF"}
-          </Button>
+            PDF
+          </button>
         </div>
       </div>
       {error ? (
-        <div className="px-4 pb-3">
-          <p className="text-[11px] text-rose-600">{error}</p>
+        <div className="px-2.5 pb-2">
+          <p className="text-[10px] text-rose-600">{error}</p>
         </div>
       ) : null}
     </div>
