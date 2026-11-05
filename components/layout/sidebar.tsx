@@ -29,10 +29,28 @@ import {
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { NavTooltip } from "@/components/ui/nav-tooltip"
 import { useAuth } from "@/components/auth-provider"
 import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
 import type { Module } from "@/lib/auth"
 import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
+
+function CollapsedTip({
+  label,
+  enabled,
+  children,
+}: {
+  label: string
+  enabled: boolean
+  children: React.ReactNode
+}) {
+  if (!enabled) return <>{children}</>
+  return (
+    <NavTooltip label={label} side="right" className="flex w-full justify-center">
+      {children}
+    </NavTooltip>
+  )
+}
 
 const SIDEBAR_COLLAPSED_KEY = "voltrix-sidebar-collapsed"
 
@@ -126,15 +144,16 @@ function NavContent({
             if (collapsed) {
               const crmHref = showCrmMain ? "/crm" : "/crm/sales-agents"
               return (
-                <Link
-                  key={item.key}
-                  href={crmHref}
-                  onClick={onNavigate}
-                  title={item.label}
-                  className={linkClass(pathname?.startsWith("/crm") || false)}
-                >
-                  <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
-                </Link>
+                <CollapsedTip key={item.key} label={item.label} enabled>
+                  <Link
+                    href={crmHref}
+                    onClick={onNavigate}
+                    aria-label={item.label}
+                    className={linkClass(pathname?.startsWith("/crm") || false)}
+                  >
+                    <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
+                  </Link>
+                </CollapsedTip>
               )
             }
             return (
@@ -180,36 +199,38 @@ function NavContent({
           const Icon = item.icon
           const active = pathname?.startsWith(item.href!.split("?")[0]) || false
           return (
-            <Link
-              key={item.key}
-              href={item.href!}
-              onClick={onNavigate}
-              title={item.label}
-              className={cn(linkClass(active), collapsed && item.key === "messages" && "relative")}
-            >
-              <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.key === "messages" && <UnreadMessagesBadge />}
-                </>
-              )}
-            </Link>
+            <CollapsedTip key={item.key} label={item.label} enabled={collapsed}>
+              <Link
+                href={item.href!}
+                onClick={onNavigate}
+                aria-label={item.label}
+                className={cn(linkClass(active), collapsed && item.key === "messages" && "relative")}
+              >
+                <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.key === "messages" && <UnreadMessagesBadge />}
+                  </>
+                )}
+              </Link>
+            </CollapsedTip>
           )
         })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href.split("?")[0]) || false
           return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              title={label}
-              className={linkClass(active)}
-            >
-              <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
-              {!collapsed && <span className="flex-1 truncate">{label}</span>}
-            </Link>
+            <CollapsedTip key={href} label={label} enabled={collapsed}>
+              <Link
+                href={href}
+                onClick={onNavigate}
+                aria-label={label}
+                className={linkClass(active)}
+              >
+                <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
+                {!collapsed && <span className="flex-1 truncate">{label}</span>}
+              </Link>
+            </CollapsedTip>
           )
         })}
       </nav>
