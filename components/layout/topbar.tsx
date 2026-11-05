@@ -8,7 +8,7 @@ import { InstallErpButton } from "@/components/pwa/pwa-provider"
 import { MessagesIcon } from "@/components/layout/messages-icon"
 import { NavTooltip } from "@/components/ui/nav-tooltip"
 import { useAuth } from "@/components/auth-provider"
-import { isInvestorUser } from "@/lib/auth"
+import { isInvestorUser, ROLE_LABELS } from "@/lib/auth"
 import { useState, useRef, useEffect } from "react"
 
 interface TopbarProps {
@@ -104,18 +104,33 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
           )}
 
           {open && (
-            <div className="absolute right-0 top-9 z-50 w-52 rounded-[12px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] shadow-[0_12px_40px_rgba(0,0,0,0.14)] py-1 overflow-hidden">
-              <div className="px-3 py-2 border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
-                <p className="text-[12px] font-semibold truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{user?.name}</p>
-                <p className="text-[10px] text-[#86868b] truncate">{user?.email}</p>
+            <div className="absolute right-0 top-9 z-50 w-[260px] overflow-hidden rounded-[16px] border border-black/[0.08] bg-white/95 shadow-[0_16px_48px_rgba(0,0,0,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+              <div className="flex flex-col items-center px-4 pt-5 pb-4 text-center">
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#1d1d1f] text-[15px] font-semibold tracking-tight text-white shadow-[0_0_0_3px_rgba(26,159,154,0.18)]">
+                  {initials}
+                </span>
+                <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate max-w-full">
+                  {user?.name}
+                </p>
+                {user?.role && (
+                  <span className="mt-1.5 inline-flex items-center rounded-full bg-black/[0.05] px-2.5 py-0.5 text-[10px] font-semibold text-[#86868b] dark:bg-white/10">
+                    {ROLE_LABELS[user.role] ?? user.role}
+                  </span>
+                )}
+                <p className="mt-2 text-[11px] text-[#aeaeb2] truncate max-w-full">
+                  {user?.email}
+                </p>
               </div>
-              <button
-                onClick={() => { setOpen(false); logout("/login") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-medium text-[#ff3b30] hover:bg-black/[0.03] dark:hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                Sign out
-              </button>
+
+              <div className="px-2.5 pb-2.5">
+                <button
+                  onClick={() => { setOpen(false); logout("/login") }}
+                  className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[#ff3b30]/[0.08] px-3 py-2.5 text-[12px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/[0.14] transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5" strokeWidth={2} />
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
         </div>
