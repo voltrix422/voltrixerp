@@ -72,9 +72,9 @@ export function RangeToggle({
           type="button"
           onClick={() => onChange(days)}
           className={cn(
-            "px-3 py-1 text-[11px] font-medium rounded-[7px] transition-colors cursor-pointer tabular-nums",
+            "px-3 py-1 text-[11px] font-medium rounded-[7px] transition-all duration-200 cursor-pointer tabular-nums",
             value === days
-              ? "bg-white dark:bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+              ? "bg-white dark:bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm scale-[1.02]"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
           )}
         >
@@ -238,7 +238,7 @@ export function DashboardMainTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             className={cn(
-              "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors cursor-pointer inline-flex items-center gap-1.5",
+              "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer inline-flex items-center gap-1.5",
               selected
                 ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
                 : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",

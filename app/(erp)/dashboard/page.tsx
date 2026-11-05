@@ -285,43 +285,48 @@ export default function DashboardPage() {
           />
         </div>
 
-        {mainTab === "overview" ? (
-          <DashboardOverviewPanel />
-        ) : mainTab === "backup" ? (
-          <FullBackupCard />
-        ) : (
-          <section className="space-y-3">
-            <h2 className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              Approvals
-            </h2>
+        <div key={mainTab} className="dashboard-content-in">
+          {mainTab === "overview" ? (
+            <DashboardOverviewPanel />
+          ) : mainTab === "backup" ? (
+            <FullBackupCard />
+          ) : (
+            <section className="space-y-3">
+              <h2 className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Approvals
+              </h2>
 
-            <ApprovalTabs
-              active={approvalTab}
-              onChange={(id) => setApprovalTab(id as typeof approvalTab)}
-              tabs={[
-                { id: "orders", label: "CRM Orders", count: approvalCounts.crmOrders },
-                { id: "po", label: "Purchase Orders", count: approvalCounts.purchaseOrders },
-                { id: "transfers", label: "Branch Transfers", count: approvalCounts.transfers },
-                { id: "petty", label: "Petty Cash", count: approvalCounts.pettyCash },
-              ]}
-            />
+              <ApprovalTabs
+                active={approvalTab}
+                onChange={(id) => setApprovalTab(id as typeof approvalTab)}
+                tabs={[
+                  { id: "orders", label: "CRM Orders", count: approvalCounts.crmOrders },
+                  { id: "po", label: "Purchase Orders", count: approvalCounts.purchaseOrders },
+                  { id: "transfers", label: "Branch Transfers", count: approvalCounts.transfers },
+                  { id: "petty", label: "Petty Cash", count: approvalCounts.pettyCash },
+                ]}
+              />
 
-            <div className="min-h-[260px] rounded-[18px] bg-[#f5f5f7] dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] p-4">
-              <div className={approvalTab === "orders" ? "" : "hidden"}>
-                <ClientOrdersApproval />
+              <div
+                key={approvalTab}
+                className="dashboard-content-in min-h-[260px] rounded-[18px] bg-[#f5f5f7] dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] p-4"
+              >
+                <div className={approvalTab === "orders" ? "" : "hidden"}>
+                  <ClientOrdersApproval />
+                </div>
+                <div className={approvalTab === "po" ? "" : "hidden"}>
+                  <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
+                </div>
+                <div className={approvalTab === "transfers" ? "" : "hidden"}>
+                  <DashboardBranchTransferApprovals />
+                </div>
+                <div className={approvalTab === "petty" ? "" : "hidden"}>
+                  <DashboardPettyCashApprovals />
+                </div>
               </div>
-              <div className={approvalTab === "po" ? "" : "hidden"}>
-                <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
-              </div>
-              <div className={approvalTab === "transfers" ? "" : "hidden"}>
-                <DashboardBranchTransferApprovals />
-              </div>
-              <div className={approvalTab === "petty" ? "" : "hidden"}>
-                <DashboardPettyCashApprovals />
-              </div>
-            </div>
-          </section>
-        )}
+            </section>
+          )}
+        </div>
       </DashboardShell>
     </>
   )

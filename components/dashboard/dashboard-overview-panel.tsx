@@ -7,7 +7,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,39 +25,41 @@ import {
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
 
-const PETTY_COLORS = ["#007aff", "#34c759", "#ff9f0a", "#af52de", "#ff375f"]
+/** Single accent used across all overview charts */
+const CHART = "#0071e3"
 
 function PettyCashGraph({
   rows,
 }: {
   rows: Array<{ name: string; amount: number; role: string }>
 }) {
-  const data = rows.map((row, i) => ({
+  const data = rows.map((row) => ({
     name: String(row.name || "").split(" ")[0] || "—",
     fullName: row.name,
     amount: Number(row.amount) || 0,
-    fill: PETTY_COLORS[i % PETTY_COLORS.length],
   }))
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e5e5ea" />
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e5e5ea" />
         <XAxis
-          dataKey="name"
+          type="number"
+          tickFormatter={formatRsAxis}
           tick={{ fontSize: 10, fill: "#86868b" }}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
-          tickFormatter={formatRsAxis}
-          tick={{ fontSize: 10, fill: "#86868b" }}
+          type="category"
+          dataKey="name"
+          width={56}
+          tick={{ fontSize: 11, fill: "#6e6e73" }}
           tickLine={false}
           axisLine={false}
-          width={34}
         />
         <Tooltip
-          cursor={{ fill: "rgba(0,0,0,0.03)" }}
+          cursor={{ fill: "rgba(0,113,227,0.06)" }}
           contentStyle={CHART_TOOLTIP_STYLE}
           itemStyle={{ color: "#fff" }}
           labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
@@ -67,11 +68,7 @@ function PettyCashGraph({
             String((payload?.[0]?.payload as { fullName?: string } | undefined)?.fullName || "")
           }
         />
-        <Bar dataKey="amount" radius={[8, 8, 4, 4]} maxBarSize={28}>
-          {data.map((entry, i) => (
-            <Cell key={i} fill={entry.fill} />
-          ))}
-        </Bar>
+        <Bar dataKey="amount" fill={CHART} radius={[0, 7, 7, 0]} barSize={14} />
       </BarChart>
     </ResponsiveContainer>
   )
@@ -86,53 +83,68 @@ function AfterSaleGraph({
   opened: number
   closed: number
 }) {
-  const total = opened + closed
-  const openPct = total > 0 ? Math.round((opened / total) * 100) : 0
-  const closePct = total > 0 ? 100 - openPct : 0
-  const spark = trend.map((d) => ({
+  const data = trend.map((d) => ({
     day: d.day,
-    cases: d.opened + d.closed,
+    opened: d.opened,
+    closed: d.closed,
   }))
 
   return (
-    <div className="h-full flex flex-col gap-3 px-2.5 py-1">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-[14px] bg-[#ff9f0a]/[0.12] px-3 py-2.5">
-          <p className="text-[11px] font-medium text-[#b25000]">Opened</p>
-          <p className="mt-0.5 text-[24px] font-bold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-            {opened}
-          </p>
-          <p className="mt-0.5 text-[10px] tabular-nums text-[#86868b]">{openPct}%</p>
-        </div>
-        <div className="rounded-[14px] bg-[#30d158]/[0.12] px-3 py-2.5">
-          <p className="text-[11px] font-medium text-[#1a7f37]">Closed</p>
-          <p className="mt-0.5 text-[24px] font-bold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-            {closed}
-          </p>
-          <p className="mt-0.5 text-[10px] tabular-nums text-[#86868b]">{closePct}%</p>
-        </div>
+    <div className="h-full flex flex-col gap-2.5 px-1 py-0.5">
+      <div className="flex flex-wrap gap-1.5 px-1.5">
+        <span className="inline-flex items-center rounded-full bg-black/[0.05] dark:bg-white/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          {opened} opened
+        </span>
+        <span className="inline-flex items-center rounded-full bg-black/[0.05] dark:bg-white/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          {closed} closed
+        </span>
       </div>
-
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={spark} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-            <XAxis dataKey="day" hide />
-            <YAxis hide domain={[0, "auto"]} />
+          <AreaChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e5e5ea" />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 10, fill: "#86868b" }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+              minTickGap={28}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 10, fill: "#86868b" }}
+              tickLine={false}
+              axisLine={false}
+              width={22}
+            />
             <Tooltip
               contentStyle={CHART_TOOLTIP_STYLE}
               itemStyle={{ color: "#fff" }}
-              labelStyle={{ color: "rgba(255,255,255,0.7)" }}
-              formatter={(value) => [`${Number(value ?? 0)} cases`, "Activity"]}
+              labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
             />
             <Area
               type="monotone"
-              dataKey="cases"
-              stroke="#ff9f0a"
-              strokeWidth={2}
-              fill="#ff9f0a"
-              fillOpacity={0.14}
+              dataKey="opened"
+              name="Opened"
+              stroke={CHART}
+              strokeWidth={2.25}
+              fill={CHART}
+              fillOpacity={0.12}
               dot={false}
-              activeDot={{ r: 3.5, strokeWidth: 0 }}
+              activeDot={{ r: 3.5, fill: CHART, strokeWidth: 0 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="closed"
+              name="Closed"
+              stroke={CHART}
+              strokeWidth={2}
+              strokeOpacity={0.45}
+              fill={CHART}
+              fillOpacity={0.04}
+              dot={false}
+              activeDot={{ r: 3, fill: CHART, strokeWidth: 0 }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -152,25 +164,20 @@ function ReceivedStats({
   pending: number
   delivered: number
 }) {
+  const pill =
+    "inline-flex items-center rounded-full bg-black/[0.05] dark:bg-white/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))]"
+
   return (
     <div className="space-y-2.5">
       <p className="text-[26px] font-bold tracking-tight tabular-nums leading-none text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
         {formatRsFull(total)}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        <span className="inline-flex items-center rounded-full bg-black/[0.05] dark:bg-white/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+        <span className={pill}>
           {payments} payment{payments === 1 ? "" : "s"}
         </span>
-        {pending > 0 && (
-          <span className="inline-flex items-center rounded-full bg-[#ff9f0a]/15 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#b25000]">
-            {formatRsFull(pending)} pending
-          </span>
-        )}
-        {delivered > 0 && (
-          <span className="inline-flex items-center rounded-full bg-[#34c759]/15 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[#1a7f37]">
-            {delivered} delivered
-          </span>
-        )}
+        {pending > 0 && <span className={pill}>{formatRsFull(pending)} pending</span>}
+        {delivered > 0 && <span className={pill}>{delivered} delivered</span>}
       </div>
     </div>
   )
@@ -180,6 +187,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
   const { data, loading } = useDashboardOverview(rangeDays, true)
   const [showMoney, setShowMoney] = useState(true)
+  const [animTick, setAnimTick] = useState(0)
 
   useEffect(() => {
     try {
@@ -200,6 +208,12 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
       }
       return next
     })
+  }
+
+  function handleRangeChange(v: 7 | 14 | 30) {
+    if (v === rangeDays) return
+    setRangeDays(v)
+    setAnimTick((t) => t + 1)
   }
 
   const stats = data?.stats
@@ -236,7 +250,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
   const gridStroke = "#e5e5ea"
 
   return (
-    <>
+    <div key={animTick} className="dashboard-content-in space-y-5">
       <DashboardMetricsStrip
         items={stripItems}
         loading={loading}
@@ -244,7 +258,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         onToggleMoney={toggleShowMoney}
       />
 
-      <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
+      <DashboardBlock action={<RangeToggle value={rangeDays} onChange={handleRangeChange} />}>
         <div className="grid grid-cols-1 gap-3">
           <ChartCard
             title="Received"
@@ -298,12 +312,12 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
                   <Area
                     type="monotone"
                     dataKey="amount"
-                    stroke="#0071e3"
+                    stroke={CHART}
                     strokeWidth={2.25}
-                    fill="#0071e3"
+                    fill={CHART}
                     fillOpacity={0.12}
                     dot={false}
-                    activeDot={{ r: 4, fill: "#0071e3", strokeWidth: 0 }}
+                    activeDot={{ r: 4, fill: CHART, strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -354,6 +368,6 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
           </ChartCard>
         </div>
       </DashboardBlock>
-    </>
+    </div>
   )
 }
