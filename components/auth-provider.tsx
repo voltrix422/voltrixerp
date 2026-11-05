@@ -95,18 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!checked) return
-    if (!user) {
-      const session = getSession()
-      if (session && pathname?.startsWith("/pos") && pathname !== "/pos/login") {
-        setUser(session)
-        return
-      }
-      if (session && pathname?.startsWith("/investor") && pathname !== "/investor/login") {
-        setUser(session)
-        return
-      }
-    }
+    // Soft-nav race: pathname can become /dashboard before React user state catches up.
+    // Always prefer restoring session before bouncing to login.
     if (!user && pathname && !isPublicPath(pathname)) {
+      const session = getSession()
+      if (session) {
+        setUser(session)
+        return
+      }
       if (typeof window !== "undefined") {
         sessionStorage.setItem("redirectAfterLogin", pathname)
       }

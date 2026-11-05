@@ -10,7 +10,7 @@ import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
 import { PwaProvider } from "@/components/pwa/pwa-provider"
-import { POST_LOGIN_SPLASH_KEY } from "@/components/layout/post-login-splash"
+import { PostLoginSplash } from "@/components/layout/post-login-splash"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -21,8 +21,10 @@ export default function LoginPage() {
   const [error, setError]     = useState("")
   const [loading, setLoading] = useState(false)
   const [staySignedIn, setStaySignedIn] = useState(true)
+  const [enteringApp, setEnteringApp] = useState(false)
   const autoTried = useRef(false)
   const loginInFlight = useRef(false)
+  const homePathRef = useRef("/dashboard")
 
   useEffect(() => {
     const remembered = getRememberedLogin()
@@ -33,22 +35,23 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
-    if (user) {
+    // Already signed in — go home (skip if we are mid post-login splash)
+    if (user && !enteringApp && !loginInFlight.current) {
       router.replace(homePathForUser(user))
       return
     }
     const timer = window.setTimeout(() => {
-      if (autoTried.current || user || loginInFlight.current) return
+      if (autoTried.current || user || loginInFlight.current || enteringApp) return
       const remembered = getRememberedLogin()
       if (!remembered) return
       autoTried.current = true
       void completeLogin(remembered.email, remembered.password)
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [user, router])
+  }, [user, router, enteringApp])
 
   async function completeLogin(nextEmail: string, nextPassword: string) {
-    if (loginInFlight.current) return
+    if (loginInFlight.current || enteringApp) return
     const trimmedEmail = nextEmail.trim()
     const trimmedPassword = nextPassword
     if (!trimmedEmail || !trimmedPassword) {
@@ -60,28 +63,30 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     try {
-      // Sign in first — do not block on push permission (that caused multi-click / stuck UI).
       const loggedInUser = await login(trimmedEmail, trimmedPassword)
       if (!loggedInUser) {
         setError("Invalid email or password.")
+        loginInFlight.current = false
+        setLoading(false)
         return
       }
       if (staySignedIn) saveRememberedLogin(trimmedEmail, trimmedPassword)
       else clearRememberedLogin()
 
-      try {
-        sessionStorage.setItem(POST_LOGIN_SPLASH_KEY, "1")
-      } catch {
-        /* ignore */
-      }
-
-      router.replace(homePathForUser(loggedInUser))
-      // Background only — never block navigation
+      homePathRef.current = homePathForUser(loggedInUser)
+      // Cover the form immediately so a second click can't happen, then hard-enter the app.
+      setEnteringApp(true)
+      setLoading(true)
       void subscribeUserToPush(loggedInUser.id)
-    } finally {
-      setLoading(false)
+    } catch {
+      setError("Sign in failed. Please try again.")
       loginInFlight.current = false
+      setLoading(false)
     }
+  }
+
+  function finishEnterApp() {
+    window.location.assign(homePathRef.current || "/dashboard")
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -91,6 +96,7 @@ export default function LoginPage() {
 
   return (
     <PwaProvider>
+    {enteringApp && <PostLoginSplash force onDone={finishEnterApp} />}
     <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
 
       {/* Left — branding panel */}
@@ -206,12 +212,12 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || enteringApp}
               className="w-full h-10 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               style={{ backgroundColor: "#1a9f9a" }}
             >
-              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {loading ? "Signing in..." : "Sign in"}
+              {(loading || enteringApp) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {enteringApp ? "Entering…" : loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
 
