@@ -4,8 +4,27 @@ import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { Suspense, useEffect, useState } from "react"
 import {
-  LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
+  Grid2X2,
+  Wallet,
+  UsersRound,
+  ListChecks,
+  Archive,
+  Monitor,
+  ShoppingBag,
+  Send,
+  Compass,
+  NotebookText,
+  IdCard,
+  LifeBuoy,
+  MessageCircle,
+  WalletCards,
+  Gauge,
+  CircleCheck,
+  UserRoundCog,
+  Menu,
+  X,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -17,34 +36,38 @@ import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
 const SIDEBAR_COLLAPSED_KEY = "voltrix-sidebar-collapsed"
 
+/** SF Symbols–like weight: slightly thinner stroke, Apple sidebar feel. */
+const NAV_ICON_CLASS = "h-[17px] w-[17px] shrink-0"
+const NAV_ICON_STROKE = 1.6
+
 const NAV_ORDER: Array<{
   key: string
   href?: string
   label: string
-  icon: typeof LayoutDashboard
+  icon: LucideIcon
   module?: Module
   kind: "link" | "crm" | "finance"
 }> = [
-  { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard", kind: "link" },
-  { key: "finance", href: "/finance", label: "Finance", icon: DollarSign, module: "finance", kind: "link" },
-  { key: "crm", label: "CRM", icon: Users2, module: "crm", kind: "crm" },
-  { key: "client-audit", href: "/client-audit", label: "Client audit", icon: ClipboardCheck, module: "crm", kind: "link" },
-  { key: "inventory", href: "/inventory", label: "Inventory", icon: Package, module: "inventory", kind: "link" },
-  { key: "pos-admin", href: "/pos-admin", label: "POS Admin", icon: Store, module: "pos_admin", kind: "link" },
-  { key: "purchase", href: "/purchase", label: "Purchase", icon: ShoppingCart, module: "purchase", kind: "link" },
-  { key: "dispatches", href: "/dispatches", label: "Dispatches", icon: Truck, module: "dispatches", kind: "link" },
-  { key: "website", href: "/website", label: "Website", icon: Globe, module: "website", kind: "link" },
-  { key: "docs", href: "/docs", label: "Documentation", icon: BookOpen, module: "docs", kind: "link" },
-  { key: "hrm", href: "/hrm", label: "HRM", icon: UserCog, module: "hrm", kind: "link" },
-  { key: "tickets", href: "/tickets", label: "After Sale", icon: Ticket, module: "tickets", kind: "link" },
-  { key: "messages", href: "/messages", label: "Messages", icon: MessageSquare, kind: "link" },
-  { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Banknote, kind: "link" },
-  { key: "petrol", href: "/petrol", label: "Petrol", icon: Fuel, kind: "link" },
-  { key: "todos", href: "/todos", label: "To-do", icon: ClipboardList, kind: "link" },
+  { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: Grid2X2, module: "dashboard", kind: "link" },
+  { key: "finance", href: "/finance", label: "Finance", icon: Wallet, module: "finance", kind: "link" },
+  { key: "crm", label: "CRM", icon: UsersRound, module: "crm", kind: "crm" },
+  { key: "client-audit", href: "/client-audit", label: "Client audit", icon: ListChecks, module: "crm", kind: "link" },
+  { key: "inventory", href: "/inventory", label: "Inventory", icon: Archive, module: "inventory", kind: "link" },
+  { key: "pos-admin", href: "/pos-admin", label: "POS Admin", icon: Monitor, module: "pos_admin", kind: "link" },
+  { key: "purchase", href: "/purchase", label: "Purchase", icon: ShoppingBag, module: "purchase", kind: "link" },
+  { key: "dispatches", href: "/dispatches", label: "Dispatches", icon: Send, module: "dispatches", kind: "link" },
+  { key: "website", href: "/website", label: "Website", icon: Compass, module: "website", kind: "link" },
+  { key: "docs", href: "/docs", label: "Documentation", icon: NotebookText, module: "docs", kind: "link" },
+  { key: "hrm", href: "/hrm", label: "HRM", icon: IdCard, module: "hrm", kind: "link" },
+  { key: "tickets", href: "/tickets", label: "After Sale", icon: LifeBuoy, module: "tickets", kind: "link" },
+  { key: "messages", href: "/messages", label: "Messages", icon: MessageCircle, kind: "link" },
+  { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: WalletCards, kind: "link" },
+  { key: "petrol", href: "/petrol", label: "Petrol", icon: Gauge, kind: "link" },
+  { key: "todos", href: "/todos", label: "To-do", icon: CircleCheck, kind: "link" },
 ]
 
-const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any; module?: Module }> = [
-  { href: "/manage-users", label: "Manage Users", icon: Users2, module: "users" },
+const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: LucideIcon; module?: Module }> = [
+  { href: "/manage-users", label: "Manage Users", icon: UserRoundCog, module: "users" },
 ]
 
 function NavContent({
@@ -80,7 +103,7 @@ function NavContent({
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center rounded-md text-sm font-medium transition-colors",
+      "flex items-center rounded-md text-[13px] font-semibold tracking-[-0.01em] transition-colors",
       collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-2 py-2",
       active
         ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
@@ -89,7 +112,7 @@ function NavContent({
 
   const subLinkClass = (active: boolean) =>
     cn(
-      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+      "flex items-center rounded-md px-2 py-1.5 text-[12px] font-semibold tracking-[-0.01em] transition-colors",
       active
         ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
         : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
@@ -110,7 +133,7 @@ function NavContent({
                   title={item.label}
                   className={linkClass(pathname?.startsWith("/crm") || false)}
                 >
-                  <Users2 className="h-4 w-4 shrink-0" />
+                  <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                 </Link>
               )
             }
@@ -121,9 +144,12 @@ function NavContent({
                   onClick={() => setCrmOpen((open) => !open)}
                   className={cn(linkClass(pathname?.startsWith("/crm") || false), "w-full cursor-pointer")}
                 >
-                  <Users2 className="h-4 w-4 shrink-0" />
+                  <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                   <span className="flex-1 truncate text-left">{item.label}</span>
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", crmOpen && "rotate-180")} />
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 shrink-0 transition-transform", crmOpen && "rotate-180")}
+                    strokeWidth={NAV_ICON_STROKE}
+                  />
                 </button>
                 {crmOpen && (
                   <div className="ml-6 space-y-1">
@@ -161,7 +187,7 @@ function NavContent({
               title={item.label}
               className={cn(linkClass(active), collapsed && item.key === "messages" && "relative")}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
               {!collapsed && (
                 <>
                   <span className="flex-1 truncate">{item.label}</span>
@@ -181,7 +207,7 @@ function NavContent({
               title={label}
               className={linkClass(active)}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
               {!collapsed && <span className="flex-1 truncate">{label}</span>}
             </Link>
           )
