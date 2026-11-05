@@ -32,8 +32,8 @@ export function chartAmountDomain(values: number[]): [number, number] {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
-      <div className="mx-auto w-full max-w-[1600px] px-3 py-3 sm:px-4 sm:py-4 space-y-3.5">{children}</div>
+    <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6 space-y-5">{children}</div>
     </div>
   )
 }
@@ -48,7 +48,7 @@ export function DashboardBlock({
   className?: string
 }) {
   return (
-    <section className={cn("space-y-2.5", className)}>
+    <section className={cn("space-y-3", className)}>
       {action && <div className="flex justify-end">{action}</div>}
       {children}
     </section>
@@ -65,16 +65,16 @@ export function RangeToggle({
   options?: readonly (7 | 14 | 30)[]
 }) {
   return (
-    <div className="inline-flex items-center rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-0.5 shadow-sm">
+    <div className="inline-flex items-center rounded-[9px] bg-black/[0.06] dark:bg-white/10 p-[2px]">
       {options.map((days) => (
         <button
           key={days}
           type="button"
           onClick={() => onChange(days)}
           className={cn(
-            "px-2.5 py-1 text-[10px] font-bold rounded-full transition-all cursor-pointer tabular-nums",
+            "px-3 py-1 text-[11px] font-medium rounded-[7px] transition-colors cursor-pointer tabular-nums",
             value === days
-              ? "bg-[#0f766e] text-white shadow-sm"
+              ? "bg-white dark:bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
           )}
         >
@@ -99,25 +99,21 @@ export function DashboardMetricsStrip({
   const hasMoney = items.some((i) => i.isMoney)
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
-          Snapshot
-        </p>
+    <div className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden">
+      <div className="flex items-center justify-end px-3 pt-2.5">
         {hasMoney && (
           <button
             type="button"
             onClick={onToggleMoney}
-            className="inline-flex h-6 items-center gap-1 rounded-full border border-[hsl(var(--border))] px-2 text-[10px] font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--muted-foreground))] hover:bg-black/[0.04] dark:hover:bg-white/10 transition-colors cursor-pointer"
             title={showMoney ? "Hide amounts" : "Show amounts"}
             aria-label={showMoney ? "Hide amounts" : "Show amounts"}
           >
-            {showMoney ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-            {showMoney ? "Hide" : "Show"}
+            {showMoney ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2">
+      <div className="grid grid-cols-3 lg:grid-cols-9 divide-x divide-y lg:divide-y-0 divide-black/[0.06] dark:divide-[hsl(var(--border))]">
         {items.map((item) => {
           const displayValue =
             loading
@@ -126,21 +122,15 @@ export function DashboardMetricsStrip({
                 ? "••••"
                 : item.value
 
-          const card = (
-            <div
-              className={cn(
-                "group relative h-full rounded-xl border border-[hsl(var(--border))]/70 bg-[hsl(var(--card))] px-3 py-2.5 transition-all",
-                item.href && "hover:border-[#1a9f9a]/45 hover:shadow-[0_8px_20px_-16px_rgba(15,118,110,0.55)]",
-              )}
-            >
-              <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-[#1a9f9a]/70 opacity-70 group-hover:opacity-100" />
-              <p className="pl-2 text-[9px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] truncate">
+          const inner = (
+            <div className="px-3 pb-3.5 pt-0.5 min-h-[68px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
                 {item.label}
               </p>
               <p
                 className={cn(
-                  "pl-2 mt-1 text-[15px] font-bold tabular-nums tracking-tight text-[hsl(var(--foreground))] leading-none truncate",
-                  item.isMoney && "text-[13px] sm:text-[14px]",
+                  "text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-none truncate tabular-nums",
+                  item.isMoney && "text-[15px] sm:text-[16px]",
                 )}
               >
                 {displayValue}
@@ -148,13 +138,15 @@ export function DashboardMetricsStrip({
             </div>
           )
 
-          return item.href ? (
-            <Link key={item.label} href={item.href} className="min-w-0">
-              {card}
-            </Link>
-          ) : (
+          return (
             <div key={item.label} className="min-w-0">
-              {card}
+              {item.href ? (
+                <Link href={item.href} className="block hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors">
+                  {inner}
+                </Link>
+              ) : (
+                inner
+              )}
             </div>
           )
         })}
@@ -179,22 +171,26 @@ export function ChartCard({
   tall?: boolean
 }) {
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border))]/70 bg-[hsl(var(--card))] overflow-hidden flex flex-col min-w-0 shadow-[0_10px_30px_-28px_rgba(15,23,42,0.45)]">
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
+    <div className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden flex flex-col min-w-0">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-1">
         <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-[hsl(var(--foreground))] truncate">{title}</p>
+          <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+            {title}
+          </p>
           {subtitle && (
-            <p className="text-[9px] text-[hsl(var(--muted-foreground))] truncate">{subtitle}</p>
+            <p className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
+              {subtitle}
+            </p>
+          )}
+          {footer && (
+            <div className="mt-2 text-[12px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))]">
+              {footer}
+            </div>
           )}
         </div>
         {action}
       </div>
-      <div className={cn("px-1.5 pb-1", tall ? "h-[168px]" : "h-[148px]")}>{children}</div>
-      {footer && (
-        <div className="mx-3 mb-2.5 rounded-lg bg-[hsl(var(--muted))]/25 px-2.5 py-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-          {footer}
-        </div>
-      )}
+      <div className={cn("px-2 pb-3 pt-1", tall ? "h-[190px]" : "h-[170px]")}>{children}</div>
     </div>
   )
 }
@@ -202,18 +198,19 @@ export function ChartCard({
 export function ChartLoading() {
   return (
     <div className="h-full flex items-center justify-center">
-      <div className="h-5 w-5 rounded-full border-2 border-[#1a9f9a]/25 border-t-[#1a9f9a] animate-spin" />
+      <div className="h-5 w-5 rounded-full border-2 border-black/10 border-t-[#1d1d1f] dark:border-white/20 dark:border-t-white animate-spin" />
     </div>
   )
 }
 
 export const CHART_TOOLTIP_STYLE = {
-  borderRadius: "10px",
-  border: "1px solid hsl(var(--border))",
-  background: "hsl(var(--card))",
-  fontSize: "10px",
+  borderRadius: "12px",
+  border: "none",
+  background: "rgba(29,29,31,0.92)",
+  color: "#fff",
+  fontSize: "11px",
   padding: "8px 10px",
-  boxShadow: "0 12px 28px -18px rgba(15,23,42,0.45)",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
 }
 
 export type DashboardMainTab = "overview" | "approvals" | "backup"
@@ -234,7 +231,7 @@ export function DashboardMainTabs({
   ]
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1 shadow-sm">
+    <div className="inline-flex items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
       {tabs.map((tab) => {
         const selected = active === tab.id
         return (
@@ -243,20 +240,15 @@ export function DashboardMainTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative px-3.5 py-1.5 text-[11px] font-semibold rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5",
+              "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors cursor-pointer inline-flex items-center gap-1.5",
               selected
-                ? "bg-[#0f766e] text-white shadow-sm"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/35",
+                ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
             )}
           >
             {tab.label}
             {tab.id === "approvals" && approvalsPending > 0 && (
-              <span
-                className={cn(
-                  "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums",
-                  selected ? "bg-white/20 text-white" : "bg-[#1a9f9a] text-white",
-                )}
-              >
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[10px] font-semibold text-white tabular-nums">
                 {approvalsPending > 99 ? "99+" : approvalsPending}
               </span>
             )}
@@ -277,7 +269,7 @@ export function ApprovalTabs({
   onChange: (id: string) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1.5">
       {tabs.map((tab) => {
         const selected = active === tab.id
         return (
@@ -286,15 +278,17 @@ export function ApprovalTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             className={cn(
-              "px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors cursor-pointer inline-flex items-center gap-1",
+              "px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors cursor-pointer inline-flex items-center gap-1.5",
               selected
-                ? "border-[#1a9f9a]/40 bg-[#1a9f9a]/10 text-[#0f766e]"
-                : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/25",
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "bg-black/[0.04] dark:bg-white/10 text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f]",
             )}
           >
             {tab.label}
             {tab.count != null && tab.count > 0 && (
-              <span className="tabular-nums text-[9px] font-bold text-[#1a9f9a]">{tab.count}</span>
+              <span className={cn("tabular-nums text-[10px] font-semibold", selected ? "text-white/80" : "text-[#ff3b30]")}>
+                {tab.count}
+              </span>
             )}
           </button>
         )
@@ -311,17 +305,17 @@ export function ApprovalsSummaryChips({
   const visible = items.filter((i) => i.count > 0)
   if (visible.length === 0) {
     return (
-      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">All caught up — nothing pending.</p>
+      <p className="text-[12px] text-[#86868b]">All caught up.</p>
     )
   }
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       {visible.map((item) => (
         <span
           key={item.label}
-          className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))]/80 bg-[hsl(var(--muted))]/15 px-2.5 py-1 text-[10px] text-[hsl(var(--muted-foreground))]"
+          className="inline-flex items-center gap-1.5 rounded-full bg-black/[0.04] dark:bg-white/10 px-2.5 py-1 text-[11px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))]"
         >
-          <span className="font-bold tabular-nums text-[#0d6b67]">{item.count}</span>
+          <span className="font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{item.count}</span>
           {item.label}
         </span>
       ))}

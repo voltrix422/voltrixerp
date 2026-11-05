@@ -298,11 +298,13 @@ export default function DashboardPage() {
         ) : mainTab === "backup" ? (
           <FullBackupCard />
         ) : (
-          <section className="space-y-2.5">
+          <section className="space-y-3">
             <div>
-              <h2 className="text-[13px] font-semibold text-[hsl(var(--foreground))]">Pending approvals</h2>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Orders, POs, transfers, petty cash, and cash requests.
+              <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Approvals
+              </h2>
+              <p className="text-[12px] text-[#86868b] mt-0.5">
+                Review what needs your action.
               </p>
             </div>
 
@@ -318,7 +320,7 @@ export default function DashboardPage() {
               ]}
             />
 
-            <div className="min-h-[260px] rounded-lg border border-[hsl(var(--border))]/80 bg-[hsl(var(--card))] p-3">
+            <div className="min-h-[260px] rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] p-4">
               <div className={approvalTab === "orders" ? "" : "hidden"}>
                 <ClientOrdersApproval />
               </div>

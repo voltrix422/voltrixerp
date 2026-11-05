@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from "react"
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
   Line,
-  Pie,
-  PieChart,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -75,13 +73,13 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
 
   const deliveredTrend = charts?.deliveredTrend ?? []
   const deliveredYDomain = chartAmountDomain(deliveredTrend.map((d) => d.amount))
-  const pettyCashByEmployee = (charts?.pettyCashByEmployee ?? []).slice(0, 6)
+  const pettyCashByEmployee = (charts?.pettyCashByEmployee ?? []).slice(0, 5)
   const inventoryTrend = charts?.inventoryTrend ?? []
   const ticketTrend = charts?.ticketTrend ?? []
   const pettyTotal = pettyCashByEmployee.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
 
-  const pieColors = ["#0f766e", "#14b8a6", "#2dd4bf", "#5eead4", "#99f6e4", "#ccfbf1"]
-  const axisTick = { fontSize: 9, fill: "hsl(var(--muted-foreground))" }
+  const axisTick = { fontSize: 10, fill: "#86868b" }
+  const gridStroke = "#e5e5ea"
 
   return (
     <>
@@ -92,51 +90,33 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         onToggleMoney={toggleShowMoney}
       />
 
-      <DashboardBlock
-        action={
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))] hidden sm:inline">
-              Trends
-            </span>
-            <RangeToggle value={rangeDays} onChange={setRangeDays} />
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
+      <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           <ChartCard
-            title="Delivered order amount"
-            subtitle="Daily delivered value"
+            title="Delivered"
+            subtitle="Order amount"
             tall
             footer={
-              <span className="flex flex-wrap gap-3 justify-between">
-                <span>
-                  <strong className="text-[hsl(var(--foreground))]">
-                    {formatRsFull(charts?.deliveredTotal ?? 0)}
-                  </strong>{" "}
-                  delivered
+              <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
+                {formatRsFull(charts?.deliveredTotal ?? 0)}
+                <span className="ml-2 text-[12px] font-medium text-[#86868b]">
+                  · {stats?.deliveredCount ?? 0} orders
                 </span>
-                <span>
-                  <strong className="text-[hsl(var(--foreground))]">{stats?.deliveredCount ?? 0}</strong> orders
-                </span>
-              </span>
+              </p>
             }
           >
             {loading ? (
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="deliveredBarFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#0f766e" stopOpacity={0.55} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
+                <AreaChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={22} />
                   <YAxis domain={deliveredYDomain} tickFormatter={formatRsAxis} tick={axisTick} tickLine={false} axisLine={false} width={36} />
                   <Tooltip
                     contentStyle={CHART_TOOLTIP_STYLE}
+                    itemStyle={{ color: "#fff" }}
+                    labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
                     formatter={(value) => formatRsFull(Number(value ?? 0))}
                     labelFormatter={(label, payload) => {
                       const ids = ((payload?.[0]?.payload as { orderIds?: string[] } | undefined)?.orderIds || [])
@@ -146,118 +126,117 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
                       return ids ? `${day} · ${ids}` : day
                     }}
                   />
-                  <Bar dataKey="amount" fill="url(#deliveredBarFill)" radius={[6, 6, 2, 2]} maxBarSize={18} />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="amount"
-                    stroke="#042f2e"
-                    strokeWidth={1.75}
+                    stroke="#0071e3"
+                    strokeWidth={2.25}
+                    fill="#0071e3"
+                    fillOpacity={0.12}
                     dot={false}
-                    activeDot={{ r: 4, fill: "#0f766e" }}
+                    activeDot={{ r: 4, fill: "#0071e3", strokeWidth: 0 }}
                   />
-                </ComposedChart>
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </ChartCard>
 
-          <ChartCard title="Inventory added" subtitle="Units added per day" tall>
+          <ChartCard title="Inventory" subtitle="Units added" tall>
             {loading ? (
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={inventoryTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="inventoryBarFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#67e8f9" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#0e7490" stopOpacity={0.7} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
+                  <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={22} />
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} width={28} />
-                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => `${Number(v ?? 0).toLocaleString()} qty`} />
-                  <Bar dataKey="quantity" fill="url(#inventoryBarFill)" radius={[7, 7, 2, 2]} maxBarSize={16} />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    itemStyle={{ color: "#fff" }}
+                    labelStyle={{ color: "rgba(255,255,255,0.7)" }}
+                    formatter={(v) => `${Number(v ?? 0).toLocaleString()} qty`}
+                  />
+                  <Bar dataKey="quantity" fill="#34c759" radius={[5, 5, 5, 5]} maxBarSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </ChartCard>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <ChartCard
             title="Petty cash"
-            subtitle="Share by employee"
+            subtitle="By employee"
             footer={
-              <span>
-                Total{" "}
-                <strong className="text-[hsl(var(--foreground))]">{formatRsFull(pettyTotal)}</strong>
-              </span>
+              <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
+                {formatRsFull(pettyTotal)}
+              </p>
             }
           >
             {loading ? (
               <ChartLoading />
             ) : pettyCashByEmployee.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[hsl(var(--muted-foreground))]">
+              <div className="h-full flex items-center justify-center text-[12px] text-[#86868b]">
                 No petty cash in range
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pettyCashByEmployee}
-                    dataKey="amount"
-                    nameKey="name"
-                    cx="42%"
-                    cy="50%"
-                    innerRadius={38}
-                    outerRadius={58}
-                    paddingAngle={3}
-                    stroke="hsl(var(--card))"
-                    strokeWidth={2}
-                  >
-                    {pettyCashByEmployee.map((entry, idx) => (
-                      <Cell key={`${entry.name}-${idx}`} fill={pieColors[idx % pieColors.length]} />
-                    ))}
-                  </Pie>
+                <BarChart data={pettyCashByEmployee} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="0" horizontal={false} stroke={gridStroke} />
+                  <XAxis type="number" tick={axisTick} tickFormatter={formatRsAxis} axisLine={false} tickLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={72}
+                    tick={axisTick}
+                    tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip
                     contentStyle={CHART_TOOLTIP_STYLE}
-                    formatter={(v, name) => [formatRsFull(Number(v ?? 0)), String(name)]}
+                    itemStyle={{ color: "#fff" }}
+                    formatter={(v) => formatRsFull(Number(v ?? 0))}
                   />
-                  <Legend
-                    layout="vertical"
-                    align="right"
-                    verticalAlign="middle"
-                    iconType="circle"
-                    iconSize={7}
-                    formatter={(value) => (
-                      <span className="text-[9px] text-[hsl(var(--muted-foreground))]">
-                        {String(value).split(" ").slice(0, 2).join(" ")}
-                      </span>
-                    )}
-                  />
-                </PieChart>
+                  <Bar dataKey="amount" fill="#af52de" radius={[0, 6, 6, 0]} barSize={12} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </ChartCard>
 
-          <ChartCard title="After Sale cases" subtitle="Opened vs closed">
+          <ChartCard title="After Sale" subtitle="Opened vs closed">
             {loading ? (
               <ChartLoading />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ticketTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
+                <LineChart data={ticketTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
+                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={22} />
                   <YAxis allowDecimals={false} tick={axisTick} tickLine={false} axisLine={false} width={24} />
-                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={7}
-                    wrapperStyle={{ fontSize: 10, paddingTop: 2 }}
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    itemStyle={{ color: "#fff" }}
+                    labelStyle={{ color: "rgba(255,255,255,0.7)" }}
                   />
-                  <Bar dataKey="opened" name="Opened" stackId="tickets" fill="#f59e0b" radius={[0, 0, 0, 0]} maxBarSize={14} />
-                  <Bar dataKey="closed" name="Closed" stackId="tickets" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={14} />
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="opened"
+                    name="Opened"
+                    stroke="#ff9f0a"
+                    strokeWidth={2.25}
+                    dot={false}
+                    activeDot={{ r: 3.5, strokeWidth: 0 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="closed"
+                    name="Closed"
+                    stroke="#30d158"
+                    strokeWidth={2.25}
+                    dot={false}
+                    activeDot={{ r: 3.5, strokeWidth: 0 }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             )}
           </ChartCard>
