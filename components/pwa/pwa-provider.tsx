@@ -216,7 +216,7 @@ export function PwaProvider({ children }: { children?: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => void install()}
-                  className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1a9f9a] px-3 text-xs font-semibold text-white hover:bg-[#158a85]"
+                  className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1a9f9a] px-3 text-xs font-semibold text-white hover:bg-[#158a85] cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
                   {iosHelp ? "How to install" : "Install ERP app"}
@@ -240,7 +240,7 @@ export function InstallErpButton({ className }: { className?: string }) {
       onClick={() => void install()}
       className={
         className ??
-        "inline-flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 shrink-0"
+        "inline-flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 shrink-0 cursor-pointer"
       }
       title={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}
       aria-label={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}

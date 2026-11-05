@@ -499,7 +499,7 @@ export function FullBackupCard() {
                 size="sm"
                 disabled={busy || !user}
                 onClick={() => void createBackup()}
-                className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white"
+                className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white cursor-pointer"
               >
                 {busy ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -519,7 +519,7 @@ export function FullBackupCard() {
                   size="sm"
                   disabled={!prepared || busy}
                   onClick={() => void downloadZip()}
-                  className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white"
+                  className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5" />
                   Download ZIP
@@ -530,7 +530,7 @@ export function FullBackupCard() {
                   variant="outline"
                   disabled={busy}
                   onClick={() => void createBackup()}
-                  className="h-9 w-full"
+                  className="h-9 w-full cursor-pointer"
                 >
                   Create again
                 </Button>

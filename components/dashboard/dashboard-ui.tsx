@@ -123,17 +123,12 @@ export function DashboardMetricsStrip({
                 : item.value
 
           const inner = (
-            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[68px] flex flex-col justify-end gap-1">
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
               <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
                 {item.label}
               </p>
               <p
-                className={cn(
-                  "font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums",
-                  item.isMoney
-                    ? "text-[11px] sm:text-[12px] lg:text-[13px] leading-tight break-words"
-                    : "text-[20px] leading-none truncate",
-                )}
+                className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
                 title={String(displayValue)}
               >
                 {displayValue}
