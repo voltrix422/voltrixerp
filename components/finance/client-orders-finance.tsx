@@ -488,6 +488,7 @@ export function ClientOrdersFinance({
   )
 }
 
+/** Finance-only context — never duplicate the CRM status label (e.g. two "Delivered"). */
 function financeStatusBadge(order: Order) {
   if (order.status === "payment_added") {
     return { label: "Payment Added — Pending Approval", variant: "warning" as const }
@@ -499,11 +500,8 @@ function financeStatusBadge(order: Order) {
     return { label: "Credit cleared", variant: "success" as const }
   }
   if (order.status === "confirmed") {
-    return { label: "Confirmed — Sent to Inventory", variant: "success" as const }
+    return { label: "Sent to Inventory", variant: "success" as const }
   }
-  if (order.status === "processing") return { label: "Processing", variant: "success" as const }
-  if (order.status === "shipped") return { label: "Shipped", variant: "success" as const }
-  if (order.status === "delivered") return { label: "Delivered", variant: "success" as const }
   return null
 }
 
@@ -564,8 +562,13 @@ function ClientOrderDetail({
   const isFullyPaid = remaining <= 0.004
   const onCredit = isOrderOnCredit(order)
   const statusBadge = financeStatusBadge(order)
-  const canAddPayment = canCapturePaymentsForOrder(order)
   const postDelivery = isPostDeliveryPaymentCapture(order)
+  // After delivery, only offer capture when balance remains (collect) — hide proof-only on paid-in-full.
+  const canAddPayment =
+    canCapturePaymentsForOrder(order) && !(postDelivery && isFullyPaid)
+  const paymentActionLabel = postDelivery
+    ? "Collect payment"
+    : "Add payment"
 
   if (showPayment) {
     return (
@@ -596,12 +599,14 @@ function ClientOrderDetail({
               {order.orderNumber}
             </p>
             <p className="text-sm text-[hsl(var(--muted-foreground))] truncate -mt-1">{order.clientName}</p>
-            <OrderStatusBadge status={order.status} />
-            {statusBadge && (
-              <Badge variant={statusBadge.variant} className="text-[10px] w-fit">
-                {statusBadge.label}
-              </Badge>
-            )}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <OrderStatusBadge status={order.status} />
+              {statusBadge && (
+                <Badge variant={statusBadge.variant} className="text-[10px] w-fit">
+                  {statusBadge.label}
+                </Badge>
+              )}
+            </div>
             {(order.dispatcher || order.deliveryDate) && (
               <div className="flex flex-wrap gap-3 text-xs pt-1">
                 {order.dispatcher && (
@@ -751,7 +756,7 @@ function ClientOrderDetail({
               onClick={() => setShowPayment(true)}
             >
               <Plus className="h-4 w-4 mr-2" />
-              {postDelivery ? "Attach proof (not in balance)" : "Add payment"}
+              {paymentActionLabel}
             </Button>
           )}
           {order.status === "payment_added" ? (
