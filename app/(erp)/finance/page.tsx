@@ -5,13 +5,10 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { FinanceHub } from "@/components/finance/finance-hub"
 import { ClientOrdersFinance, type ClientOrdersCreditFilter } from "@/components/finance/client-orders-finance"
-import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
-import { FinancePayroll } from "@/components/finance/finance-payroll"
 import { Search, Calendar } from "lucide-react"
 
-type Tab = "overview" | "manage" | "client" | "purchase" | "payroll"
-type PayrollSection = "staff" | "sales"
+type Tab = "overview" | "manage" | "client"
 
 export default function FinancePage() {
   const router = useRouter()
@@ -22,23 +19,18 @@ export default function FinancePage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [clientCreditFilter, setClientCreditFilter] = useState<ClientOrdersCreditFilter>("all")
-  const [payrollSection, setPayrollSection] = useState<PayrollSection>("staff")
 
   useEffect(() => {
     if (!searchParams) return
     const tab = searchParams.get("tab")
     const section = searchParams.get("section")
-    const payroll = searchParams.get("payroll")
     const add = searchParams.get("add")
-    if (
-      tab === "overview" ||
-      tab === "client" ||
-      tab === "purchase" ||
-      tab === "manage" ||
-      tab === "payroll" ||
-      tab === "sales-salaries"
-    ) {
-      setActiveTab(tab === "sales-salaries" ? "payroll" : (tab as Tab))
+    if (tab === "overview" || tab === "client" || tab === "manage") {
+      setActiveTab(tab)
+    } else if (tab === "purchase" || tab === "payroll" || tab === "sales-salaries") {
+      setActiveTab("overview")
+      router.replace("/finance?tab=overview")
+      return
     } else if (add === "loan") {
       setActiveTab("manage")
     }
@@ -46,8 +38,6 @@ export default function FinancePage() {
       router.replace("/petty-cash")
       return
     }
-    if (payroll === "sales" || payroll === "staff") setPayrollSection(payroll)
-    else if (tab === "sales-salaries") setPayrollSection("sales")
   }, [searchParams, router])
 
   const hasFilters = search || dateFrom || dateTo || clientCreditFilter !== "all"
@@ -68,14 +58,12 @@ export default function FinancePage() {
   const tabs: { id: Tab; label: string; shortLabel: string }[] = [
     { id: "overview", label: "Overview", shortLabel: "Overview" },
     { id: "client", label: "Client Orders", shortLabel: "Orders" },
-    { id: "purchase", label: "Purchase Orders", shortLabel: "PO" },
-    { id: "payroll", label: "Salaries & Payroll", shortLabel: "Payroll" },
     { id: "manage", label: "Records", shortLabel: "Records" },
   ]
 
   return (
     <ModuleGuard module="finance">
-      <Topbar title="Finance" description="Overview, payments, expenses, and payroll for Voltrix ERP" />
+      <Topbar title="Finance" description="Overview, client payments, and records for Voltrix ERP" />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-4 md:p-6 max-w-6xl">
           <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] mb-4 -mx-3 px-3 sm:mx-0 sm:px-0">
@@ -83,6 +71,7 @@ export default function FinancePage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`shrink-0 px-2.5 sm:px-3 py-2.5 sm:py-1.5 text-[11px] sm:text-xs font-medium transition-colors relative cursor-pointer whitespace-nowrap ${
                     activeTab === tab.id
@@ -117,14 +106,14 @@ export default function FinancePage() {
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32 cursor-pointer"
                 />
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32 cursor-pointer"
                 />
               </div>
               {activeTab === "client" && (
@@ -179,12 +168,6 @@ export default function FinancePage() {
               dateTo={dateTo}
               creditFilter={clientCreditFilter}
             />
-          )}
-          {activeTab === "purchase" && (
-            <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />
-          )}
-          {activeTab === "payroll" && (
-            <FinancePayroll initialSection={payrollSection} />
           )}
         </div>
       </div>
