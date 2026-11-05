@@ -658,24 +658,11 @@ export function FinanceHub({
     const rect = btn.getBoundingClientRect()
     const panelW = Math.min(328, window.innerWidth - 24)
     const panelH = 300
-    const pad = 12
-    const spaceRight = window.innerWidth - rect.right - pad
-    // Prefer floating to the right in empty space; otherwise below, right-aligned to the button.
-    if (spaceRight >= panelW + 8) {
-      setFilterPos({
-        top: Math.min(rect.top, window.innerHeight - panelH - pad),
-        left: rect.right + 10,
-        notch: "left",
-      })
-      return
-    }
-    let left = rect.right - panelW
-    if (left < pad) left = pad
-    let top = rect.bottom + 12
-    if (top + panelH > window.innerHeight - pad) {
-      top = Math.max(pad, rect.top - panelH - 12)
-    }
-    setFilterPos({ top, left, notch: "top" })
+    const pad = 16
+    // Park on the empty right side of the viewport — never over the Money cards.
+    const left = Math.max(pad, window.innerWidth - panelW - pad)
+    const top = Math.max(pad, Math.min(rect.top, window.innerHeight - panelH - pad))
+    setFilterPos({ top, left, notch: "left" })
   }
 
   useEffect(() => {
@@ -1421,54 +1408,71 @@ export function FinanceHub({
           document.body,
         )}
 
-      {/* Hero: In / Out / Net + filter — one card under tabs */}
-      <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible relative z-20">
-        <div className="flex items-start">
-          <div className="grid flex-1 grid-cols-3 divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))] min-w-0">
-            <button
-              type="button"
-              onClick={() => {
-                setMoneyInOpen(true)
-                setMoneyOutOpen(false)
-              }}
-              className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] rounded-l-[18px] ${
-                moneyInOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
-              }`}
-            >
-              <p className="text-[11px] font-medium text-[#86868b]">Money in</p>
-              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+      {/* Hero: In / Out / Net — dashboard metrics strip style + filter */}
+      <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+        <div className="flex items-center justify-end px-3 pt-2.5">
+          {filterButton}
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+          <button
+            type="button"
+            onClick={() => {
+              setMoneyInOpen(true)
+              setMoneyOutOpen(false)
+            }}
+            className={`min-w-0 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors ${
+              moneyInOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
+            }`}
+          >
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                Money in
+              </p>
+              <p
+                className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                title={fmt(moneyInAll)}
+              >
                 {fmt(moneyInAll)}
               </p>
-              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">{periodLabel}</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMoneyOutOpen(true)
-                setMoneyInOpen(false)
-              }}
-              className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
-                moneyOutOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
-              }`}
-            >
-              <p className="text-[11px] font-medium text-[#86868b]">Money out</p>
-              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              <p className="text-[10px] text-[#aeaeb2] truncate">{periodLabel}</p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMoneyOutOpen(true)
+              setMoneyInOpen(false)
+            }}
+            className={`min-w-0 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors ${
+              moneyOutOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
+            }`}
+          >
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                Money out
+              </p>
+              <p
+                className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                title={fmt(moneyOutAll)}
+              >
                 {fmt(moneyOutAll)}
               </p>
-              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">Paid costs</p>
-            </button>
-            <div className="px-4 py-4 sm:px-5 pr-2 sm:pr-3">
-              <p className="text-[11px] font-medium text-[#86868b]">Net</p>
-              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              <p className="text-[10px] text-[#aeaeb2] truncate">Paid costs</p>
+            </div>
+          </button>
+          <div className="min-w-0">
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                Net
+              </p>
+              <p
+                className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                title={fmt(net)}
+              >
                 {fmt(net)}
               </p>
-              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">
-                {net >= 0 ? "Surplus" : "Deficit"}
-              </p>
+              <p className="text-[10px] text-[#aeaeb2] truncate">{net >= 0 ? "Surplus" : "Deficit"}</p>
             </div>
-          </div>
-          <div className="shrink-0 self-start pt-3 pr-3 pl-1">
-            {filterButton}
           </div>
         </div>
         {filterPopover}
