@@ -25,8 +25,8 @@ import {
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
 
-/** Single accent used across all overview charts */
-const CHART = "#0071e3"
+/** Voltrix logo teal — used across all overview charts */
+const CHART = "#1a9f9a"
 
 function PettyCashGraph({
   rows,
@@ -40,37 +40,39 @@ function PettyCashGraph({
   }))
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e5e5ea" />
-        <XAxis
-          type="number"
-          tickFormatter={formatRsAxis}
-          tick={{ fontSize: 10, fill: "#86868b" }}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={56}
-          tick={{ fontSize: 11, fill: "#6e6e73" }}
-          tickLine={false}
-          axisLine={false}
-        />
-        <Tooltip
-          cursor={{ fill: "rgba(0,113,227,0.06)" }}
-          contentStyle={CHART_TOOLTIP_STYLE}
-          itemStyle={{ color: "#fff" }}
-          labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
-          formatter={(value) => formatRsFull(Number(value ?? 0))}
-          labelFormatter={(_, payload) =>
-            String((payload?.[0]?.payload as { fullName?: string } | undefined)?.fullName || "")
-          }
-        />
-        <Bar dataKey="amount" fill={CHART} radius={[0, 7, 7, 0]} barSize={14} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="chart-glow h-full w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e5e5ea" />
+          <XAxis
+            type="number"
+            tickFormatter={formatRsAxis}
+            tick={{ fontSize: 10, fill: "#86868b" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={56}
+            tick={{ fontSize: 11, fill: "#6e6e73" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(26,159,154,0.06)" }}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={{ color: "#fff" }}
+            labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
+            formatter={(value) => formatRsFull(Number(value ?? 0))}
+            labelFormatter={(_, payload) =>
+              String((payload?.[0]?.payload as { fullName?: string } | undefined)?.fullName || "")
+            }
+          />
+          <Bar dataKey="amount" fill={CHART} radius={[0, 7, 7, 0]} barSize={14} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -99,7 +101,7 @@ function AfterSaleGraph({
           {closed} closed
         </span>
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="chart-glow flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e5e5ea" />
@@ -275,52 +277,54 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
             {loading ? (
               <ChartLoading />
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
-                  <XAxis
-                    dataKey="day"
-                    tick={axisTick}
-                    tickLine={false}
-                    axisLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={22}
-                  />
-                  <YAxis
-                    domain={deliveredYDomain}
-                    tickFormatter={formatRsAxis}
-                    tick={axisTick}
-                    tickLine={false}
-                    axisLine={false}
-                    width={36}
-                  />
-                  <Tooltip
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                    itemStyle={{ color: "#fff" }}
-                    labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
-                    formatter={(value) => formatRsFull(Number(value ?? 0))}
-                    labelFormatter={(label, payload) => {
-                      const ids = (
-                        (payload?.[0]?.payload as { orderIds?: string[] } | undefined)?.orderIds || []
-                      )
-                        .slice(0, 3)
-                        .join(", ")
-                      const day = String(label ?? "")
-                      return ids ? `${day} · ${ids}` : day
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="amount"
-                    stroke={CHART}
-                    strokeWidth={2.25}
-                    fill={CHART}
-                    fillOpacity={0.12}
-                    dot={false}
-                    activeDot={{ r: 4, fill: CHART, strokeWidth: 0 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="chart-glow h-full w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
+                    <XAxis
+                      dataKey="day"
+                      tick={axisTick}
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={22}
+                    />
+                    <YAxis
+                      domain={deliveredYDomain}
+                      tickFormatter={formatRsAxis}
+                      tick={axisTick}
+                      tickLine={false}
+                      axisLine={false}
+                      width={36}
+                    />
+                    <Tooltip
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      itemStyle={{ color: "#fff" }}
+                      labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
+                      formatter={(value) => formatRsFull(Number(value ?? 0))}
+                      labelFormatter={(label, payload) => {
+                        const ids = (
+                          (payload?.[0]?.payload as { orderIds?: string[] } | undefined)?.orderIds || []
+                        )
+                          .slice(0, 3)
+                          .join(", ")
+                        const day = String(label ?? "")
+                        return ids ? `${day} · ${ids}` : day
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      stroke={CHART}
+                      strokeWidth={2.5}
+                      fill={CHART}
+                      fillOpacity={0.12}
+                      dot={false}
+                      activeDot={{ r: 4, fill: CHART, strokeWidth: 0 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </ChartCard>
         </div>

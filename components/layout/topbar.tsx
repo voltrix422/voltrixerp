@@ -54,7 +54,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         <ThemeToggle />
         {!investor && (
           <>
-            <InstallErpButton className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10" />
+            <InstallErpButton className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer" />
             <MessagesIcon />
             <NotificationBell />
           </>
