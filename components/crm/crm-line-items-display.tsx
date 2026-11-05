@@ -139,48 +139,48 @@ export function CrmLineItemsDisplay({
         ))}
       </div>
 
-      <div className="hidden sm:block overflow-hidden">
-        <table className="w-full table-fixed">
+      <div className="hidden sm:block">
+        <table className="w-full">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
-              {showModel && <th className={`${headClass} text-left w-[22%]`}>Model</th>}
+              {showModel && <th className={`${headClass} text-left min-w-[9rem]`}>Model</th>}
               <th className={`${headClass} text-left`}>Description</th>
-              <th className={`${headClass} text-center w-[8%]`}>Qty</th>
-              <th className={`${headClass} text-center w-[8%]`}>Unit</th>
+              <th className={`${headClass} text-center whitespace-nowrap`}>Qty</th>
+              <th className={`${headClass} text-center whitespace-nowrap`}>Unit</th>
               {showCompanyPrice ? (
                 <>
-                  <th className={`${headClass} text-right w-[12%]`}>Company</th>
-                  <th className={`${headClass} text-right w-[12%]`}>Customer</th>
-                  <th className={`${headClass} text-right w-[10%]`}>Profit</th>
+                  <th className={`${headClass} text-right whitespace-nowrap`}>Company</th>
+                  <th className={`${headClass} text-right whitespace-nowrap`}>Customer</th>
+                  <th className={`${headClass} text-right whitespace-nowrap`}>Profit</th>
                 </>
               ) : (
-                <th className={`${headClass} text-right w-[16%]`}>Unit Price</th>
+                <th className={`${headClass} text-right whitespace-nowrap`}>Unit Price</th>
               )}
-              <th className={`${headClass} text-right w-[16%]`}>Total</th>
+              <th className={`${headClass} text-right whitespace-nowrap`}>Total</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {rows.map(({ item, model, lineTotal, company, lineProfit }) => (
               <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/20">
                 {showModel && (
-                  <td className={`${cellClass} font-medium tabular-nums truncate`} title={model || undefined}>
+                  <td className={`${cellClass} font-medium tabular-nums break-all`}>
                     {model || "—"}
                   </td>
                 )}
-                <td className={`${cellClass} truncate`} title={item.description}>
+                <td className={`${cellClass} break-words`}>
                   {item.description}
                   {item.isFreeItem && <FreeBadge />}
                 </td>
-                <td className={`${cellClass} text-center`}>{item.qty}</td>
-                <td className={`${cellClass} text-center`}>{item.unit}</td>
+                <td className={`${cellClass} text-center whitespace-nowrap`}>{item.qty}</td>
+                <td className={`${cellClass} text-center whitespace-nowrap`}>{item.unit}</td>
                 {showCompanyPrice ? (
                   <>
-                    <td className={`${cellClass} text-right tabular-nums truncate`}>PKR {company.toLocaleString()}</td>
-                    <td className={`${cellClass} text-right tabular-nums truncate`}>
+                    <td className={`${cellClass} text-right tabular-nums whitespace-nowrap`}>PKR {company.toLocaleString()}</td>
+                    <td className={`${cellClass} text-right tabular-nums whitespace-nowrap`}>
                       PKR {item.unitPrice.toLocaleString()}
                     </td>
                     <td
-                      className={`${cellClass} text-right tabular-nums font-medium truncate ${
+                      className={`${cellClass} text-right tabular-nums font-medium whitespace-nowrap ${
                         lineProfit >= 0 ? "text-emerald-700" : "text-red-600"
                       }`}
                     >
@@ -188,11 +188,11 @@ export function CrmLineItemsDisplay({
                     </td>
                   </>
                 ) : (
-                  <td className={`${cellClass} text-right tabular-nums truncate`}>
+                  <td className={`${cellClass} text-right tabular-nums whitespace-nowrap`}>
                     PKR {item.unitPrice.toLocaleString()}
                   </td>
                 )}
-                <td className={`${cellClass} text-right font-medium tabular-nums truncate`}>
+                <td className={`${cellClass} text-right font-medium tabular-nums whitespace-nowrap`}>
                   PKR {lineTotal.toLocaleString()}
                 </td>
               </tr>

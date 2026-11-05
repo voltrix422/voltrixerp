@@ -665,21 +665,21 @@ function ClientOrderDetail({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-5"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-[860px] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[min(92vh,720px)]"
+        className="w-full sm:w-[min(1120px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="shrink-0 px-5 pt-4 pb-2.5 sm:px-6 sm:pt-5">
+        <div className="shrink-0 px-5 pt-4 pb-2.5 sm:px-7 sm:pt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <p className="text-[20px] sm:text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                <p className="text-[20px] sm:text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                   {order.orderNumber}
                 </p>
-                <p className="text-[14px] font-medium tracking-tight text-[#6e6e73] truncate">
+                <p className="text-[14px] font-medium tracking-tight text-[#6e6e73]">
                   {order.clientName}
                 </p>
               </div>
@@ -692,7 +692,7 @@ function ClientOrderDetail({
                 )}
                 {isFullyPaid && <ApplePill tone="green">Paid in full</ApplePill>}
                 {order.dispatcher && (
-                  <span className="text-[11px] text-[#aeaeb2] truncate max-w-[14rem]">
+                  <span className="text-[11px] text-[#aeaeb2]">
                     {order.dispatcher}
                   </span>
                 )}
@@ -714,21 +714,20 @@ function ClientOrderDetail({
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 pb-3 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
-          <div className="space-y-3 min-w-0">
-            <AppleGroup title="Order items" className="[&_td]:py-1.5 [&_th]:h-7 [&_.p-3]:p-2.5">
-              <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 text-[12px]">
-                <CrmLineItemsDisplay items={order.items} />
-              </div>
-            </AppleGroup>
-            <AppleGroup title="Summary" className="[&_td]:py-1.5 [&_.py-2\.5]:py-1.5 [&_.py-3]:py-2 [&_.py-4]:py-2.5">
-              <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_table]:text-[12px]">
+        <div className="px-5 sm:px-7 pb-3 space-y-3 overflow-y-auto">
+          <AppleGroup title="Order items">
+            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 text-[13px]">
+              <CrmLineItemsDisplay items={order.items} />
+            </div>
+          </AppleGroup>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <AppleGroup title="Summary">
+              <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_table]:text-[13px]">
                 <CrmOrderSummaryDisplay order={order} />
               </div>
             </AppleGroup>
-          </div>
 
-          <div className="space-y-3 min-w-0">
             {order.payments && order.payments.length > 0 ? (
               <AppleGroup title="Payments">
                 <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
@@ -736,14 +735,14 @@ function ClientOrderDetail({
                     const pStatus = getPaymentSubmissionStatus(p, order.status)
                     const proofs = getOrderPaymentProofUrls(p)
                     return (
-                      <div key={p.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                      <div key={p.id} className="px-3.5 py-3 flex items-start justify-between gap-3">
                         <div className="min-w-0 space-y-0.5">
                           <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                             Payment {paymentIndex + 1}
                             <span className="text-[#86868b] font-medium"> · </span>
                             <span className="tabular-nums">{fmtPkr(p.amount)}</span>
                           </p>
-                          <p className="text-[11px] text-[#86868b]">
+                          <p className="text-[12px] text-[#86868b]">
                             {p.method} · {new Date(p.date).toLocaleDateString()}
                           </p>
                           <div className="pt-0.5">
@@ -762,7 +761,7 @@ function ClientOrderDetail({
                                 href={proofUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0071e3] hover:underline"
+                                className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0071e3] hover:underline"
                               >
                                 {proofs.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
                                 <ExternalLink className="h-3 w-3" strokeWidth={2} />
@@ -773,15 +772,15 @@ function ClientOrderDetail({
                       </div>
                     )
                   })}
-                  <div className="px-3 py-2.5 bg-[#fafafa] dark:bg-white/[0.03] flex items-center justify-between gap-2">
-                    <div className="text-[12px] font-semibold tracking-tight">
+                  <div className="px-3.5 py-3 bg-[#fafafa] dark:bg-white/[0.03] flex items-center justify-between gap-2">
+                    <div className="text-[13px] font-semibold tracking-tight">
                       <span className="text-[#6e6e73]">Paid </span>
                       <span className="tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                         {fmtPkr(totalPaid)}
                       </span>
                     </div>
                     {remaining > 0.004 ? (
-                      <span className="text-[12px] font-semibold tabular-nums text-[#9a6700]">
+                      <span className="text-[13px] font-semibold tabular-nums text-[#9a6700]">
                         Due {fmtPkr(remaining)}
                       </span>
                     ) : (
@@ -792,47 +791,47 @@ function ClientOrderDetail({
               </AppleGroup>
             ) : (
               <AppleGroup title="Payments">
-                <p className="px-4 py-6 text-center text-[12px] text-[#86868b]">
+                <p className="px-4 py-6 text-center text-[13px] text-[#86868b]">
                   No payments yet
                 </p>
               </AppleGroup>
             )}
-
-            {(order.cashbackPayments?.length ?? 0) > 0 && (
-              <AppleGroup title="Cashback">
-                <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
-                  {order.cashbackPayments!.map((p, i) => (
-                    <div key={p.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-semibold tracking-tight">
-                          {p.source === "other" ? "Bonus" : "Cashback"} {i + 1}
-                          <span className="text-[#86868b] font-medium"> · </span>
-                          <span className="tabular-nums">{fmtPkr(p.amount)}</span>
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {getOrderCashbackPaymentProofUrls(p).map((url, idx) => (
-                          <a
-                            key={`${p.id}-${idx}`}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0071e3] hover:underline"
-                          >
-                            File {idx + 1}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </AppleGroup>
-            )}
           </div>
+
+          {(order.cashbackPayments?.length ?? 0) > 0 && (
+            <AppleGroup title="Cashback">
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+                {order.cashbackPayments!.map((p, i) => (
+                  <div key={p.id} className="px-3.5 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold tracking-tight">
+                        {p.source === "other" ? "Bonus" : "Cashback"} {i + 1}
+                        <span className="text-[#86868b] font-medium"> · </span>
+                        <span className="tabular-nums">{fmtPkr(p.amount)}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {getOrderCashbackPaymentProofUrls(p).map((url, idx) => (
+                        <a
+                          key={`${p.id}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0071e3] hover:underline"
+                        >
+                          File {idx + 1}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </AppleGroup>
+          )}
         </div>
 
-        <div className="shrink-0 px-5 sm:px-6 pt-2 pb-[max(0.85rem,env(safe-area-inset-bottom))] space-y-2 border-t border-black/[0.05] dark:border-[hsl(var(--border))]">
+        <div className="shrink-0 px-5 sm:px-7 pt-2 pb-[max(0.85rem,env(safe-area-inset-bottom))] space-y-2 border-t border-black/[0.05] dark:border-[hsl(var(--border))]">
           <div className="flex flex-col sm:flex-row gap-2">
             {canAddPayment && (
               <button
