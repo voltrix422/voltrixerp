@@ -6,7 +6,6 @@ import {
   saveOrder,
   getOrderPaymentProofUrls,
   getPaymentSubmissionStatus,
-  getSubmittedPayments,
   shouldShowOrderInFinance,
   getOrderAmountPaid,
   getOrderCreditBalance,
@@ -22,13 +21,66 @@ import {
 import { aggregateOrderPaymentStats, isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { useAuth } from "@/components/auth-provider"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
-import { Loader2, X, Plus, SlidersHorizontal, Search } from "lucide-react"
+import { Loader2, X, Plus, SlidersHorizontal, Search, ExternalLink } from "lucide-react"
 import { PaymentCapture } from "@/components/crm/payment-capture"
+import { cn } from "@/lib/utils"
+
+type AppleTone = "neutral" | "green" | "amber" | "blue" | "violet"
+
+function ApplePill({
+  children,
+  tone = "neutral",
+  className,
+}: {
+  children: React.ReactNode
+  tone?: AppleTone
+  className?: string
+}) {
+  const tones: Record<AppleTone, string> = {
+    neutral: "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white",
+    green: "bg-[#30d158]/18 text-[#248a3d] dark:bg-[#30d158]/20 dark:text-[#30d158]",
+    amber: "bg-[#ff9f0a]/18 text-[#9a6700] dark:bg-[#ff9f0a]/20 dark:text-[#ffd60a]",
+    blue: "bg-[#007aff]/14 text-[#0071e3] dark:bg-[#007aff]/20 dark:text-[#0a84ff]",
+    violet: "bg-[#bf5af2]/15 text-[#8944ab] dark:bg-[#bf5af2]/20 dark:text-[#bf5af2]",
+  }
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-tight whitespace-nowrap",
+        tones[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function AppleGroup({
+  title,
+  children,
+  className,
+}: {
+  title?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      {title ? (
+        <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+          {title}
+        </p>
+      ) : null}
+      <div className="overflow-hidden rounded-[14px] border border-black/[0.04] bg-white dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))]">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export type ClientOrdersCreditFilter = "all" | "outstanding" | "on_credit"
 
@@ -352,8 +404,8 @@ export function ClientOrdersFinance({
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-white dark:bg-[hsl(var(--card))]">
-          <div className="md:hidden space-y-2 p-2">
+        <div className="min-h-0 flex-1 overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="md:hidden divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
             {filteredOrders.map((order) => {
               const { totalPaid, remaining } = orderPaymentTotals(order)
               return (
@@ -361,51 +413,49 @@ export function ClientOrdersFinance({
                   key={order.id}
                   type="button"
                   onClick={() => setSelectedOrder(order)}
-                  className="w-full text-left rounded-lg border p-3 space-y-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+                  className="w-full text-left p-3.5 space-y-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber}</p>
-                      <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
+                      <p className="text-[13px] font-semibold tracking-tight text-[#0071e3] truncate">
+                        {order.orderNumber}
+                      </p>
+                      <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate mt-0.5">
+                        {order.clientName}
+                      </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0 max-w-[45%]">
-                      {hasOutstandingCredit(order) && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                          Credit
-                        </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {hasOutstandingCredit(order) && <ApplePill tone="amber">Credit</ApplePill>}
+                      <OrderStatusBadge status={order.status} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[12px]">
+                    <div>
+                      <p className="text-[10px] font-medium text-[#86868b]">Items</p>
+                      <p className="font-semibold tracking-tight">{formatCrmItemsQtyLabel(order.items)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-medium text-[#86868b]">Total</p>
+                      <p className="font-semibold tracking-tight tabular-nums">
+                        {fmtPkr(order.total)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-medium text-[#86868b]">Paid</p>
+                      <p className="tabular-nums tracking-tight">{fmtPkr(totalPaid)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-medium text-[#86868b]">Remaining</p>
+                      {remaining <= 0.004 ? (
+                        <ApplePill tone="green">Paid</ApplePill>
+                      ) : (
+                        <p className="font-semibold tabular-nums tracking-tight text-[#9a6700]">
+                          {fmtPkr(remaining)}
+                        </p>
                       )}
-                      <OrderStatusBadge status={order.status} className="text-right" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                    <div>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Items</p>
-                      <p className="font-medium">{formatCrmItemsQtyLabel(order.items)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total</p>
-                      <p className="font-semibold tabular-nums">
-                        PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
-                      <p className="tabular-nums">
-                        PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Remaining</p>
-                      <p
-                        className={`font-medium tabular-nums ${remaining <= 0 ? "text-emerald-600" : ""}`}
-                      >
-                        {remaining <= 0
-                          ? "Paid"
-                          : `PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <p className="text-[11px] text-[#aeaeb2]">
                     {new Date(order.createdAt).toLocaleDateString()}
                   </p>
                 </button>
@@ -413,57 +463,61 @@ export function ClientOrdersFinance({
             })}
           </div>
 
-          <table className="hidden md:table w-full text-sm min-w-[48rem]">
+          <table className="hidden md:table w-full text-[13px] min-w-[48rem]">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b bg-[#f5f5f7] dark:bg-[hsl(var(--muted))] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+              <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date"].map((h) => (
                   <th
                     key={h}
-                    className="h-8 px-4 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))] whitespace-nowrap bg-[#f5f5f7] dark:bg-[hsl(var(--muted))]"
+                    className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
                   >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {filteredOrders.map((order) => {
                 const { totalPaid, remaining } = orderPaymentTotals(order)
                 return (
                   <tr
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+                    className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   >
-                    <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))] whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5">
-                        {order.orderNumber}
-                        {hasOutstandingCredit(order) && (
-                          <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
-                        )}
+                        <span className="font-semibold tracking-tight text-[#0071e3]">
+                          {order.orderNumber}
+                        </span>
+                        {hasOutstandingCredit(order) && <ApplePill tone="amber">Credit</ApplePill>}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs">{order.clientName}</td>
-                    <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
-                    <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">
-                      PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <td className="px-4 py-3 font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {order.clientName}
                     </td>
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap tabular-nums">
-                      PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <td className="px-4 py-3 text-[#6e6e73] tabular-nums">
+                      {formatCrmItemsQtyLabel(order.items)}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-medium whitespace-nowrap">
+                    <td className="px-4 py-3 font-semibold tracking-tight whitespace-nowrap tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {fmtPkr(order.total)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6e6e73]">
+                      {fmtPkr(totalPaid)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {remaining <= 0.004 ? (
-                        <span className="text-emerald-600">Paid</span>
+                        <ApplePill tone="green">Paid</ApplePill>
                       ) : (
-                        <span className={`tabular-nums ${hasOutstandingCredit(order) ? "text-amber-700 dark:text-amber-300 font-semibold" : ""}`}>
-                          PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        <span className="font-semibold tracking-tight tabular-nums text-[#9a6700]">
+                          {fmtPkr(remaining)}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <OrderStatusBadge status={order.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                    <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
@@ -597,228 +651,259 @@ function ClientOrderDetail({
     )
   }
 
+  const footerNote =
+    order.status === "payment_added"
+      ? null
+      : order.status === "confirmed" || order.status === "processing" || order.status === "shipped"
+        ? hasOutstandingCredit(order)
+          ? `Sent to inventory on credit — ${fmtPkr(remaining)} outstanding`
+          : "Sent to inventory"
+        : order.status === "delivered"
+          ? onCredit && remaining > 0.004
+            ? `Delivered — ${fmtPkr(remaining)} credit balance`
+            : remaining > 0.004
+              ? `Delivered — ${fmtPkr(remaining)} outstanding`
+              : "Delivered — paid in full"
+          : "Awaiting payment"
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-5"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+        className="w-full sm:max-w-[640px] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
-          <div className="min-w-0 flex-1 pr-2 space-y-2">
-            <p className="text-base sm:text-lg font-bold text-[hsl(var(--primary))] truncate">
-              {order.orderNumber}
-            </p>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] truncate -mt-1">{order.clientName}</p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <OrderStatusBadge status={order.status} />
-              {statusBadge && (
-                <Badge variant={statusBadge.variant} className="text-[10px] w-fit">
-                  {statusBadge.label}
-                </Badge>
-              )}
-            </div>
-            {(order.dispatcher || order.deliveryDate) && (
-              <div className="flex flex-wrap gap-3 text-xs pt-1">
-                {order.dispatcher && (
-                  <div>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Dispatcher</p>
-                    <p className="font-medium">{order.dispatcher}</p>
-                  </div>
+        <div className="shrink-0 px-5 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-[22px] sm:text-[24px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                {order.orderNumber}
+              </p>
+              <p className="text-[15px] font-medium tracking-tight text-[#6e6e73] truncate -mt-1">
+                {order.clientName}
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <OrderStatusBadge status={order.status} />
+                {statusBadge && (
+                  <ApplePill tone={statusBadge.variant === "warning" ? "amber" : "green"}>
+                    {statusBadge.label}
+                  </ApplePill>
                 )}
-                {order.deliveryDate && (
-                  <div>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Delivery date</p>
-                    <p className="font-medium">{new Date(order.deliveryDate).toLocaleDateString()}</p>
-                  </div>
+                {isFullyPaid && order.status === "delivered" && (
+                  <ApplePill tone="green">Paid in full</ApplePill>
                 )}
               </div>
-            )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={2.25} />
+            </button>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
+
+          {(order.dispatcher || order.deliveryDate) && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {order.dispatcher && (
+                <div className="rounded-[12px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                    Dispatcher
+                  </p>
+                  <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                    {order.dispatcher}
+                  </p>
+                </div>
+              )}
+              {order.deliveryDate && (
+                <div className="rounded-[12px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                    Delivery
+                  </p>
+                  <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {new Date(order.deliveryDate).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4">
-          <div>
-            <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
-            <CrmLineItemsDisplay items={order.items} />
-          </div>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-6 pb-4 space-y-4">
+          <AppleGroup title="Order items">
+            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0">
+              <CrmLineItemsDisplay items={order.items} />
+            </div>
+          </AppleGroup>
 
-          <CrmOrderSummaryDisplay order={order} />
+          <AppleGroup title="Summary">
+            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_table]:text-[13px]">
+              <CrmOrderSummaryDisplay order={order} />
+            </div>
+          </AppleGroup>
 
           {order.payments && order.payments.length > 0 && (
-            <div>
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Payments</p>
-              <div className="rounded-lg border divide-y overflow-hidden">
+            <AppleGroup title="Payments">
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
                 {order.payments.map((p, paymentIndex) => {
                   const pStatus = getPaymentSubmissionStatus(p, order.status)
+                  const proofs = getOrderPaymentProofUrls(p)
                   return (
-                    <div key={p.id} className="p-3 sm:p-4 space-y-2 bg-[hsl(var(--background))]">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold">
-                            Payment {paymentIndex + 1} — PKR {p.amount.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {p.method} · {new Date(p.date).toLocaleDateString()}
-                            {pStatus === "draft" && " · Draft"}
-                            {pStatus === "pending_approval" && " · Pending approval"}
-                            {pStatus === "approved" && " · Approved"}
-                          </p>
-                          {p.notes && (
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{p.notes}</p>
+                    <div key={p.id} className="px-3.5 py-3.5 flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          Payment {paymentIndex + 1}
+                          <span className="text-[#86868b] font-medium"> · </span>
+                          <span className="tabular-nums">{fmtPkr(p.amount)}</span>
+                        </p>
+                        <p className="text-[12px] text-[#86868b]">
+                          {p.method} · {new Date(p.date).toLocaleDateString()}
+                        </p>
+                        {p.notes && (
+                          <p className="text-[12px] text-[#aeaeb2]">{p.notes}</p>
+                        )}
+                        <div className="pt-0.5">
+                          {pStatus === "approved" && <ApplePill tone="green">Approved</ApplePill>}
+                          {pStatus === "pending_approval" && (
+                            <ApplePill tone="amber">Pending approval</ApplePill>
                           )}
+                          {pStatus === "draft" && <ApplePill tone="neutral">Draft</ApplePill>}
                         </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          {getOrderPaymentProofUrls(p).map((proofUrl, proofIndex) => (
+                      </div>
+                      {proofs.length > 0 && (
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          {proofs.map((proofUrl, proofIndex) => (
                             <a
                               key={`${p.id}-${proofIndex}`}
                               href={proofUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[hsl(var(--primary))] underline text-xs"
+                              className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0071e3] hover:underline"
                             >
-                              {getOrderPaymentProofUrls(p).length > 1
-                                ? `Proof ${proofIndex + 1}`
-                                : "View proof"}
+                              {proofs.length > 1 ? `Proof ${proofIndex + 1}` : "View proof"}
+                              <ExternalLink className="h-3 w-3" strokeWidth={2} />
                             </a>
                           ))}
                         </div>
-                      </div>
+                      )}
                     </div>
                   )
                 })}
-                <div className="px-3 sm:px-4 py-3 bg-[hsl(var(--muted))]/30 space-y-1.5 text-sm">
-                  <div className="flex justify-between gap-2 font-semibold">
-                    <span>Total paid</span>
-                    <span className="tabular-nums">
-                      PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div className="px-3.5 py-3 bg-[#fafafa] dark:bg-white/[0.03] space-y-1.5">
+                  <div className="flex justify-between gap-2 text-[13px] font-semibold tracking-tight">
+                    <span className="text-[#6e6e73]">Total paid</span>
+                    <span className="tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {fmtPkr(totalPaid)}
                     </span>
                   </div>
-                  {remaining > 0 ? (
-                    <div className="flex justify-between gap-2 font-semibold text-orange-600">
+                  {remaining > 0.004 ? (
+                    <div className="flex justify-between gap-2 text-[13px] font-semibold tracking-tight text-[#9a6700]">
                       <span>Remaining</span>
-                      <span className="tabular-nums">
-                        PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
+                      <span className="tabular-nums">{fmtPkr(remaining)}</span>
                     </div>
                   ) : (
-                    <p className="text-xs font-semibold text-emerald-600">Paid in full</p>
+                    <ApplePill tone="green">Paid in full</ApplePill>
                   )}
                 </div>
               </div>
-            </div>
+            </AppleGroup>
           )}
 
           {(!order.payments || order.payments.length === 0) && (
-            <div className="rounded-lg border border-dashed p-4 text-center">
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No payments received yet</p>
-            </div>
+            <AppleGroup>
+              <p className="px-4 py-8 text-center text-[13px] text-[#86868b]">
+                No payments received yet
+              </p>
+            </AppleGroup>
           )}
 
           {(order.cashbackPayments?.length ?? 0) > 0 && (
-            <div>
-              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Cashback</p>
-              <div className="rounded-lg border border-violet-200 bg-violet-50/50 divide-y overflow-hidden">
+            <AppleGroup title="Cashback">
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
                 {order.cashbackPayments!.map((p, i) => (
-                  <div key={p.id} className="p-3 sm:p-4 space-y-2 bg-[hsl(var(--background))]/60">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-violet-900">
-                          {p.source === "other" ? "Goodwill bonus" : "From order"} {i + 1} — PKR {p.amount.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-violet-700 mt-0.5">
-                          {p.method} · {new Date(p.date).toLocaleDateString()}
-                        </p>
-                        {p.notes && <p className="text-xs text-violet-600 mt-1">{p.notes}</p>}
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {getOrderCashbackPaymentProofUrls(p).map((url, idx) => (
-                          <a
-                            key={`${p.id}-${idx}`}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-violet-700 underline text-xs"
-                          >
-                            Attachment {idx + 1}
-                          </a>
-                        ))}
-                      </div>
+                  <div key={p.id} className="px-3.5 py-3.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[14px] font-semibold tracking-tight">
+                        {p.source === "other" ? "Goodwill bonus" : "From order"} {i + 1}
+                        <span className="text-[#86868b] font-medium"> · </span>
+                        <span className="tabular-nums">{fmtPkr(p.amount)}</span>
+                      </p>
+                      <p className="text-[12px] text-[#86868b]">
+                        {p.method} · {new Date(p.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      {getOrderCashbackPaymentProofUrls(p).map((url, idx) => (
+                        <a
+                          key={`${p.id}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0071e3] hover:underline"
+                        >
+                          File {idx + 1}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ))}
                     </div>
                   </div>
                 ))}
-                <div className="px-3 sm:px-4 py-3 bg-violet-100/40 text-sm font-semibold text-violet-900 flex justify-between gap-2">
-                  <span>Total cashback</span>
-                  <span className="tabular-nums">PKR {getOrderCashbackAmount(order).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <div className="px-3.5 py-3 flex justify-between gap-2 text-[13px] font-semibold tracking-tight bg-[#fafafa] dark:bg-white/[0.03]">
+                  <span className="text-[#6e6e73]">Total cashback</span>
+                  <span className="tabular-nums">{fmtPkr(getOrderCashbackAmount(order))}</span>
                 </div>
               </div>
-            </div>
+            </AppleGroup>
           )}
         </div>
 
-        <div className="flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="shrink-0 px-5 sm:px-6 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2 border-t border-black/[0.05] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/95 dark:bg-[hsl(var(--background))]">
           {canAddPayment && (
-            <Button
-              size="sm"
-              className="h-11 w-full text-sm bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            <button
+              type="button"
               onClick={() => setShowPayment(true)}
+              className="h-11 w-full inline-flex items-center justify-center gap-1.5 rounded-full bg-[#0071e3] text-white text-[14px] font-semibold tracking-tight hover:bg-[#0077ed] transition-colors cursor-pointer"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4" strokeWidth={2.25} />
               {paymentActionLabel}
-            </Button>
+            </button>
           )}
           {order.status === "payment_added" ? (
-            <>
-              {isFullyPaid ? (
-                <Button
-                  size="sm"
-                  className="h-11 w-full text-sm bg-green-600 hover:bg-green-700 cursor-pointer"
-                  onClick={approvePaymentForInventory}
+            isFullyPaid ? (
+              <button
+                type="button"
+                onClick={approvePaymentForInventory}
+                disabled={approvingPayment || approvingCredit}
+                className="h-11 w-full inline-flex items-center justify-center rounded-full bg-[#30d158] text-white text-[14px] font-semibold tracking-tight hover:brightness-95 disabled:opacity-60 transition cursor-pointer"
+              >
+                {approvingPayment ? "Approving..." : "Approve & send to Inventory"}
+              </button>
+            ) : (
+              <>
+                <p className="text-[12px] text-center text-[#86868b] px-2">
+                  {totalPaid <= 0.004
+                    ? `No payment yet. Full balance ${fmtPkr(remaining)} can go on credit.`
+                    : `Partial paid (${fmtPkr(totalPaid)}). Remaining ${fmtPkr(remaining)} can go on credit.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={approveOnCreditForInventory}
                   disabled={approvingPayment || approvingCredit}
+                  className="h-11 w-full inline-flex items-center justify-center rounded-full bg-[#ff9f0a] text-white text-[14px] font-semibold tracking-tight hover:brightness-95 disabled:opacity-60 transition cursor-pointer"
                 >
-                  {approvingPayment ? "Approving..." : "Approve Payment & Send to Inventory"}
-                </Button>
-              ) : (
-                <>
-                  <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-                    {totalPaid <= 0.004
-                      ? `No payment received. Full order balance PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can be sent on credit.`
-                      : `Partial payment received (PKR ${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Remaining PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can go on credit.`}
-                  </p>
-                  <Button
-                    size="sm"
-                    className="h-11 w-full text-sm bg-amber-600 hover:bg-amber-700 cursor-pointer"
-                    onClick={approveOnCreditForInventory}
-                    disabled={approvingPayment || approvingCredit}
-                  >
-                    {approvingCredit ? "Approving..." : "Approve on Credit & Send to Inventory"}
-                  </Button>
-                </>
-              )}
-            </>
-          ) : order.status === "confirmed" ||
-            order.status === "processing" ||
-            order.status === "shipped" ? (
-            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">
-              {hasOutstandingCredit(order)
-                ? `Sent to inventory on credit — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
-                : "Sent to inventory"}
-            </p>
-          ) : order.status === "delivered" ? (
-            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">
-              {onCredit && remaining > 0.004
-                ? `Delivered — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} credit balance`
-                : remaining > 0.004
-                  ? `Delivered — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
-                  : "Delivered — paid in full"}
-            </p>
+                  {approvingCredit ? "Approving..." : "Approve on credit & send to Inventory"}
+                </button>
+              </>
+            )
           ) : (
-            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">Awaiting payment</p>
+            footerNote && (
+              <p className="text-[12px] text-center font-medium text-[#86868b] py-1.5">
+                {footerNote}
+              </p>
+            )
           )}
         </div>
       </div>
