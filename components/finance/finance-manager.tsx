@@ -1,10 +1,10 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { useAuth } from "@/components/auth-provider"
-import { Plus, Upload, X, FileText, Trash2, Eye, Wallet } from "lucide-react"
+import { Upload, X, FileText, Trash2, Wallet, SlidersHorizontal, Search } from "lucide-react"
 import { getPettyCashAllocations, getPettyCashReceipts, type PettyCashAllocation } from "@/lib/petty-cash"
-import { FinanceLoans } from "@/components/finance/finance-loans"
+import { FinanceLoans, buildLoanProfiles, isLoanCategory } from "@/components/finance/finance-loans"
 import { cn } from "@/lib/utils"
 
 interface FinanceRecord {
@@ -59,17 +59,11 @@ const inputCls =
   "w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 transition-colors"
 
 interface FinanceManagerProps {
-  search: string
-  dateFrom: string
-  dateTo: string
   initialCategory?: string
   openAddLoan?: boolean
 }
 
 export function FinanceManager({
-  search,
-  dateFrom,
-  dateTo,
   initialCategory,
   openAddLoan,
 }: FinanceManagerProps) {
@@ -81,9 +75,15 @@ export function FinanceManager({
   const [saveError, setSaveError] = useState("")
   const [viewRecord, setViewRecord] = useState<FinanceRecord | null>(null)
 
-  // filters
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [filterCategory, setFilterCategory] = useState("All")
   const [filterTag, setFilterTag] = useState("All")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const filtersRef = useRef<HTMLDivElement>(null)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
 
   // form
   const [title, setTitle] = useState("")
@@ -195,7 +195,74 @@ export function FinanceManager({
 
   const totalAll = records.reduce((s, r) => s + r.amount, 0)
   const filteredTotal = filtered.reduce((s, r) => s + r.amount, 0)
-  const hasFilters = filterCategory !== "All" || filterTag !== "All"
+  const hasFilters = !!(search || dateFrom || dateTo || filterCategory !== "All" || filterTag !== "All")
+
+  const loanSource = useMemo(
+    () =>
+      records.filter((r) => {
+        const q = search.toLowerCase()
+        const matchSearch =
+          !search ||
+          r.title.toLowerCase().includes(q) ||
+          r.notes.toLowerCase().includes(q) ||
+          r.tag.toLowerCase().includes(q) ||
+          (r.loan_person || "").toLowerCase().includes(q)
+        const recDate = new Date(r.createdAt)
+        const matchFrom = !dateFrom || recDate >= new Date(dateFrom)
+        const matchTo = !dateTo || recDate <= new Date(dateTo + "T23:59:59")
+        return matchSearch && matchFrom && matchTo
+      }),
+    [records, search, dateFrom, dateTo],
+  )
+  const loanProfiles = useMemo(() => buildLoanProfiles(loanSource), [loanSource])
+  const totalWeOwe = loanProfiles.reduce((s, p) => s + Math.max(0, p.received - p.repaid), 0)
+  const totalOwedToUs = loanProfiles.reduce((s, p) => s + Math.max(0, p.given - p.recovered), 0)
+  const takeCount = loanProfiles.filter((p) => p.received > 0.004).length
+  const giveCount = loanProfiles.filter((p) => p.given > 0.004).length
+
+  const nonLoanFiltered = filtered.filter((r) => !isLoanCategory(r.category))
+
+  function placeFilterPanel() {
+    const btn = filterBtnRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    const panelW = Math.min(328, window.innerWidth - 24)
+    const panelH = 300
+    const pad = 16
+    setFilterPos({
+      top: Math.max(pad, Math.min(rect.top, window.innerHeight - panelH - pad)),
+      left: Math.max(pad, window.innerWidth - panelW - pad),
+    })
+  }
+
+  useEffect(() => {
+    if (!filtersOpen) {
+      setFilterPos(null)
+      return
+    }
+    placeFilterPanel()
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setFiltersOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFiltersOpen(false)
+    }
+    function onReposition() {
+      placeFilterPanel()
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    window.addEventListener("resize", onReposition)
+    window.addEventListener("scroll", onReposition, true)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+      window.removeEventListener("resize", onReposition)
+      window.removeEventListener("scroll", onReposition, true)
+    }
+  }, [filtersOpen])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -277,157 +344,232 @@ export function FinanceManager({
   }
 
   function clearFilters() {
-    setFilterCategory("All"); setFilterTag("All")
+    setSearch("")
+    setDateFrom("")
+    setDateTo("")
+    setFilterCategory("All")
+    setFilterTag("All")
   }
 
+  const fmtPkr = (n: number) => `PKR ${Math.round(n).toLocaleString()}`
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-medium text-[#86868b]">{hasFilters ? "Filtered" : "Total"}</p>
-          <p className="text-[28px] font-semibold tracking-[-0.03em] tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
-            {(hasFilters ? filteredTotal : totalAll).toLocaleString()}
-          </p>
-          <p className="text-[12px] text-[#86868b] mt-0.5">
-            {hasFilters ? `${filtered.length} of ${records.length}` : records.length} records
-          </p>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-9 flex-1 sm:flex-none px-3.5 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#6e6e73] hover:bg-black/[0.1] cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
+    <div className="space-y-3">
+      <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+        <div className="flex items-center justify-end px-3 pt-2.5">
           <button
+            ref={filterBtnRef}
             type="button"
-            onClick={() => setShowForm(true)}
-            className="h-9 flex-1 sm:flex-none px-4 rounded-full text-[12px] font-semibold bg-[#007aff] text-white hover:bg-[#0066d6] cursor-pointer inline-flex items-center justify-center gap-1.5"
+            onClick={() => setFiltersOpen((v) => !v)}
+            className={cn(
+              "h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer",
+              filtersOpen
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]",
+            )}
+            aria-label="Filters"
+            aria-expanded={filtersOpen}
+            title="Filters"
           >
-            <Plus className="h-3.5 w-3.5" /> Add Record
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+          <div className="min-w-0">
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                {hasFilters ? "Filtered" : "Total"}
+              </p>
+              <p className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums">
+                {(hasFilters ? filteredTotal : totalAll).toLocaleString()}
+              </p>
+              <p className="text-[10px] text-[#aeaeb2] truncate">
+                {hasFilters ? `${filtered.length} of ${records.length}` : records.length} records
+              </p>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                We owe
+              </p>
+              <p className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words">
+                {fmtPkr(totalWeOwe)}
+              </p>
+              <p className="text-[10px] text-[#aeaeb2] truncate">
+                {takeCount} loan{takeCount === 1 ? "" : "s"} taken
+              </p>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+              <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                Owed to us
+              </p>
+              <p className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words">
+                {fmtPkr(totalOwedToUs)}
+              </p>
+              <p className="text-[10px] text-[#aeaeb2] truncate">
+                {giveCount} loan{giveCount === 1 ? "" : "s"} given
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {filtersOpen &&
+          filterPos &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              ref={filtersRef}
+              className="fixed z-[95] w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] p-3 space-y-2.5"
+              style={{ top: filterPos.top, left: filterPos.left }}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-4 -left-1.5 h-3 w-3 rotate-45 rounded-[2px] border-b border-l border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+              />
+              <div className="flex items-center justify-between gap-2 px-0.5">
+                <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  Filters
+                </p>
+                {hasFilters && (
+                  <button type="button" onClick={clearFilters} className="text-[10px] font-medium text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search records..."
+                  className="w-full h-8 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] pl-8 pr-3 text-[11px] focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+                />
+                <span className="text-[9px] text-[#86868b] shrink-0">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+                />
+              </div>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full h-8 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] focus:outline-none"
+              >
+                <option value="All">All categories</option>
+                {FILTER_CATEGORIES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+              {allTags.length > 0 && (
+                <select
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                  className="w-full h-8 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] focus:outline-none"
+                >
+                  <option value="All">All tags</option>
+                  {allTags.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              )}
+            </div>,
+            document.body,
+          )}
+      </section>
 
       <FinanceLoans
-        records={records}
+        records={loanSource}
         userName={user?.name ?? "Unknown"}
         autoOpenReceive={!!openAddLoan}
-        onCreated={(record) => setRecords(prev => [record as FinanceRecord, ...prev])}
+        onCreated={(record) => setRecords((prev) => [record as FinanceRecord, ...prev])}
         onDelete={handleDelete}
       />
 
-      {hasFilters && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            className="h-8 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] px-3 text-[12px] focus:outline-none"
-          >
-            <option value="All">All categories</option>
-            {FILTER_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-          </select>
-          {allTags.length > 0 && (
-            <select
-              value={filterTag}
-              onChange={e => setFilterTag(e.target.value)}
-              className="h-8 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] px-3 text-[12px] focus:outline-none"
-            >
-              <option value="All">All tags</option>
-              {allTags.map(t => <option key={t}>{t}</option>)}
-            </select>
-          )}
-        </div>
-      )}
-
       {loading ? (
-        <div className="text-center py-12 text-[13px] text-[#86868b]">Loading…</div>
-      ) : records.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-14 text-center">
-          <p className="text-[15px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">No records yet</p>
-          <p className="text-[12px] text-[#86868b] mt-1">Add a finance record to get started</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-10 text-center text-[13px] text-[#86868b]">
-          No records match your filters.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[14px] border border-black/[0.04] bg-white dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))]">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[36rem]">
-              <thead>
-                <tr className="border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Title</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Category</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Tag</th>
-                  <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-[#86868b]">Amount</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Date</th>
-                  <th className="w-14" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
-                {filtered.map(r => (
-                  <tr
-                    key={r.id}
-                    onClick={() => setViewRecord(r)}
-                    className="group hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="text-[13px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{r.title}</p>
-                      {(r.purpose || r.notes || r.petty_cash_label) && (
-                        <p className="text-[11px] text-[#86868b] mt-0.5 truncate max-w-[220px]">
-                          {r.petty_cash_label ? `Petty cash: ${r.petty_cash_label}` : (r.purpose || r.notes)}
+        <div className="text-center py-10 text-[13px] text-[#86868b]">Loading…</div>
+      ) : nonLoanFiltered.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">Other records</p>
+          <div className="overflow-hidden rounded-[14px] border border-black/[0.04] bg-white dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[32rem]">
+                <thead>
+                  <tr className="border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
+                    <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Title</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Category</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-[#86868b]">Amount</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#86868b]">Date</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+                  {nonLoanFiltered.map((r) => (
+                    <tr
+                      key={r.id}
+                      onClick={() => setViewRecord(r)}
+                      className="group hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="text-[13px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{r.title}</p>
+                        {(r.purpose || r.notes || r.petty_cash_label) && (
+                          <p className="text-[11px] text-[#86868b] mt-0.5 truncate max-w-[220px]">
+                            {r.petty_cash_label ? `Petty cash: ${r.petty_cash_label}` : r.purpose || r.notes}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-[12px] text-[#6e6e73]">{r.category}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <p className="text-[13px] font-semibold tabular-nums">
+                          {r.currency} {r.amount.toLocaleString()}
                         </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", CATEGORY_STYLES[r.category] ?? CATEGORY_STYLES.Other)}>
-                        {r.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.tag ? (
-                        <span className="text-[12px] text-[#6e6e73]">{r.tag}</span>
-                      ) : (
-                        <span className="text-[11px] text-[#aeaeb2]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <p className="text-[13px] font-semibold tabular-nums">{r.currency} {r.amount.toLocaleString()}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-[12px] text-[#86868b] tabular-nums">
-                        {new Date(r.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
-                      </p>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-[12px] text-[#86868b] tabular-nums">
+                          {new Date(r.createdAt).toLocaleDateString("en-US", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3">
                         <button
                           type="button"
-                          className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.06] cursor-pointer"
-                          onClick={e => { e.stopPropagation(); setViewRecord(r) }}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
-                          onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
+                          className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] opacity-0 group-hover:opacity-100 hover:bg-[#ff3b30]/10 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(r.id)
+                          }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {showForm &&
         createPortal(

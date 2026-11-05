@@ -75,7 +75,7 @@ interface LoanProfile {
   lastAt: number
 }
 
-function buildProfiles(records: LoanRecord[]): LoanProfile[] {
+export function buildLoanProfiles(records: LoanRecord[]): LoanProfile[] {
   const map = new Map<string, LoanProfile>()
   for (const r of records) {
     if (!isLoanCategory(r.category)) continue
@@ -946,6 +946,55 @@ function LoanProfileDialog({
 /* Loan center panel                                                   */
 /* ------------------------------------------------------------------ */
 
+function LoanPersonRow({
+  name,
+  txns,
+  lastAt,
+  balance,
+  tone,
+  onOpen,
+}: {
+  name: string
+  txns: number
+  lastAt: number
+  balance: number
+  tone: "owe" | "owed"
+  onOpen: () => void
+}) {
+  const settled = balance <= 0.004
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left px-3.5 py-3 flex items-center gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
+    >
+      <div className="h-9 w-9 rounded-full bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
+        {initialsOf(name)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{name}</p>
+        <p className="text-[11px] text-[#86868b] mt-0.5">
+          {txns} txn{txns === 1 ? "" : "s"} · {fmtDate(new Date(lastAt).toISOString())}
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        {settled ? (
+          <p className="text-[12px] font-medium text-[#86868b]">Settled</p>
+        ) : (
+          <p
+            className={cn(
+              "text-[13px] font-semibold tabular-nums",
+              tone === "owe" ? "text-[#ff3b30]" : "text-[#248a3d]",
+            )}
+          >
+            PKR {fmt(balance)}
+          </p>
+        )}
+      </div>
+    </button>
+  )
+}
+
 export function FinanceLoans({
   records,
   userName,
@@ -962,66 +1011,55 @@ export function FinanceLoans({
   const [form, setForm] = useState<{ mode: LoanFormMode; person: string } | null>(null)
   const [profileKey, setProfileKey] = useState<string | null>(null)
 
-  const profiles = useMemo(() => buildProfiles(records), [records])
+  const profiles = useMemo(() => buildLoanProfiles(records), [records])
   const activeProfile = profileKey ? profiles.find((p) => p.key === profileKey) ?? null : null
 
   useEffect(() => {
     if (autoOpenReceive) setForm({ mode: "receive", person: "" })
   }, [autoOpenReceive])
 
-  const totalWeOwe = profiles.reduce((s, p) => s + Math.max(0, p.received - p.repaid), 0)
-  const totalOwedToUs = profiles.reduce((s, p) => s + Math.max(0, p.given - p.recovered), 0)
+  const taken = useMemo(
+    () =>
+      profiles
+        .filter((p) => p.received > 0.004)
+        .map((p) => ({ ...p, balance: p.received - p.repaid }))
+        .sort((a, b) => b.balance - a.balance || b.lastAt - a.lastAt),
+    [profiles],
+  )
+  const given = useMemo(
+    () =>
+      profiles
+        .filter((p) => p.given > 0.004)
+        .map((p) => ({ ...p, balance: p.given - p.recovered }))
+        .sort((a, b) => b.balance - a.balance || b.lastAt - a.lastAt),
+    [profiles],
+  )
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Loans</p>
-          <p className="text-[12px] text-[#86868b] mt-0.5">
-            {profiles.length} {profiles.length === 1 ? "person" : "people"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setForm({ mode: "receive", person: "" })}
-            className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
-          >
-            Loan received
-          </button>
-          <button
-            type="button"
-            onClick={() => setForm({ mode: "give", person: "" })}
-            className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
-          >
-            Give loan
-          </button>
-          <button
-            type="button"
-            onClick={() => setForm({ mode: "return", person: "" })}
-            className="h-8 px-3.5 rounded-full bg-[#007aff] text-[12px] font-semibold text-white hover:bg-[#0066d6] cursor-pointer transition-colors"
-          >
-            Return loan
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setForm({ mode: "receive", person: "" })}
+          className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
+        >
+          Received
+        </button>
+        <button
+          type="button"
+          onClick={() => setForm({ mode: "give", person: "" })}
+          className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
+        >
+          Given
+        </button>
+        <button
+          type="button"
+          onClick={() => setForm({ mode: "return", person: "" })}
+          className="h-8 px-3.5 rounded-full bg-[#007aff] text-[12px] font-semibold text-white hover:bg-[#0066d6] cursor-pointer transition-colors"
+        >
+          Return
+        </button>
       </div>
-
-      {profiles.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3">
-            <p className="text-[11px] font-medium text-[#86868b]">We owe</p>
-            <p className="text-[18px] font-semibold tabular-nums text-[#ff3b30] mt-0.5">PKR {fmt(totalWeOwe)}</p>
-          </div>
-          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3">
-            <p className="text-[11px] font-medium text-[#86868b]">Owed to us</p>
-            <p className="text-[18px] font-semibold tabular-nums text-[#248a3d] mt-0.5">PKR {fmt(totalOwedToUs)}</p>
-          </div>
-          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3 hidden sm:block">
-            <p className="text-[11px] font-medium text-[#86868b]">People</p>
-            <p className="text-[18px] font-semibold tabular-nums mt-0.5">{profiles.length}</p>
-          </div>
-        </div>
-      )}
 
       {profiles.length === 0 ? (
         <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-10 text-center">
@@ -1029,42 +1067,47 @@ export function FinanceLoans({
           <p className="text-[13px] text-[#86868b]">No loans yet</p>
         </div>
       ) : (
-        <AppleGroup>
-          <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
-            {profiles.map((p) => {
-              const weOwe = p.received - p.repaid
-              const theyOwe = p.given - p.recovered
-              const settled = weOwe <= 0.004 && theyOwe <= 0.004
-              return (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => setProfileKey(p.key)}
-                  className="w-full text-left px-3.5 py-3 flex items-center gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
-                >
-                  <div className="h-9 w-9 rounded-full bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
-                    {initialsOf(p.name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{p.name}</p>
-                    <p className="text-[11px] text-[#86868b] mt-0.5">
-                      {p.records.length} txn{p.records.length === 1 ? "" : "s"} · {fmtDate(new Date(p.lastAt).toISOString())}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    {weOwe > 0.004 && (
-                      <p className="text-[12px] font-semibold tabular-nums text-[#ff3b30]">We owe {fmt(weOwe)}</p>
-                    )}
-                    {theyOwe > 0.004 && (
-                      <p className="text-[12px] font-semibold tabular-nums text-[#248a3d]">Owes us {fmt(theyOwe)}</p>
-                    )}
-                    {settled && <p className="text-[12px] font-medium text-[#86868b]">Settled</p>}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </AppleGroup>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <AppleGroup title="Loans we take">
+            {taken.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[13px] text-[#86868b]">None</div>
+            ) : (
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+                {taken.map((p) => (
+                  <LoanPersonRow
+                    key={`take-${p.key}`}
+                    name={p.name}
+                    txns={p.records.length}
+                    lastAt={p.lastAt}
+                    balance={p.balance}
+                    tone="owe"
+                    onOpen={() => setProfileKey(p.key)}
+                  />
+                ))}
+              </div>
+            )}
+          </AppleGroup>
+
+          <AppleGroup title="Loans we give">
+            {given.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[13px] text-[#86868b]">None</div>
+            ) : (
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+                {given.map((p) => (
+                  <LoanPersonRow
+                    key={`give-${p.key}`}
+                    name={p.name}
+                    txns={p.records.length}
+                    lastAt={p.lastAt}
+                    balance={p.balance}
+                    tone="owed"
+                    onOpen={() => setProfileKey(p.key)}
+                  />
+                ))}
+              </div>
+            )}
+          </AppleGroup>
+        </div>
       )}
 
       {form && (
