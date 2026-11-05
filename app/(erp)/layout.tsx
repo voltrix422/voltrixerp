@@ -19,7 +19,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
         </div>
         <MessageToastListener />
         <NotificationAlertSetup />
-        <PostLoginSplash />
+        <PostLoginSplash onErpEntry />
       </div>
     </PwaProvider>
   )

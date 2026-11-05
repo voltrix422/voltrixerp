@@ -4,15 +4,30 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 
 export const POST_LOGIN_SPLASH_KEY = "voltrix-post-login-splash"
+/** Marks that the ERP entry splash already ran this browser tab session. */
+export const ERP_ENTRY_SPLASH_KEY = "voltrix-erp-entry-splash"
 
 type Props = {
   /** When true, force-show (e.g. overlay on the login page right after sign-in). */
   force?: boolean
+  /**
+   * When true (ERP shell), show once per tab session for already-logged-in visits
+   * as well as post-login landings that did not already play the force splash.
+   */
+  onErpEntry?: boolean
   onDone?: () => void
 }
 
-/** Bold logo animation after a successful ERP sign-in. */
-export function PostLoginSplash({ force = false, onDone }: Props = {}) {
+export function markErpEntrySplashDone() {
+  try {
+    sessionStorage.setItem(ERP_ENTRY_SPLASH_KEY, "1")
+  } catch {
+    // ignore
+  }
+}
+
+/** Bold logo animation after sign-in / when opening the logged-in ERP screen. */
+export function PostLoginSplash({ force = false, onErpEntry = false, onDone }: Props = {}) {
   const [active, setActive] = useState(force)
   const [fading, setFading] = useState(false)
 
@@ -22,12 +37,21 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
 
     if (!force) {
       try {
-        if (sessionStorage.getItem(POST_LOGIN_SPLASH_KEY) !== "1") return
-        sessionStorage.removeItem(POST_LOGIN_SPLASH_KEY)
+        if (onErpEntry) {
+          if (sessionStorage.getItem(ERP_ENTRY_SPLASH_KEY) === "1") return
+          sessionStorage.setItem(ERP_ENTRY_SPLASH_KEY, "1")
+        } else if (sessionStorage.getItem(POST_LOGIN_SPLASH_KEY) === "1") {
+          sessionStorage.removeItem(POST_LOGIN_SPLASH_KEY)
+          markErpEntrySplashDone()
+        } else {
+          return
+        }
       } catch {
-        return
+        if (!onErpEntry) return
       }
       setActive(true)
+    } else {
+      markErpEntrySplashDone()
     }
 
     fadeTimer = window.setTimeout(() => setFading(true), 2100)
@@ -40,7 +64,7 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
       if (fadeTimer) window.clearTimeout(fadeTimer)
       if (doneTimer) window.clearTimeout(doneTimer)
     }
-  }, [force, onDone])
+  }, [force, onErpEntry, onDone])
 
   if (!active) return null
 
@@ -55,16 +79,6 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
       }}
       aria-hidden={fading}
     >
-      {/* Energy rings */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="voltrix-splash-ring voltrix-splash-ring-a" />
-        <span className="voltrix-splash-ring voltrix-splash-ring-b" />
-        <span className="voltrix-splash-ring voltrix-splash-ring-c" />
-      </div>
-
-      {/* Soft glow bloom */}
-      <div className="pointer-events-none absolute h-64 w-64 rounded-full bg-[#2dd4bf]/25 blur-3xl voltrix-splash-bloom" />
-
       <div className="relative z-10 flex items-center justify-center">
         <Image
           src="/logo.png"
@@ -98,38 +112,9 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
             filter: brightness(1);
           }
         }
-        @keyframes voltrixSplashRing {
-          0% { opacity: 0.85; transform: scale(0.2); }
-          100% { opacity: 0; transform: scale(2.4); }
-        }
-        @keyframes voltrixSplashBloom {
-          0%, 100% { opacity: 0.35; transform: scale(0.9); }
-          50% { opacity: 0.7; transform: scale(1.15); }
-        }
         .voltrix-splash-logo {
           animation: voltrixSplashLogo 1.35s cubic-bezier(0.22, 1, 0.36, 1) both;
           filter: drop-shadow(0 0 28px rgba(45, 212, 191, 0.55));
-        }
-        .voltrix-splash-ring {
-          position: absolute;
-          border-radius: 9999px;
-          border: 2px solid rgba(45, 212, 191, 0.55);
-          width: 8rem;
-          height: 8rem;
-        }
-        .voltrix-splash-ring-a { animation: voltrixSplashRing 1.6s ease-out 0.15s both; }
-        .voltrix-splash-ring-b {
-          width: 11rem; height: 11rem;
-          border-color: rgba(153, 246, 228, 0.4);
-          animation: voltrixSplashRing 1.8s ease-out 0.35s both;
-        }
-        .voltrix-splash-ring-c {
-          width: 14rem; height: 14rem;
-          border-color: rgba(45, 212, 191, 0.25);
-          animation: voltrixSplashRing 2s ease-out 0.55s both;
-        }
-        .voltrix-splash-bloom {
-          animation: voltrixSplashBloom 1.8s ease-in-out infinite;
         }
       `}</style>
     </div>

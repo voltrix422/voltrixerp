@@ -144,6 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback((redirectTo = "/login") => {
     clearSession()
     clearRememberedLogin()
+    try {
+      sessionStorage.removeItem("voltrix-erp-entry-splash")
+    } catch {
+      // ignore
+    }
     setUser(null)
     router.replace(redirectTo)
   }, [router])

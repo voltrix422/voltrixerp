@@ -10,7 +10,7 @@ import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
 import { PwaProvider } from "@/components/pwa/pwa-provider"
-import { PostLoginSplash } from "@/components/layout/post-login-splash"
+import { markErpEntrySplashDone, PostLoginSplash } from "@/components/layout/post-login-splash"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -86,6 +86,7 @@ export default function LoginPage() {
   }
 
   function finishEnterApp() {
+    markErpEntrySplashDone()
     window.location.assign(homePathRef.current || "/dashboard")
   }
 

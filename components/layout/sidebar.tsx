@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
   BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
@@ -14,6 +14,8 @@ import { useAuth } from "@/components/auth-provider"
 import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
 import type { Module } from "@/lib/auth"
 import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
+
+const SIDEBAR_COLLAPSED_KEY = "voltrix-sidebar-collapsed"
 
 const NAV_ORDER: Array<{
   key: string
@@ -50,7 +52,13 @@ const navSecondary = [
   { href: "/help", label: "Get Help", icon: HelpCircle },
 ]
 
-function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+function NavContent({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void
+  collapsed?: boolean
+}) {
   const pathname = usePathname()
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
@@ -77,7 +85,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+      "flex items-center rounded-md text-sm font-medium transition-colors",
+      collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-2 py-2",
       active
         ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
         : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
@@ -93,9 +102,23 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <nav className={cn("flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden", collapsed ? "px-1.5" : "px-2")}>
         {NAV_ORDER.filter(canShowNavItem).map((item) => {
           if (item.kind === "crm") {
+            if (collapsed) {
+              const crmHref = showCrmMain ? "/crm" : "/crm/sales-agents"
+              return (
+                <Link
+                  key={item.key}
+                  href={crmHref}
+                  onClick={onNavigate}
+                  title={item.label}
+                  className={linkClass(pathname?.startsWith("/crm") || false)}
+                >
+                  <Users2 className="h-4 w-4 shrink-0" />
+                </Link>
+              )
+            }
             return (
               <div key={item.key} className="space-y-1">
                 <button
@@ -136,34 +159,54 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           const Icon = item.icon
           const active = pathname?.startsWith(item.href!.split("?")[0]) || false
           return (
-            <Link key={item.key} href={item.href!} onClick={onNavigate} className={linkClass(active)}>
+            <Link
+              key={item.key}
+              href={item.href!}
+              onClick={onNavigate}
+              title={item.label}
+              className={cn(linkClass(active), collapsed && item.key === "messages" && "relative")}
+            >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.key === "messages" && <UnreadMessagesBadge />}
+              {!collapsed && (
+                <>
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {item.key === "messages" && <UnreadMessagesBadge />}
+                </>
+              )}
             </Link>
           )
         })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href.split("?")[0]) || false
           return (
-            <Link key={href} href={href} onClick={onNavigate} className={linkClass(active)}>
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              title={label}
+              className={linkClass(active)}
+            >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{label}</span>
+              {!collapsed && <span className="flex-1 truncate">{label}</span>}
             </Link>
           )
         })}
       </nav>
 
-      <div className="px-3 py-3 border-t space-y-0.5">
+      <div className={cn("py-3 border-t space-y-0.5", collapsed ? "px-1.5" : "px-3")}>
         {navSecondary.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
             onClick={onNavigate}
-            className="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] transition-colors"
+            title={label}
+            className={cn(
+              "flex items-center rounded-md text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] transition-colors",
+              collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-2 py-2",
+            )}
           >
             <Icon className="h-4 w-4 shrink-0" />
-            <span>{label}</span>
+            {!collapsed && <span>{label}</span>}
           </Link>
         ))}
       </div>
@@ -173,20 +216,66 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
 
-  const logoBlock = (
-    <div className="flex h-14 items-center justify-center px-4 border-b shrink-0">
-      <Image src="/logo.png" alt="VoltrixERP" width={64} height={20} style={{ height: 'auto' }} className="object-contain" priority />
-    </div>
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1")
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0")
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
+
+  const logoButton = (opts?: { mobile?: boolean }) => (
+    <button
+      type="button"
+      onClick={() => {
+        if (opts?.mobile) setMobileOpen(false)
+        else toggleCollapsed()
+      }}
+      className={cn(
+        "flex h-14 w-full items-center border-b shrink-0 cursor-pointer hover:bg-[hsl(var(--accent))]/50 transition-colors",
+        collapsed && !opts?.mobile ? "justify-center px-1" : "justify-center px-4",
+      )}
+      title={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-label={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
+    >
+      <Image
+        src="/logo.png"
+        alt="VoltrixERP"
+        width={collapsed && !opts?.mobile ? 36 : 64}
+        height={collapsed && !opts?.mobile ? 28 : 20}
+        style={{ height: "auto" }}
+        className="object-contain"
+        priority
+      />
+    </button>
   )
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-[220px] shrink-0 min-h-screen border-r bg-[hsl(var(--background))]">
-        {logoBlock}
+      <aside
+        className={cn(
+          "hidden md:flex flex-col shrink-0 min-h-screen border-r bg-[hsl(var(--background))] transition-[width] duration-200 ease-out",
+          collapsed ? "w-[64px]" : "w-[220px]",
+        )}
+      >
+        {logoButton()}
         <Suspense fallback={null}>
-          <NavContent />
+          <NavContent collapsed={collapsed} />
         </Suspense>
       </aside>
 
@@ -202,9 +291,15 @@ export function Sidebar() {
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="relative flex flex-col w-[220px] h-full bg-[hsl(var(--background))] border-r shadow-xl z-10">
-            <div className="flex h-14 items-center justify-between px-4 border-b shrink-0">
-              <Image src="/logo.png" alt="VoltrixERP" width={64} height={20} style={{ height: 'auto' }} className="object-contain" priority />
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMobileOpen(false)}>
+            <div className="relative">
+              {logoButton({ mobile: true })}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
