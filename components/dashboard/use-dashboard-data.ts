@@ -55,15 +55,22 @@ export type DashboardOverviewData = {
     inventoryItems: number
     financeTotal: number
     totalPOValue: number
+    /** Approved payments in selected range (payment date). */
     deliveredValue: number
     deliveredCount: number
+    deliveredOrdersValue?: number
+    deliveredOrdersCount?: number
   }
   charts: {
     deliveredTrend: Array<{ day: string; amount: number; orderIds: string[] }>
-    inventoryTrend: Array<{ day: string; quantity: number; names: string[] }>
     ticketTrend: Array<{ day: string; opened: number; closed: number }>
     pettyCashByEmployee: Array<{ name: string; amount: number; role: string }>
     deliveredTotal: number
+    receivedCount?: number
+    deliveredOrdersCount?: number
+    ticketOpened?: number
+    ticketClosed?: number
+    pettyTotal?: number
   }
 }
 
