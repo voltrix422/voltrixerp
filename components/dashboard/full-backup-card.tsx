@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Download, Loader2, X } from "lucide-react"
+import { Check, Download, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 
@@ -31,65 +31,144 @@ function formatBytes(n: number) {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function ProgressOverlay({
+/** Strip redundant size text from API messages like "Zipping... 60.0 MB / 60.0 MB" */
+function cleanStatus(message: string) {
+  return String(message || "")
+    .replace(/\s*\d+(?:\.\d+)?\s*(?:B|KB|MB|GB)\s*\/\s*\d+(?:\.\d+)?\s*(?:B|KB|MB|GB)\s*/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[.…]+$/g, "")
+    .trim() || "Working"
+}
+
+function SheetShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4 backdrop-blur-[8px]">
+      <div className="w-full max-w-[320px] overflow-hidden rounded-[22px] border border-white/40 bg-[#f5f5f7]/95 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ProgressSheet({
   title,
   percent,
-  message,
-  detail,
-  onCancel,
+  status,
+  sizeLabel,
 }: {
   title: string
   percent: number
-  message: string
-  detail?: string
-  onCancel?: () => void
+  status: string
+  sizeLabel?: string
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)))
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[20px] border border-black/[0.06] bg-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
-        <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <p className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+    <SheetShell>
+      <div className="px-6 pt-6 pb-5 text-center space-y-5">
+        <div className="space-y-1">
+          <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
             {title}
           </p>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/[0.05] text-[#86868b] hover:bg-black/[0.08] cursor-pointer"
-              aria-label="Close"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <p className="text-[12px] text-[#86868b]">{status}</p>
         </div>
 
-        <div className="px-5 pb-5 space-y-4">
-          <div className="flex items-end justify-between gap-3">
-            <p className="text-[36px] font-bold tracking-tight tabular-nums leading-none text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              {pct}%
-            </p>
-            <Loader2 className="h-4 w-4 animate-spin text-[#1a9f9a] mb-1" />
-          </div>
+        <p className="text-[44px] font-bold tracking-tight tabular-nums leading-none text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          {pct}
+          <span className="text-[22px] font-semibold text-[#86868b]">%</span>
+        </p>
 
-          <div className="h-[6px] rounded-full bg-black/[0.06] dark:bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-[#1a9f9a] transition-[width] duration-300 ease-out"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+        <div className="h-[5px] rounded-full bg-black/[0.08] dark:bg-white/10 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#1a9f9a] transition-[width] duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
 
-          <div className="space-y-1">
-            <p className="text-[12px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] leading-snug">
-              {message}
-            </p>
-            {detail && (
-              <p className="text-[11px] tabular-nums text-[#86868b]">{detail}</p>
-            )}
+        {sizeLabel ? (
+          <p className="text-[11px] tabular-nums text-[#86868b]">{sizeLabel}</p>
+        ) : (
+          <div className="flex justify-center">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1a9f9a]" />
           </div>
+        )}
+      </div>
+    </SheetShell>
+  )
+}
+
+function ReadySheet({
+  sizeLabel,
+  filename,
+  onDownload,
+  onAgain,
+  busy,
+}: {
+  sizeLabel?: string
+  filename?: string
+  onDownload: () => void
+  onAgain: () => void
+  busy?: boolean
+}) {
+  return (
+    <SheetShell>
+      <div className="px-6 pt-7 pb-5 text-center space-y-5">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#1a9f9a]/15">
+          <Check className="h-7 w-7 text-[#1a9f9a]" strokeWidth={2.5} />
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[17px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Backup ready
+          </p>
+          <p className="text-[12px] text-[#86868b]">
+            {sizeLabel ? `${sizeLabel} ZIP` : "Your ZIP is ready to save"}
+          </p>
+          {filename ? (
+            <p className="text-[10px] text-[#aeaeb2] truncate px-2 pt-0.5">{filename}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onDownload}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-[#1a9f9a] text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onAgain}
+            className="inline-flex h-10 w-full items-center justify-center rounded-full bg-black/[0.06] dark:bg-white/10 text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.09] disabled:opacity-50 cursor-pointer transition-colors"
+          >
+            Create again
+          </button>
         </div>
       </div>
-    </div>
+    </SheetShell>
+  )
+}
+
+function DoneSheet({ sizeLabel }: { sizeLabel?: string }) {
+  return (
+    <SheetShell>
+      <div className="px-6 pt-7 pb-7 text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#1a9f9a]">
+          <Check className="h-7 w-7 text-white" strokeWidth={2.5} />
+        </div>
+        <div className="space-y-1">
+          <p className="text-[17px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Saved
+          </p>
+          <p className="text-[12px] text-[#86868b]">
+            {sizeLabel ? `${sizeLabel} saved to your computer` : "Backup saved to your computer"}
+          </p>
+        </div>
+      </div>
+    </SheetShell>
   )
 }
 
@@ -148,7 +227,7 @@ export function FullBackupCard() {
       percent: 0,
       leftPercent: 100,
       stage: "queued",
-      message: "Preparing backup…",
+      message: "Preparing…",
     })
 
     try {
@@ -244,7 +323,7 @@ export function FullBackupCard() {
       percent: 0,
       leftPercent: 100,
       stage: "download",
-      message: "Saving to your computer…",
+      message: "Saving…",
     })
 
     const total = Number(prepared.sizeBytes || 0) || 0
@@ -304,7 +383,7 @@ export function FullBackupCard() {
               percent: pct,
               leftPercent: Math.max(0, 100 - pct),
               stage: "download",
-              message: "Saving to your computer…",
+              message: "Saving…",
               bytesDoneLabel: formatBytes(received),
               bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
             })
@@ -316,7 +395,7 @@ export function FullBackupCard() {
           percent: 100,
           leftPercent: 0,
           stage: "done",
-          message: "Download complete",
+          message: "Saved",
           bytesDoneLabel: formatBytes(received),
           bytesTotalLabel: total > 0 ? formatBytes(total) : formatBytes(received),
         })
@@ -325,7 +404,7 @@ export function FullBackupCard() {
           setDownloadLive(null)
           setPhase("idle")
           setPrepared(null)
-        }, 4000)
+        }, 2800)
         return
       }
 
@@ -341,15 +420,16 @@ export function FullBackupCard() {
         percent: 100,
         leftPercent: 0,
         stage: "done",
-        message: "Started — check Downloads",
+        message: "Saved",
         bytesDoneLabel: total > 0 ? formatBytes(total) : undefined,
         bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
       })
       setPhase("done")
       setTimeout(() => {
         setDownloadLive(null)
-        setPhase("ready")
-      }, 5000)
+        setPhase("idle")
+        setPrepared(null)
+      }, 2800)
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
         setPhase("ready")
@@ -363,40 +443,53 @@ export function FullBackupCard() {
   }
 
   const busy = phase === "building" || phase === "downloading"
-  const showBuildOverlay = phase === "building" && live
-  const showDownloadOverlay = phase === "downloading" && downloadLive
-  const ready = phase === "ready" || phase === "done"
+  const showBuild = phase === "building" && live
+  const showDownload = phase === "downloading" && downloadLive
+  const showReady = phase === "ready" && prepared
+  const showDone = phase === "done"
+
+  const buildSize =
+    live?.bytesDoneLabel && live?.bytesTotalLabel
+      ? `${live.bytesDoneLabel} of ${live.bytesTotalLabel}`
+      : live?.bytesDoneLabel
+
+  const downloadSize =
+    downloadLive?.bytesDoneLabel && downloadLive?.bytesTotalLabel
+      ? `${downloadLive.bytesDoneLabel} of ${downloadLive.bytesTotalLabel}`
+      : downloadLive?.bytesDoneLabel
 
   return (
     <>
-      {showBuildOverlay && (
-        <ProgressOverlay
+      {showBuild && (
+        <ProgressSheet
           title="Creating backup"
           percent={live.percent}
-          message={live.message}
-          detail={
-            live.bytesDoneLabel
-              ? live.bytesTotalLabel
-                ? `${live.bytesDoneLabel} of ${live.bytesTotalLabel}`
-                : live.bytesDoneLabel
-              : undefined
-          }
+          status={cleanStatus(live.message)}
+          sizeLabel={buildSize}
         />
       )}
 
-      {showDownloadOverlay && (
-        <ProgressOverlay
+      {showDownload && (
+        <ProgressSheet
           title="Downloading"
           percent={downloadLive.percent}
-          message={downloadLive.message}
-          detail={
-            downloadLive.bytesDoneLabel
-              ? downloadLive.bytesTotalLabel
-                ? `${downloadLive.bytesDoneLabel} of ${downloadLive.bytesTotalLabel}`
-                : downloadLive.bytesDoneLabel
-              : undefined
-          }
+          status={cleanStatus(downloadLive.message)}
+          sizeLabel={downloadSize}
         />
+      )}
+
+      {showReady && (
+        <ReadySheet
+          sizeLabel={prepared.sizeLabel}
+          filename={prepared.filename}
+          busy={busy}
+          onDownload={() => void downloadZip()}
+          onAgain={() => void createBackup()}
+        />
+      )}
+
+      {showDone && (
+        <DoneSheet sizeLabel={prepared?.sizeLabel || downloadLive?.bytesTotalLabel} />
       )}
 
       <div className="max-w-md rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden">
@@ -413,11 +506,13 @@ export function FullBackupCard() {
 
         <button
           type="button"
-          disabled={busy || ready}
+          disabled={busy || phase === "ready" || phase === "done"}
           onClick={() => setIncludeEnv((v) => !v)}
           className={cn(
             "w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors cursor-pointer",
-            busy || ready ? "opacity-60 cursor-not-allowed" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
+            busy || phase === "ready" || phase === "done"
+              ? "opacity-60 cursor-not-allowed"
+              : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
           )}
         >
           <div className="min-w-0">
@@ -441,56 +536,16 @@ export function FullBackupCard() {
           </span>
         </button>
 
-        {prepared && ready && (
-          <>
-            <div className="mx-5 h-px bg-black/[0.06] dark:bg-white/10" />
-            <div className="px-5 py-3">
-              <p className="text-[11px] text-[#86868b] truncate">
-                Ready
-                {prepared.sizeLabel ? ` · ${prepared.sizeLabel}` : ""}
-              </p>
-              <p className="text-[12px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate mt-0.5">
-                {prepared.filename}
-              </p>
-            </div>
-          </>
-        )}
-
         <div className="px-5 pb-5 pt-2 space-y-2">
-          {!ready ? (
-            <button
-              type="button"
-              disabled={busy || !user}
-              onClick={() => void createBackup()}
-              className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#1d1d1f] dark:bg-white text-[13px] font-semibold text-white dark:text-[#1d1d1f] hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create ZIP"}
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                disabled={!prepared || busy}
-                onClick={() => void downloadZip()}
-                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-[#1a9f9a] text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void createBackup()}
-                className="inline-flex h-10 w-full items-center justify-center rounded-full bg-black/[0.05] dark:bg-white/10 text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.08] disabled:opacity-50 cursor-pointer transition-colors"
-              >
-                Create again
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            disabled={busy || !user}
+            onClick={() => void createBackup()}
+            className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#1d1d1f] dark:bg-white text-[13px] font-semibold text-white dark:text-[#1d1d1f] hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create ZIP"}
+          </button>
 
-          {phase === "done" && (
-            <p className="text-center text-[11px] font-medium text-[#1a9f9a]">Saved</p>
-          )}
           {phase === "error" && error && (
             <p className="text-center text-[11px] text-[#ff3b30]">{error}</p>
           )}
