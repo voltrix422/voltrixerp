@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download, FileSpreadsheet, Scale } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, Download, FileSpreadsheet, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
@@ -19,7 +19,6 @@ import {
   type MoneyOutDetailLine,
   type MoneyOutDetailsPayload,
 } from "@/lib/finance-money-out-details"
-import type { LoanSnapshot } from "@/lib/finance-loans"
 import { useAuth } from "@/components/auth-provider"
 
 type OrderPaymentsPayload = {
@@ -104,10 +103,6 @@ const TOGGLES: ToggleDef[] = [
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
   { key: "clientRefunds", label: "Client refunds", side: "out", defaultOn: true },
 ]
-
-function defaultEnabled(): Record<ToggleKey, boolean> {
-  return Object.fromEntries(TOGGLES.map(t => [t.key, t.defaultOn])) as Record<ToggleKey, boolean>
-}
 
 function fmt(n: number, decimals = 0) {
   return `PKR ${n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
@@ -554,7 +549,6 @@ export function FinanceHub({
   const [summary, setSummary] = useState<Summary | null>(null)
   const [orderPayments, setOrderPayments] = useState<OrderPaymentsPayload | null>(null)
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
-  const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [moneyOutDetails, setMoneyOutDetails] = useState<MoneyOutDetailsPayload | null>(null)
   const [moneyInDetails, setMoneyInDetails] = useState<{
     posSales?: MoneyOutDetailLine[]
@@ -563,11 +557,9 @@ export function FinanceHub({
   } | null>(null)
   const [crmOrders, setCrmOrders] = useState<FinanceOrderRow[]>([])
   const [posSaleRows, setPosSaleRows] = useState<FinancePosRow[]>([])
-  const [loans, setLoans] = useState<LoanSnapshot | null>(null)
-  const [togglesOpen, setTogglesOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [moneyInOpen, setMoneyInOpen] = useState(false)
-  const [moneyOutOpen, setMoneyOutOpen] = useState(false)
+  const [moneyInOpen, setMoneyInOpen] = useState(true)
+  const [moneyOutOpen, setMoneyOutOpen] = useState(true)
   const [detailsModal, setDetailsModal] = useState<{
     label: string
     value: string
@@ -602,7 +594,6 @@ export function FinanceHub({
             : [],
       )
       setPosSaleRows(Array.isArray(data.posSales) ? data.posSales : [])
-      setLoans(data.summary?.loans ?? null)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -617,28 +608,6 @@ export function FinanceHub({
   }, [load])
 
   const breakdown = summary?.breakdown ?? emptyBreakdown()
-
-  const inLines = useMemo(
-    () =>
-      TOGGLES.filter(t => t.side === "in").map(t => ({
-        key: t.key,
-        label: t.label,
-        amount: amountFor(breakdown, t.key),
-        on: enabled[t.key],
-      })),
-    [breakdown, enabled],
-  )
-
-  const outLines = useMemo(
-    () =>
-      TOGGLES.filter(t => t.side === "out").map(t => ({
-        key: t.key,
-        label: t.label,
-        amount: amountFor(breakdown, t.key),
-        on: enabled[t.key],
-      })),
-    [breakdown, enabled],
-  )
 
   const moneyOutDisplayRows = useMemo(
     () => buildMoneyOutDisplayRows(breakdown.moneyOut, moneyOutDetails),
@@ -684,15 +653,15 @@ export function FinanceHub({
     return rows
   }, [breakdown.moneyIn, moneyInDetails])
 
-  const moneyIn = inLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
-  const moneyOut = outLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
-  const moneyInAll = inLines.reduce((s, l) => s + l.amount, 0)
-  const moneyOutAll = outLines.reduce((s, l) => s + l.amount, 0)
-  const net = moneyIn - moneyOut
-
-  const toggle = (key: ToggleKey) => {
-    setEnabled(prev => ({ ...prev, [key]: !prev[key] }))
-  }
+  const moneyInAll = useMemo(
+    () => TOGGLES.filter((t) => t.side === "in").reduce((s, t) => s + amountFor(breakdown, t.key), 0),
+    [breakdown],
+  )
+  const moneyOutAll = useMemo(
+    () => TOGGLES.filter((t) => t.side === "out").reduce((s, t) => s + amountFor(breakdown, t.key), 0),
+    [breakdown],
+  )
+  const net = moneyInAll - moneyOutAll
 
   async function downloadPdf() {
     setPdfBusy(true)
@@ -818,16 +787,6 @@ export function FinanceHub({
     }
   }
 
-  const setSide = (side: "in" | "out", on: boolean) => {
-    setEnabled(prev => {
-      const next = { ...prev }
-      for (const t of TOGGLES) {
-        if (t.side === side) next[t.key] = on
-      }
-      return next
-    })
-  }
-
   if (loading && !summary) {
     return (
       <div className="flex justify-center py-16">
@@ -852,17 +811,6 @@ export function FinanceHub({
   const returnedOrderCount = orderPayments.allTime.returnedCount
   const activeOrderCount = orderPayments.allTime.orderCount
   const displayTotal = periodReceived + (includeOutstanding ? outstanding : 0)
-  const loanSnap: LoanSnapshot = loans ?? {
-    receivedInPeriod: breakdown.moneyIn.loansReceived ?? breakdown.moneyIn.loans,
-    recoveredInPeriod: breakdown.moneyIn.loanRecoveries ?? 0,
-    givenInPeriod: breakdown.moneyOut.loansGiven ?? 0,
-    repaidInPeriod: breakdown.moneyOut.loanRepayments ?? 0,
-    moneyIn: breakdown.moneyIn.loans,
-    moneyOut: (breakdown.moneyOut.loansGiven ?? 0) + (breakdown.moneyOut.loanRepayments ?? 0),
-    weOwe: 0,
-    theyOwe: 0,
-    peopleCount: 0,
-  }
 
   const filtersActiveLabel =
     dateFrom || dateTo
@@ -1338,13 +1286,7 @@ export function FinanceHub({
           </p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">Paid costs</p>
         </button>
-        <button
-          type="button"
-          onClick={() => setTogglesOpen((v) => !v)}
-          className={`bg-[hsl(var(--card))] px-3 py-3 sm:px-4 text-left transition-colors cursor-pointer hover:bg-[hsl(var(--muted))]/20 ${
-            togglesOpen ? "ring-1 ring-inset ring-[hsl(var(--foreground))]/15" : ""
-          }`}
-        >
+        <div className="bg-[hsl(var(--card))] px-3 py-3 sm:px-4">
           <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-medium">Net</p>
           <p
             className={`text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5 ${
@@ -1358,7 +1300,7 @@ export function FinanceHub({
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
             {net >= 0 ? "Surplus" : "Deficit"}
           </p>
-        </button>
+        </div>
       </section>
 
       {/* Money in + Money out side by side */}
@@ -1444,18 +1386,12 @@ export function FinanceHub({
                 />
               )}
 
-              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                <span className="inline-flex items-center gap-1">
-                  <HandCoins className="h-3 w-3" />
-                  Owe {fmt(loanSnap.weOwe, 0)} · Due to us {fmt(loanSnap.theyOwe, 0)}
-                </span>
-                <Link
-                  href="/finance?tab=manage&section=finance&add=loan"
-                  className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 hover:text-[hsl(var(--foreground))] cursor-pointer"
-                >
-                  <Plus className="h-3 w-3" /> Add loan
-                </Link>
-              </div>
+              <Link
+                href="/finance?tab=manage&section=finance&add=loan"
+                className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer w-fit"
+              >
+                <Plus className="h-3 w-3" /> Add loan
+              </Link>
             </div>
           )}
         </section>
@@ -1494,53 +1430,6 @@ export function FinanceHub({
           )}
         </section>
       </div>
-
-      {/* Net toggles — compact, collapsed */}
-      <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setTogglesOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer"
-        >
-          <span className="flex items-center gap-1.5 min-w-0">
-            <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${togglesOpen ? "" : "-rotate-90"}`}
-            />
-            <span className="text-[11px] font-semibold">Adjust net</span>
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">· toggle sources</span>
-          </span>
-          <span className="text-[11px] font-semibold tabular-nums text-[hsl(var(--muted-foreground))] shrink-0">
-            {fmt(net)}
-          </span>
-        </button>
-        {togglesOpen && (
-          <div className="px-3 pb-2.5 pt-1.5 border-t space-y-2">
-            <div className="flex flex-wrap gap-1">
-              <button type="button" onClick={() => setEnabled(defaultEnabled())} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">Reset</button>
-              <button type="button" onClick={() => setSide("in", true)} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">All in</button>
-              <button type="button" onClick={() => setSide("out", true)} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">All out</button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money in</p>
-                <div className="flex flex-wrap gap-1">
-                  {inLines.filter((l) => l.amount > 0.004).map((l) => (
-                    <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money out</p>
-                <div className="flex flex-wrap gap-1">
-                  {outLines.filter((l) => l.amount > 0.004).map((l) => (
-                    <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
 
       {detailsModal && (
         <MoneyOutDetailsModal
