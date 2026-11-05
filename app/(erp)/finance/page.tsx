@@ -4,14 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { FinanceHub } from "@/components/finance/finance-hub"
-import { FinanceReports } from "@/components/finance/finance-reports"
 import { ClientOrdersFinance, type ClientOrdersCreditFilter } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { FinancePayroll } from "@/components/finance/finance-payroll"
 import { Search, Calendar } from "lucide-react"
 
-type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
+type Tab = "overview" | "manage" | "client" | "purchase" | "payroll"
 type PayrollSection = "staff" | "sales"
 
 export default function FinancePage() {
@@ -37,8 +36,7 @@ export default function FinancePage() {
       tab === "purchase" ||
       tab === "manage" ||
       tab === "payroll" ||
-      tab === "sales-salaries" ||
-      tab === "reports"
+      tab === "sales-salaries"
     ) {
       setActiveTab(tab === "sales-salaries" ? "payroll" : (tab as Tab))
     } else if (add === "loan") {
@@ -73,12 +71,11 @@ export default function FinancePage() {
     { id: "purchase", label: "Purchase Orders", shortLabel: "PO" },
     { id: "payroll", label: "Salaries & Payroll", shortLabel: "Payroll" },
     { id: "manage", label: "Records", shortLabel: "Records" },
-    { id: "reports", label: "Reports", shortLabel: "Reports" },
   ]
 
   return (
     <ModuleGuard module="finance">
-      <Topbar title="Finance" description="Overview, payments, expenses, and reports for Voltrix ERP" />
+      <Topbar title="Finance" description="Overview, payments, expenses, and payroll for Voltrix ERP" />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-4 md:p-6 max-w-6xl">
           <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] mb-4 -mx-3 px-3 sm:mx-0 sm:px-0">
@@ -104,7 +101,7 @@ export default function FinancePage() {
           </div>
 
           <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
-            {activeTab !== "overview" && activeTab !== "reports" && (
+            {activeTab !== "overview" && (
               <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 <input
@@ -162,30 +159,6 @@ export default function FinancePage() {
               dateTo={dateTo}
               onPeriodChange={selectPeriod}
             />
-          )}
-
-          {activeTab === "reports" && (
-            <div className="space-y-4">
-              <div className="flex w-full sm:w-fit rounded-lg border p-0.5 bg-[hsl(var(--muted))]/20">
-                {[
-                  { id: "month", label: "This month" },
-                  { id: "last_month", label: "Last month" },
-                  { id: "year", label: "This year" },
-                ].map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => selectPeriod(p.id)}
-                    className={`flex-1 sm:flex-none px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] sm:text-xs font-medium rounded-md cursor-pointer text-center ${
-                      reportPeriod === p.id && !dateFrom && !dateTo ? "bg-[#1faca6] text-white" : ""
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <FinanceReports period={reportPeriod} dateFrom={dateFrom} dateTo={dateTo} />
-            </div>
           )}
 
           {activeTab === "manage" && (

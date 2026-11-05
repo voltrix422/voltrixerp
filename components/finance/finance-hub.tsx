@@ -910,12 +910,6 @@ export function FinanceHub({
             {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
             PDF
           </Button>
-          <Link
-            href="/finance?tab=reports"
-            className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5"
-          >
-            Reports <ArrowRight className="h-3 w-3" />
-          </Link>
           <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-[11px]" onClick={load} disabled={loading}>
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             Refresh
