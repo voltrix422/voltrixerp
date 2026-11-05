@@ -32,7 +32,7 @@ export function chartAmountDomain(values: number[]): [number, number] {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-1 overflow-auto bg-white dark:bg-[hsl(var(--background))]">
+    <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
       <div className="mx-auto w-full max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6 space-y-5">{children}</div>
     </div>
   )
