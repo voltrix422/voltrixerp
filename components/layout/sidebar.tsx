@@ -223,8 +223,8 @@ export function Sidebar() {
         else toggleCollapsed()
       }}
       className={cn(
-        "flex h-12 w-full items-center shrink-0 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/5 transition-colors",
-        collapsed && !opts?.mobile ? "justify-center px-1" : "justify-center px-4",
+        "flex h-[58px] w-full items-center justify-center shrink-0 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/5 transition-colors pt-2.5",
+        collapsed && !opts?.mobile ? "px-1" : "px-4",
       )}
       title={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-label={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}

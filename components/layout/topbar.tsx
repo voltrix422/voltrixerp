@@ -37,9 +37,9 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
   const investor = isInvestorUser(user?.role)
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-4 md:px-5">
+    <header className="flex h-[58px] shrink-0 items-center gap-3 bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-4 md:px-5 pt-2">
       <div className="flex flex-1 items-center pl-8 md:pl-0 min-w-0">
-        <div className="flex flex-col justify-center min-w-0 gap-0.5">
+        <div className="flex flex-col justify-center min-w-0 gap-0.5 pt-1">
           <h1 className="text-[17px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-none truncate">
             {title}
           </h1>
