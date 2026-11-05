@@ -128,16 +128,6 @@
   animation: dashboardContentIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Soft glow on overview chart strokes / bars (logo teal) */
-.chart-glow .recharts-area-curve,
-.chart-glow .recharts-line-curve {
-  filter: drop-shadow(0 0 3px rgba(26, 159, 154, 0.55)) drop-shadow(0 0 8px rgba(26, 159, 154, 0.35));
-}
-
-.chart-glow .recharts-bar-rectangle {
-  filter: drop-shadow(0 0 2px rgba(26, 159, 154, 0.4)) drop-shadow(0 0 6px rgba(26, 159, 154, 0.25));
-}
-
 .animate-promo-marquee {
   animation: promo-marquee 28s linear infinite;
 }

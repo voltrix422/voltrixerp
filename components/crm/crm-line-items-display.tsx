@@ -139,33 +139,35 @@ export function CrmLineItemsDisplay({
         ))}
       </div>
 
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full min-w-[32rem]">
+      <div className="hidden sm:block overflow-hidden">
+        <table className="w-full table-fixed">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
-              {showModel && <th className={`${headClass} text-left w-36`}>Model</th>}
+              {showModel && <th className={`${headClass} text-left w-[22%]`}>Model</th>}
               <th className={`${headClass} text-left`}>Description</th>
-              <th className={`${headClass} text-center w-20`}>Qty</th>
-              <th className={`${headClass} text-center w-16`}>Unit</th>
+              <th className={`${headClass} text-center w-[8%]`}>Qty</th>
+              <th className={`${headClass} text-center w-[8%]`}>Unit</th>
               {showCompanyPrice ? (
                 <>
-                  <th className={`${headClass} text-right w-28`}>Company</th>
-                  <th className={`${headClass} text-right w-28`}>Customer</th>
-                  <th className={`${headClass} text-right w-24`}>Profit</th>
+                  <th className={`${headClass} text-right w-[12%]`}>Company</th>
+                  <th className={`${headClass} text-right w-[12%]`}>Customer</th>
+                  <th className={`${headClass} text-right w-[10%]`}>Profit</th>
                 </>
               ) : (
-                <th className={`${headClass} text-right w-28`}>Unit Price</th>
+                <th className={`${headClass} text-right w-[16%]`}>Unit Price</th>
               )}
-              <th className={`${headClass} text-right w-28`}>Total</th>
+              <th className={`${headClass} text-right w-[16%]`}>Total</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {rows.map(({ item, model, lineTotal, company, lineProfit }) => (
               <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/20">
                 {showModel && (
-                  <td className={`${cellClass} font-medium tabular-nums`}>{model || "—"}</td>
+                  <td className={`${cellClass} font-medium tabular-nums truncate`} title={model || undefined}>
+                    {model || "—"}
+                  </td>
                 )}
-                <td className={cellClass}>
+                <td className={`${cellClass} truncate`} title={item.description}>
                   {item.description}
                   {item.isFreeItem && <FreeBadge />}
                 </td>
@@ -173,12 +175,12 @@ export function CrmLineItemsDisplay({
                 <td className={`${cellClass} text-center`}>{item.unit}</td>
                 {showCompanyPrice ? (
                   <>
-                    <td className={`${cellClass} text-right tabular-nums`}>PKR {company.toLocaleString()}</td>
-                    <td className={`${cellClass} text-right tabular-nums`}>
+                    <td className={`${cellClass} text-right tabular-nums truncate`}>PKR {company.toLocaleString()}</td>
+                    <td className={`${cellClass} text-right tabular-nums truncate`}>
                       PKR {item.unitPrice.toLocaleString()}
                     </td>
                     <td
-                      className={`${cellClass} text-right tabular-nums font-medium ${
+                      className={`${cellClass} text-right tabular-nums font-medium truncate ${
                         lineProfit >= 0 ? "text-emerald-700" : "text-red-600"
                       }`}
                     >
@@ -186,11 +188,11 @@ export function CrmLineItemsDisplay({
                     </td>
                   </>
                 ) : (
-                  <td className={`${cellClass} text-right tabular-nums`}>
+                  <td className={`${cellClass} text-right tabular-nums truncate`}>
                     PKR {item.unitPrice.toLocaleString()}
                   </td>
                 )}
-                <td className={`${cellClass} text-right font-medium tabular-nums`}>
+                <td className={`${cellClass} text-right font-medium tabular-nums truncate`}>
                   PKR {lineTotal.toLocaleString()}
                 </td>
               </tr>

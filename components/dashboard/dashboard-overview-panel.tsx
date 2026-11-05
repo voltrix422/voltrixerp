@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -40,7 +40,7 @@ function PettyCashGraph({
   }))
 
   return (
-    <div className="chart-glow h-full w-full">
+    <div className="h-full w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
           <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e5e5ea" />
@@ -101,9 +101,9 @@ function AfterSaleGraph({
           {closed} closed
         </span>
       </div>
-      <div className="chart-glow flex-1 min-h-0">
+      <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e5e5ea" />
             <XAxis
               dataKey="day"
@@ -125,30 +125,26 @@ function AfterSaleGraph({
               itemStyle={{ color: "#fff" }}
               labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: 4 }}
             />
-            <Area
+            <Line
               type="monotone"
               dataKey="opened"
               name="Opened"
               stroke={CHART}
-              strokeWidth={2.25}
-              fill={CHART}
-              fillOpacity={0.12}
+              strokeWidth={2}
               dot={false}
               activeDot={{ r: 3.5, fill: CHART, strokeWidth: 0 }}
             />
-            <Area
+            <Line
               type="monotone"
               dataKey="closed"
               name="Closed"
               stroke={CHART}
               strokeWidth={2}
               strokeOpacity={0.45}
-              fill={CHART}
-              fillOpacity={0.04}
               dot={false}
               activeDot={{ r: 3, fill: CHART, strokeWidth: 0 }}
             />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
@@ -277,9 +273,9 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
             {loading ? (
               <ChartLoading />
             ) : (
-              <div className="chart-glow h-full w-full">
+              <div className="h-full w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <LineChart data={deliveredTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
                     <XAxis
                       dataKey="day"
@@ -312,17 +308,15 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
                         return ids ? `${day} · ${ids}` : day
                       }}
                     />
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="amount"
                       stroke={CHART}
-                      strokeWidth={2.5}
-                      fill={CHART}
-                      fillOpacity={0.12}
+                      strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 4, fill: CHART, strokeWidth: 0 }}
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
