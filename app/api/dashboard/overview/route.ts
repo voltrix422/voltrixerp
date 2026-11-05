@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { readProductsCatalog } from "@/lib/products-catalog-server"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
+import { parseOrderPayments } from "@/lib/finance-overview"
 import {
-  approvedBalancePaymentAmount,
-  parseOrderPayments,
-} from "@/lib/finance-overview"
-import type { Order } from "@/lib/orders"
+  getPaymentSubmissionStatus,
+  paymentCountsTowardBalance,
+  type Order,
+} from "@/lib/orders"
 
 const PK_OFFSET = "+05:00"
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
@@ -127,7 +128,7 @@ export async function GET(req: NextRequest) {
     const receivedDayMap = new Map<string, { amount: number; orderIds: string[] }>()
     const ticketDayMap = new Map<string, { opened: number; closed: number }>()
 
-    for (let i = days - 1; i >= 0; i--) {
+    for (let i = 0; i < days; i++) {
       const d = new Date(rangeStart)
       d.setDate(rangeStart.getDate() + i)
       const key = dayKeyLocal(d)
@@ -139,6 +140,7 @@ export async function GET(req: NextRequest) {
     let deliveredCount = 0
     let receivedTotal = 0
     let receivedCount = 0
+    let receivedPending = 0
 
     for (const order of orders) {
       if (isBranchPosOrderHiddenFromErp(order)) continue
@@ -154,9 +156,12 @@ export async function GET(req: NextRequest) {
 
       const payments = parseOrderPayments(order.payments)
       for (const payment of payments) {
-        const amount = approvedBalancePaymentAmount(payment, status)
+        if (!paymentCountsTowardBalance(payment, status)) continue
+        const submission = getPaymentSubmissionStatus(payment, status)
+        if (submission !== "approved" && submission !== "pending_approval") continue
+        const amount = Number(payment.amount) || 0
         if (amount <= 0) continue
-        const paidAt = parseDay(payment.date, order.createdAt)
+        const paidAt = parseDay(payment.date || payment.createdAt, order.createdAt)
         if (paidAt < rangeStart || paidAt > rangeEnd) continue
         const key = dayKeyLocal(paidAt)
         const bucket = receivedDayMap.get(key)
@@ -166,6 +171,7 @@ export async function GET(req: NextRequest) {
         if (id && !bucket.orderIds.includes(id)) bucket.orderIds.push(id)
         receivedTotal += amount
         receivedCount += 1
+        if (submission === "pending_approval") receivedPending += amount
       }
     }
 
@@ -237,6 +243,7 @@ export async function GET(req: NextRequest) {
         pettyCashByEmployee,
         deliveredTotal: receivedTotal,
         receivedCount,
+        receivedPending,
         deliveredOrdersCount: deliveredCount,
         ticketOpened,
         ticketClosed,

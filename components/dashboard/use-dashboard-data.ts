@@ -67,6 +67,7 @@ export type DashboardOverviewData = {
     pettyCashByEmployee: Array<{ name: string; amount: number; role: string }>
     deliveredTotal: number
     receivedCount?: number
+    receivedPending?: number
     deliveredOrdersCount?: number
     ticketOpened?: number
     ticketClosed?: number

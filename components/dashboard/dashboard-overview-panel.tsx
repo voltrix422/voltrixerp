@@ -235,6 +235,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
   const ticketTrend = charts?.ticketTrend ?? []
   const pettyTotal = charts?.pettyTotal ?? pettyCashByEmployee.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
   const receivedCount = charts?.receivedCount ?? stats?.deliveredCount ?? 0
+  const receivedPending = charts?.receivedPending ?? 0
   const deliveredOrdersCount = charts?.deliveredOrdersCount ?? stats?.deliveredOrdersCount ?? 0
   const ticketOpened = charts?.ticketOpened ?? ticketTrend.reduce((s, r) => s + r.opened, 0)
   const ticketClosed = charts?.ticketClosed ?? ticketTrend.reduce((s, r) => s + r.closed, 0)
@@ -256,13 +257,14 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         <div className="grid grid-cols-1 gap-3">
           <ChartCard
             title="Received"
-            subtitle={`Approved payments · ${rangeLabel}`}
+            subtitle={`Cash in · ${rangeLabel}`}
             tall
             footer={
               <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
                 {formatRsFull(charts?.deliveredTotal ?? 0)}
                 <span className="ml-2 text-[12px] font-medium text-[#86868b]">
                   · {receivedCount} payment{receivedCount === 1 ? "" : "s"}
+                  {receivedPending > 0 ? ` · ${formatRsFull(receivedPending)} pending` : ""}
                   {deliveredOrdersCount > 0 ? ` · ${deliveredOrdersCount} delivered` : ""}
                 </span>
               </p>
