@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Archive, Download, Loader2, ShieldAlert, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Download, Loader2, X } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { cn } from "@/lib/utils"
 
 type Phase = "idle" | "building" | "ready" | "downloading" | "done" | "error"
 
@@ -33,74 +33,61 @@ function formatBytes(n: number) {
 
 function ProgressOverlay({
   title,
-  holdOn,
   percent,
-  leftPercent,
   message,
   detail,
   onCancel,
 }: {
   title: string
-  holdOn: string
   percent: number
-  leftPercent: number
   message: string
   detail?: string
   onCancel?: () => void
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)))
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-md rounded-2xl border bg-[hsl(var(--card))] p-5 shadow-2xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-base font-semibold flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-[#1faca6]" />
-              {title}
-            </p>
-            <p className="text-sm text-[#1faca6] font-medium mt-1">{holdOn}</p>
-          </div>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm overflow-hidden rounded-[20px] border border-black/[0.06] bg-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+        <div className="flex items-center justify-between px-5 pt-5 pb-2">
+          <p className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            {title}
+          </p>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/[0.05] text-[#86868b] hover:bg-black/[0.08] cursor-pointer"
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{message}</p>
-
-        <div className="mt-4 space-y-2">
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Done</p>
-              <p className="text-2xl font-semibold tabular-nums text-[#1faca6]">{pct}%</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Left</p>
-              <p className="text-2xl font-semibold tabular-nums text-foreground">{Math.max(0, leftPercent)}%</p>
-            </div>
+        <div className="px-5 pb-5 space-y-4">
+          <div className="flex items-end justify-between gap-3">
+            <p className="text-[36px] font-bold tracking-tight tabular-nums leading-none text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {pct}%
+            </p>
+            <Loader2 className="h-4 w-4 animate-spin text-[#1a9f9a] mb-1" />
           </div>
 
-          <div className="h-3 rounded-full bg-muted overflow-hidden">
+          <div className="h-[6px] rounded-full bg-black/[0.06] dark:bg-white/10 overflow-hidden">
             <div
-              className="h-full rounded-full bg-[#1faca6] transition-[width] duration-300 ease-out"
+              className="h-full rounded-full bg-[#1a9f9a] transition-[width] duration-300 ease-out"
               style={{ width: `${pct}%` }}
             />
           </div>
 
-          {detail && (
-            <p className="text-[11px] text-muted-foreground tabular-nums">{detail}</p>
-          )}
+          <div className="space-y-1">
+            <p className="text-[12px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] leading-snug">
+              {message}
+            </p>
+            {detail && (
+              <p className="text-[11px] tabular-nums text-[#86868b]">{detail}</p>
+            )}
+          </div>
         </div>
-
-        <p className="text-[10px] text-muted-foreground mt-4">
-          Keep this tab open until it finishes. Large backups can take a few minutes.
-        </p>
       </div>
     </div>
   )
@@ -141,7 +128,7 @@ export function FullBackupCard() {
       lower === "network error" ||
       lower.includes("load failed")
     ) {
-      return "Connection interrupted — the ZIP is large (~2 GB). Try Download again; keep this tab open."
+      return "Connection interrupted. Try again and keep this tab open."
     }
     return raw || fallback
   }
@@ -161,7 +148,7 @@ export function FullBackupCard() {
       percent: 0,
       leftPercent: 100,
       stage: "queued",
-      message: "Hold on — starting your full system backup…",
+      message: "Preparing backup…",
     })
 
     try {
@@ -203,7 +190,7 @@ export function FullBackupCard() {
         percent: Number(json.percent) || 0,
         leftPercent: Number(json.leftPercent) || Math.max(0, 100 - (Number(json.percent) || 0)),
         stage: json.stage || "",
-        message: json.message || "Hold on — working…",
+        message: json.message || "Working…",
         bytesDoneLabel: json.bytesDoneLabel,
         bytesTotalLabel: json.bytesTotalLabel,
       })
@@ -226,19 +213,18 @@ export function FullBackupCard() {
         setLive(null)
       }
     } catch (e) {
-      // Transient blips while the zip is still building — keep polling.
       const msg = e instanceof Error ? e.message : String(e || "")
       const soft =
         /failed to fetch|networkerror|network error|load failed|fetch/i.test(msg) || !msg
       if (soft) {
         setLive((prev) =>
           prev
-            ? { ...prev, message: "Hold on — reconnecting to backup progress…" }
+            ? { ...prev, message: "Reconnecting…" }
             : {
                 percent: 0,
                 leftPercent: 100,
                 stage: "reconnect",
-                message: "Hold on — reconnecting to backup progress…",
+                message: "Reconnecting…",
               },
         )
         return
@@ -250,7 +236,6 @@ export function FullBackupCard() {
     }
   }
 
-  /** Stream ZIP to disk (no multi‑GB RAM buffer — that caused “network error”). */
   async function downloadZip() {
     if (!prepared?.downloadPath) return
     setError("")
@@ -259,7 +244,7 @@ export function FullBackupCard() {
       percent: 0,
       leftPercent: 100,
       stage: "download",
-      message: "Hold on — starting download to your computer…",
+      message: "Saving to your computer…",
     })
 
     const total = Number(prepared.sizeBytes || 0) || 0
@@ -319,7 +304,7 @@ export function FullBackupCard() {
               percent: pct,
               leftPercent: Math.max(0, 100 - pct),
               stage: "download",
-              message: "Hold on — saving ZIP to your computer…",
+              message: "Saving to your computer…",
               bytesDoneLabel: formatBytes(received),
               bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
             })
@@ -344,7 +329,6 @@ export function FullBackupCard() {
         return
       }
 
-      // Fallback: let the browser download natively (no JS memory buffer).
       const a = document.createElement("a")
       a.href = prepared.downloadPath
       a.download = prepared.filename || "voltrix-erp-backup.zip"
@@ -357,7 +341,7 @@ export function FullBackupCard() {
         percent: 100,
         leftPercent: 0,
         stage: "done",
-        message: "Download started in your browser — check your Downloads folder",
+        message: "Started — check Downloads",
         bytesDoneLabel: total > 0 ? formatBytes(total) : undefined,
         bytesTotalLabel: total > 0 ? formatBytes(total) : undefined,
       })
@@ -381,34 +365,29 @@ export function FullBackupCard() {
   const busy = phase === "building" || phase === "downloading"
   const showBuildOverlay = phase === "building" && live
   const showDownloadOverlay = phase === "downloading" && downloadLive
+  const ready = phase === "ready" || phase === "done"
 
   return (
     <>
       {showBuildOverlay && (
         <ProgressOverlay
-          title="Creating full backup"
-          holdOn="Hold on — we’re zipping everything for you"
+          title="Creating backup"
           percent={live.percent}
-          leftPercent={live.leftPercent}
           message={live.message}
           detail={
             live.bytesDoneLabel
               ? live.bytesTotalLabel
                 ? `${live.bytesDoneLabel} of ${live.bytesTotalLabel}`
                 : live.bytesDoneLabel
-              : live.stage
-                ? `Step: ${live.stage}`
-                : undefined
+              : undefined
           }
         />
       )}
 
       {showDownloadOverlay && (
         <ProgressOverlay
-          title="Downloading backup"
-          holdOn="Hold on — almost there"
+          title="Downloading"
           percent={downloadLive.percent}
-          leftPercent={downloadLive.leftPercent}
           message={downloadLive.message}
           detail={
             downloadLive.bytesDoneLabel
@@ -420,134 +399,103 @@ export function FullBackupCard() {
         />
       )}
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <Archive className="h-4 w-4 text-[#1faca6]" />
-            System backup
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Download a complete ZIP of the ERP — admin only.
+      <div className="max-w-md rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden">
+        <div className="px-5 pt-5 pb-4 space-y-1">
+          <p className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Backup
+          </p>
+          <p className="text-[12px] text-[#86868b] leading-snug">
+            Database, uploads, and website data in one ZIP.
           </p>
         </div>
 
-        <div className="max-w-md rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6]/12 text-[#1faca6]">
-              <Archive className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">Full system backup</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Database, uploads, website data, and schema in one ZIP.
+        <div className="mx-5 h-px bg-black/[0.06] dark:bg-white/10" />
+
+        <button
+          type="button"
+          disabled={busy || ready}
+          onClick={() => setIncludeEnv((v) => !v)}
+          className={cn(
+            "w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors cursor-pointer",
+            busy || ready ? "opacity-60 cursor-not-allowed" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
+          )}
+        >
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Include secrets
+            </p>
+            <p className="text-[11px] text-[#86868b] mt-0.5">env.backup · keep the ZIP private</p>
+          </div>
+          <span
+            className={cn(
+              "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors",
+              includeEnv ? "bg-[#1a9f9a]" : "bg-black/[0.12] dark:bg-white/20",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-[2px] left-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform",
+                includeEnv && "translate-x-[18px]",
+              )}
+            />
+          </span>
+        </button>
+
+        {prepared && ready && (
+          <>
+            <div className="mx-5 h-px bg-black/[0.06] dark:bg-white/10" />
+            <div className="px-5 py-3">
+              <p className="text-[11px] text-[#86868b] truncate">
+                Ready
+                {prepared.sizeLabel ? ` · ${prepared.sizeLabel}` : ""}
+              </p>
+              <p className="text-[12px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate mt-0.5">
+                {prepared.filename}
               </p>
             </div>
-          </div>
+          </>
+        )}
 
-          <ul className="mt-4 space-y-1.5 text-[11px] text-muted-foreground">
-            <li className="flex gap-2">
-              <span className="text-[#1faca6] font-bold">·</span>
-              PostgreSQL database dump
-            </li>
-            <li className="flex gap-2">
-              <span className="text-[#1faca6] font-bold">·</span>
-              All uploads (proofs, images, docs)
-            </li>
-            <li className="flex gap-2">
-              <span className="text-[#1faca6] font-bold">·</span>
-              Website data + Prisma schema
-            </li>
-          </ul>
-
-          <label className="mt-4 flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-[11px] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="mt-0.5 rounded border"
-              checked={includeEnv}
-              disabled={busy || phase === "ready"}
-              onChange={(e) => setIncludeEnv(e.target.checked)}
-            />
-            <span>
-              <span className="font-medium text-foreground">Include env.backup</span>
-              <span className="block text-muted-foreground mt-0.5">
-                Optional. Contains passwords — keep the ZIP private.
-              </span>
-            </span>
-          </label>
-
-          {includeEnv && (
-            <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
-              <ShieldAlert className="h-3 w-3 shrink-0 mt-0.5" />
-              Secrets will be inside the ZIP. Store it safely.
-            </p>
-          )}
-
-          {prepared && (phase === "ready" || phase === "done") && (
-            <p className="mt-3 text-[11px] rounded-md border bg-muted/20 px-3 py-2 truncate">
-              <span className="text-muted-foreground">Ready · </span>
-              <span className="font-medium">{prepared.filename}</span>
-              {prepared.sizeLabel ? (
-                <span className="text-muted-foreground"> · {prepared.sizeLabel}</span>
-              ) : null}
-            </p>
-          )}
-
-          <div className="mt-4 flex flex-col gap-2">
-            {phase !== "ready" && phase !== "done" ? (
-              <Button
+        <div className="px-5 pb-5 pt-2 space-y-2">
+          {!ready ? (
+            <button
+              type="button"
+              disabled={busy || !user}
+              onClick={() => void createBackup()}
+              className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#1d1d1f] dark:bg-white text-[13px] font-semibold text-white dark:text-[#1d1d1f] hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create ZIP"}
+            </button>
+          ) : (
+            <>
+              <button
                 type="button"
-                size="sm"
-                disabled={busy || !user}
-                onClick={() => void createBackup()}
-                className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white cursor-pointer"
+                disabled={!prepared || busy}
+                onClick={() => void downloadZip()}
+                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-[#1a9f9a] text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50 cursor-pointer transition-opacity"
               >
-                {busy ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                ) : (
-                  <Archive className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                {phase === "building"
-                  ? "Zipping…"
-                  : phase === "downloading"
-                    ? "Downloading…"
-                    : "Create full backup ZIP"}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!prepared || busy}
-                  onClick={() => void downloadZip()}
-                  className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Download ZIP
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void createBackup()}
-                  className="h-9 w-full cursor-pointer"
-                >
-                  Create again
-                </Button>
-              </>
-            )}
-          </div>
+                <Download className="h-3.5 w-3.5" />
+                Download
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void createBackup()}
+                className="inline-flex h-10 w-full items-center justify-center rounded-full bg-black/[0.05] dark:bg-white/10 text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.08] disabled:opacity-50 cursor-pointer transition-colors"
+              >
+                Create again
+              </button>
+            </>
+          )}
 
           {phase === "done" && (
-            <p className="mt-2 text-[10px] text-emerald-700 dark:text-emerald-400 text-center">
-              Download complete — check your Downloads folder
-            </p>
+            <p className="text-center text-[11px] font-medium text-[#1a9f9a]">Saved</p>
           )}
           {phase === "error" && error && (
-            <p className="mt-2 text-[10px] text-red-600 text-center">{error}</p>
+            <p className="text-center text-[11px] text-[#ff3b30]">{error}</p>
           )}
         </div>
-      </section>
+      </div>
     </>
   )
 }
