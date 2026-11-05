@@ -39,6 +39,7 @@ type Breakdown = {
   moneyOut: {
     expenses: number
     loansGiven?: number
+    loanRepayments?: number
     salaries: number
     localPurchases: number
     purchaseLedger: number
@@ -92,9 +93,9 @@ const TOGGLES: ToggleDef[] = [
   { key: "clientPayments", label: "Client payments", side: "in", defaultOn: true },
   { key: "posSales", label: "POS sales", side: "in", defaultOn: true },
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
-  { key: "loans", label: "Loans received", side: "in", defaultOn: true },
+  { key: "loans", label: "Loans taken / returned to us", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
-  { key: "loansGiven", label: "Loans given", side: "out", defaultOn: true },
+  { key: "loansGiven", label: "Loans given / repayments", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger (purchases + rents)", side: "out", defaultOn: true },
   { key: "fuelPetrol", label: "Petrol / fuel", side: "out", defaultOn: true },
@@ -124,6 +125,7 @@ function emptyBreakdown(): Breakdown {
     moneyOut: {
       expenses: 0,
       loansGiven: 0,
+      loanRepayments: 0,
       salaries: 0,
       localPurchases: 0,
       purchaseLedger: 0,
@@ -149,7 +151,7 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
   if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
   if (key === "fuelPetrol") return b.moneyOut.fuelPetrol ?? 0
   if (key === "importCharges") return b.moneyOut.importChargesCombined ?? 0
-  if (key === "loansGiven") return b.moneyOut.loansGiven ?? 0
+  if (key === "loansGiven") return (b.moneyOut.loansGiven ?? 0) + (b.moneyOut.loanRepayments ?? 0)
   return (b.moneyOut[key as keyof Breakdown["moneyOut"]] as number) || 0
 }
 
@@ -166,11 +168,20 @@ function buildMoneyOutDisplayRows(
     })
   }
   const loansGiven = b.loansGiven ?? 0
+  const loanRepayments = b.loanRepayments ?? 0
+  const loanOutDetails = details?.loansGiven || []
   if (loansGiven > 0.004) {
     rows.push({
       label: "Loans given",
       amount: loansGiven,
-      details: details?.loansGiven,
+      details: loanOutDetails.filter((l) => (l.sublabel || "").includes("Loan given")),
+    })
+  }
+  if (loanRepayments > 0.004) {
+    rows.push({
+      label: "Loan repayments",
+      amount: loanRepayments,
+      details: loanOutDetails.filter((l) => (l.sublabel || "").includes("Returned by us")),
     })
   }
   if (b.salaries > 0.004) {
@@ -509,12 +520,16 @@ export function FinanceHub({
   embedded: _embedded,
   dateFrom = "",
   dateTo = "",
+  onDateFromChange,
+  onDateToChange,
   period: periodProp,
   onPeriodChange,
 }: {
   embedded?: boolean
   dateFrom?: string
   dateTo?: string
+  onDateFromChange?: (value: string) => void
+  onDateToChange?: (value: string) => void
   period?: string
   onPeriodChange?: (id: string) => void
 }) {
@@ -550,6 +565,9 @@ export function FinanceHub({
   const [posSaleRows, setPosSaleRows] = useState<FinancePosRow[]>([])
   const [loans, setLoans] = useState<LoanSnapshot | null>(null)
   const [togglesOpen, setTogglesOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [moneyInOpen, setMoneyInOpen] = useState(false)
+  const [moneyOutOpen, setMoneyOutOpen] = useState(false)
   const [detailsModal, setDetailsModal] = useState<{
     label: string
     value: string
@@ -650,7 +668,7 @@ export function FinanceHub({
       const loanLines = moneyInDetails?.loans || []
       if (received > 0.004) {
         rows.push({
-          label: "Loans received",
+          label: "Loans taken",
           amount: received,
           details: loanLines.filter((l) => (l.sublabel || "").includes("Loan received")),
         })
@@ -838,84 +856,124 @@ export function FinanceHub({
     receivedInPeriod: breakdown.moneyIn.loansReceived ?? breakdown.moneyIn.loans,
     recoveredInPeriod: breakdown.moneyIn.loanRecoveries ?? 0,
     givenInPeriod: breakdown.moneyOut.loansGiven ?? 0,
-    repaidInPeriod: 0,
+    repaidInPeriod: breakdown.moneyOut.loanRepayments ?? 0,
     moneyIn: breakdown.moneyIn.loans,
-    moneyOut: breakdown.moneyOut.loansGiven ?? 0,
+    moneyOut: (breakdown.moneyOut.loansGiven ?? 0) + (breakdown.moneyOut.loanRepayments ?? 0),
     weOwe: 0,
     theyOwe: 0,
     peopleCount: 0,
   }
 
+  const filtersActiveLabel =
+    dateFrom || dateTo
+      ? `${dateFrom || "…"} → ${dateTo || "…"}`
+      : PERIODS.find((p) => p.id === period)?.label || periodLabel
+
   return (
     <div className={`space-y-3 max-w-5xl ${loading ? "opacity-60" : ""}`}>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15">
-            {PERIODS.map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                  period === p.id && !dateFrom && !dateTo
-                    ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
+      {/* Compact filters & reports */}
+      <section className="rounded-lg border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${filtersOpen ? "" : "-rotate-90"}`}
+            />
+            <span className="text-[11px] font-medium">Filters & reports</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{filtersActiveLabel}</span>
+          </span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">{filtersOpen ? "Hide" : "Show"}</span>
+        </button>
+        {filtersOpen && (
+          <div className="px-3 pb-3 pt-1 border-t space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-center">
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => onDateFromChange?.(e.target.value)}
+                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                />
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => onDateToChange?.(e.target.value)}
+                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                />
+              </div>
+              <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15 w-full sm:w-auto">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
+                    className={`flex-1 sm:flex-none px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                      period === p.id && !dateFrom && !dateTo
+                        ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[11px]"
+                onClick={() => setShowSalesReport(true)}
+                disabled={loading}
+                title="Build CRM / POS sales cash report (PDF or Excel) with received and credit"
               >
-                {p.label}
-              </button>
-            ))}
+                <FileSpreadsheet className="h-3 w-3" />
+                Sales report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[11px]"
+                onClick={() => setShowOpexReport(true)}
+                disabled={loading}
+                title="Petty cash, purchase ledger & salaries — PDF or Excel (advances excluded)"
+              >
+                <FileSpreadsheet className="h-3 w-3" />
+                Operating expenses
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[11px]"
+                onClick={() => setShowIfrs(true)}
+                disabled={loading}
+                title="IAS 1 profit or loss, financial position, and IAS 7 cash flows"
+              >
+                <Scale className="h-3 w-3" />
+                IFRS statements
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[11px]"
+                onClick={() => void downloadPdf()}
+                disabled={pdfBusy}
+              >
+                {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                PDF
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-[11px]" onClick={load} disabled={loading}>
+                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Refresh
+              </Button>
+            </div>
           </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 gap-1 text-[11px]"
-            onClick={() => setShowSalesReport(true)}
-            disabled={loading}
-            title="Build CRM / POS sales cash report (PDF or Excel) with received and credit"
-          >
-            <FileSpreadsheet className="h-3 w-3" />
-            Sales report
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 gap-1 text-[11px]"
-            onClick={() => setShowOpexReport(true)}
-            disabled={loading}
-            title="Petty cash, purchase ledger & salaries — PDF or Excel (advances excluded)"
-          >
-            <FileSpreadsheet className="h-3 w-3" />
-            Operating expenses
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 gap-1 text-[11px]"
-            onClick={() => setShowIfrs(true)}
-            disabled={loading}
-            title="IAS 1 profit or loss, financial position, and IAS 7 cash flows"
-          >
-            <Scale className="h-3 w-3" />
-            IFRS statements
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 gap-1 text-[11px]"
-            onClick={() => void downloadPdf()}
-            disabled={pdfBusy}
-          >
-            {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-            PDF
-          </Button>
-          <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-[11px]" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Refresh
-          </Button>
-        </div>
-      </div>
+        )}
+      </section>
 
       {showSalesReport &&
         typeof document !== "undefined" &&
@@ -1260,7 +1318,7 @@ export function FinanceHub({
           <p className="text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5 text-rose-800 dark:text-rose-300">
             {fmt(moneyOutAll)}
           </p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">Cash leaving</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">Paid costs</p>
         </div>
         <div className="bg-[hsl(var(--card))] px-3 py-2.5 sm:px-4 sm:py-3">
           <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-medium">Net</p>
@@ -1279,164 +1337,135 @@ export function FinanceHub({
         </div>
       </section>
 
-      {/* Main grid: receipts + breakdowns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-        {/* Client receipts */}
-        <section className="rounded-lg border overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/15">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold">Client receipts</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                CRM · {activeOrderCount} active
-                {returnedOrderCount > 0 ? ` · +${returnedOrderCount} returned` : ""}
-              </p>
-            </div>
-            <Link
-              href="/crm?tab=orders"
-              className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0"
-            >
-              CRM <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="p-3 space-y-2.5">
-            <div>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
-              <p className="text-xl font-bold tabular-nums leading-none mt-1">{fmt(displayTotal, 0)}</p>
-              {includeOutstanding ? (
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-1">
-                  Base {fmt(periodReceived, 0)} + outstanding
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-1">
-              <ToggleChip
-                on={includeOutstanding}
-                label="+ Outstanding"
-                amount={outstanding}
-                onClick={() => setIncludeOutstanding(v => !v)}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className="rounded-md border px-2 py-1.5">
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Period</p>
-                <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(periodReceived, 0)}</p>
+      {/* Money in — closed by default */}
+      <section className="rounded-lg border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setMoneyInOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${moneyInOpen ? "" : "-rotate-90"}`}
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">Money in</span>
+              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">{periodLabel}</span>
+            </span>
+          </span>
+          <span className="text-xs font-bold tabular-nums text-emerald-800 dark:text-emerald-300 shrink-0">
+            {fmt(moneyInAll)}
+          </span>
+        </button>
+        {moneyInOpen && (
+          <div className="px-3 pb-3 pt-1 border-t space-y-3">
+            <div className="rounded-md border overflow-hidden">
+              <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b bg-[hsl(var(--muted))]/10">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold">Client receipts</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                    CRM · {activeOrderCount} active
+                    {returnedOrderCount > 0 ? ` · +${returnedOrderCount} returned` : ""}
+                  </p>
+                </div>
+                <Link
+                  href="/crm?tab=orders"
+                  className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0"
+                >
+                  CRM <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
-              <div className="rounded-md border px-2 py-1.5">
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">All-time</p>
-                <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(orderPayments.allTime.totalReceived, 0)}</p>
-              </div>
-              <div className="rounded-md border px-2 py-1.5">
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Outstanding</p>
-                <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-amber-700 dark:text-amber-400">
-                  {fmt(outstanding, 0)}
-                </p>
+              <div className="p-2.5 space-y-2">
+                <div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
+                  <p className="text-lg font-bold tabular-nums leading-none mt-1">{fmt(displayTotal, 0)}</p>
+                  {includeOutstanding ? (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-1">
+                      Base {fmt(periodReceived, 0)} + outstanding
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <ToggleChip
+                    on={includeOutstanding}
+                    label="+ Outstanding"
+                    amount={outstanding}
+                    onClick={() => setIncludeOutstanding((v) => !v)}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <div className="rounded-md border px-2 py-1.5">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Period</p>
+                    <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(periodReceived, 0)}</p>
+                  </div>
+                  <div className="rounded-md border px-2 py-1.5">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">All-time</p>
+                    <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(orderPayments.allTime.totalReceived, 0)}</p>
+                  </div>
+                  <div className="rounded-md border px-2 py-1.5">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Outstanding</p>
+                    <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-amber-700 dark:text-amber-400">
+                      {fmt(outstanding, 0)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-            {moneyInDisplayRows.length > 0 && (
-              <div>
-                <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1">Money in breakdown</p>
-                <BreakdownTable
-                  rows={moneyInDisplayRows.map(r => ({
-                    label: r.label,
-                    value: fmt(r.amount),
-                    details: r.details,
-                  }))}
-                  total={fmt(moneyInAll)}
-                  onOpenDetails={setDetailsModal}
-                />
-              </div>
-            )}
-          </div>
-        </section>
 
-        {/* Loans */}
-        <section className="rounded-lg border overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/15">
-            <div className="min-w-0 flex items-center gap-2">
-              <HandCoins className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold">Loans</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                  {loanSnap.peopleCount} {loanSnap.peopleCount === 1 ? "person" : "people"} · give, receive & return
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/finance?tab=manage&section=finance"
-              className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0"
-            >
-              Records <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="p-3 space-y-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-md border border-emerald-200/70 dark:border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2">
-                <p className="text-[9px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-medium">
-                  {periodLabel} in
-                </p>
-                <p className="text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-300 mt-0.5">
-                  {fmt(loanSnap.moneyIn, 0)}
-                </p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-0.5">
-                  Received {fmt(loanSnap.receivedInPeriod, 0)}
-                  {loanSnap.recoveredInPeriod > 0.004 ? ` · returned to us ${fmt(loanSnap.recoveredInPeriod, 0)}` : ""}
-                </p>
-              </div>
-              <div className="rounded-md border border-rose-200/70 dark:border-rose-500/30 bg-rose-500/5 px-2.5 py-2">
-                <p className="text-[9px] uppercase tracking-wide text-rose-700 dark:text-rose-400 font-medium">
-                  {periodLabel} out
-                </p>
-                <p className="text-base font-bold tabular-nums text-rose-800 dark:text-rose-300 mt-0.5">
-                  {fmt(loanSnap.moneyOut, 0)}
-                </p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-0.5">
-                  Given {fmt(loanSnap.givenInPeriod, 0)}
-                  {loanSnap.repaidInPeriod > 0.004 ? ` · we returned ${fmt(loanSnap.repaidInPeriod, 0)}` : ""}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="rounded-md border px-2 py-1.5">
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">We owe</p>
-                <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">
-                  {fmt(loanSnap.weOwe, 0)}
-                </p>
-              </div>
-              <div className="rounded-md border px-2 py-1.5">
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Owed to us</p>
-                <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">
-                  {fmt(loanSnap.theyOwe, 0)}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1">
+            {moneyInDisplayRows.length > 0 && (
+              <BreakdownTable
+                rows={moneyInDisplayRows.map((r) => ({
+                  label: r.label,
+                  value: fmt(r.amount),
+                  details: r.details,
+                }))}
+                total={fmt(moneyInAll)}
+                onOpenDetails={setDetailsModal}
+              />
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]">
+              <span className="inline-flex items-center gap-1">
+                <HandCoins className="h-3 w-3" />
+                We owe {fmt(loanSnap.weOwe, 0)} · Owed to us {fmt(loanSnap.theyOwe, 0)}
+              </span>
               <Link
                 href="/finance?tab=manage&section=finance&add=loan"
-                className="inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                className="inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 hover:text-[hsl(var(--foreground))]"
               >
                 <Plus className="h-3 w-3" /> Add loan
               </Link>
             </div>
           </div>
-        </section>
-      </div>
+        )}
+      </section>
 
-      {/* Money out */}
+      {/* Money out — closed by default */}
       <section className="rounded-lg border overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/15">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold">Money out</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                Dotted lines open detail · {periodLabel}
-              </p>
-            </div>
-            <p className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-400 shrink-0">
-              {fmt(moneyOutAll)}
-            </p>
-          </div>
-          <div className="p-3">
+        <button
+          type="button"
+          onClick={() => setMoneyOutOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${moneyOutOpen ? "" : "-rotate-90"}`}
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-rose-800 dark:text-rose-300">Money out</span>
+              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                Paid only · {periodLabel}
+              </span>
+            </span>
+          </span>
+          <span className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-400 shrink-0">
+            {fmt(moneyOutAll)}
+          </span>
+        </button>
+        {moneyOutOpen && (
+          <div className="px-3 pb-3 pt-1 border-t">
             <BreakdownTable
-              rows={moneyOutDisplayRows.map(r => ({
+              rows={moneyOutDisplayRows.map((r) => ({
                 label: r.label,
                 value: fmt(r.amount),
                 details: r.details,
@@ -1445,7 +1474,8 @@ export function FinanceHub({
               onOpenDetails={setDetailsModal}
             />
           </div>
-        </section>
+        )}
+      </section>
 
       {/* Net toggles — compact, collapsed */}
       <section className="rounded-lg border overflow-hidden">

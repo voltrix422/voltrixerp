@@ -933,6 +933,7 @@ export function isRentLedgerEntry(
   entry: Pick<PurchaseLedgerEntry, "transactionType" | "items" | "supplierGroups" | "productName">,
 ): boolean {
   if (entry.transactionType === "rent") return true
+  if (/^\s*rent(\s+for)?\b/i.test(String(entry.productName || "").trim())) return true
   const items =
     entry.items.length > 0 ? entry.items : flattenSupplierGroupItems(entry.supplierGroups)
   return items.some(item => /^\s*rent(\s+for)?\b/i.test(item.productName.trim()))

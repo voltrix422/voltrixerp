@@ -30,7 +30,7 @@ export function sumJsonPaymentsInPeriod(
   return sum
 }
 
-function sumAllJsonPayments(payments: unknown, fallback: Date): number {
+function sumAllJsonPayments(payments: unknown): number {
   if (!Array.isArray(payments)) return 0
   let sum = 0
   for (const raw of payments) {
@@ -53,25 +53,41 @@ type PurchaseLedgerOutflowRow = {
   amountPaid?: number
   purchaseScopeId?: string
   transactionType?: string | null
+  transactionDate?: string | null
   items?: unknown
   supplierGroups?: unknown
   productName?: string | null
 }
 
-function entryPaidInPeriod(
-  entry: Pick<PurchaseLedgerOutflowRow, "payments" | "createdAt" | "amountPaid">,
+function dayInRange(day: Date, start: Date, end: Date): boolean {
+  return !Number.isNaN(day.getTime()) && day >= start && day <= end
+}
+
+/**
+ * Paid purchase-ledger cash for a period.
+ * Uses transactionDate so rent/purchase months (e.g. PL-0047 May) show once paid,
+ * even if the payment row was logged later. Unpaid (amountPaid 0) stays excluded.
+ */
+export function entryPaidInPeriod(
+  entry: Pick<PurchaseLedgerOutflowRow, "payments" | "createdAt" | "amountPaid" | "transactionDate">,
   start: Date,
   end: Date,
 ): number {
-  const inPeriod = sumJsonPaymentsInPeriod(entry.payments, start, end, entry.createdAt)
-  if (inPeriod <= 0) return 0
   const amountPaid = Number(entry.amountPaid) || 0
-  if (amountPaid <= 0) return inPeriod
-  const allLogged = sumAllJsonPayments(entry.payments, entry.createdAt)
-  if (allLogged > amountPaid + 0.01) {
-    return inPeriod * (amountPaid / allLogged)
-  }
-  return inPeriod
+  if (amountPaid <= 0) return 0
+
+  const fallback = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt)
+  const txnRaw = String(entry.transactionDate || "").trim()
+  const txnDay = txnRaw
+    ? parseLedgerPaymentDay(txnRaw, fallback)
+    : fallback
+
+  if (!dayInRange(txnDay, start, end)) return 0
+
+  const logged = sumAllJsonPayments(entry.payments)
+  // Prefer amountPaid (UI Paid). If payment lines exist and are lower, use the logged sum.
+  if (logged > 0.004 && logged + 0.01 < amountPaid) return logged
+  return amountPaid
 }
 
 export function purchaseLedgerPaidSplitInPeriod(

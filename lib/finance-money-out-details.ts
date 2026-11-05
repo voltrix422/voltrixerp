@@ -1,6 +1,6 @@
 import { parseOrderCashbackPayments } from "@/lib/finance-overview"
 import { isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
-import { parseLedgerPaymentDay } from "@/lib/finance-purchase-outflows"
+import { entryPaidInPeriod } from "@/lib/finance-purchase-outflows"
 import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 
 export type MoneyOutDetailLine = {
@@ -291,6 +291,7 @@ export function buildPurchaseLedgerPaymentDetails(
     amountPaid?: number | null
     purchaseScopeId?: string | null
     transactionType?: string | null
+    transactionDate?: string | null
     items?: unknown
     supplierGroups?: unknown
     productName?: string | null
@@ -307,27 +308,43 @@ export function buildPurchaseLedgerPaymentDetails(
     const isRent = isRentLedgerDbRow(row)
     if (kind === "rent" ? !isRent : isRent) continue
     const fallback = row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt)
-    const payments = Array.isArray(row.payments) ? row.payments : []
+    const paid = entryPaidInPeriod(
+      {
+        payments: row.payments,
+        createdAt: fallback,
+        amountPaid: Number(row.amountPaid) || 0,
+        transactionDate: row.transactionDate,
+      },
+      start,
+      end,
+    )
+    if (paid <= 0) continue
     const supplier = String(row.supplierName || "").trim()
     const product = String(row.productName || "").trim()
-    payments.forEach((raw, i) => {
-      if (!raw || typeof raw !== "object") return
-      const p = raw as { amount?: number; date?: string; paymentDate?: string; notes?: string; supplierName?: string }
-      const amount = Number(p.amount) || 0
-      if (amount <= 0) return
-      const d = parseLedgerPaymentDay(p.date || p.paymentDate, fallback)
-      if (!inRange(d, start, end)) return
-      const dateIso = String(p.date || p.paymentDate || "").trim() || fallback.toISOString()
-      const note = String(p.notes || "").trim()
-      const paySupplier = String(p.supplierName || "").trim()
-      lines.push({
-        id: `${row.id}-${i}`,
-        label: String(row.ledgerNumber || "Ledger").trim() || "Ledger",
-        sublabel: [paySupplier || supplier, product, note].filter(Boolean).join(" · ") || undefined,
-        amount,
-        date: fmtDate(DATE_ONLY.test(dateIso) ? `${dateIso}T12:00:00+05:00` : dateIso),
-        href: "/purchase",
-      })
+    const txnRaw = String(row.transactionDate || "").trim()
+    const payments = Array.isArray(row.payments) ? row.payments : []
+    const firstPay = payments.find((raw) => {
+      if (!raw || typeof raw !== "object") return false
+      return (Number((raw as { amount?: number }).amount) || 0) > 0
+    }) as { date?: string; paymentDate?: string; notes?: string; supplierName?: string } | undefined
+    const payDate = String(firstPay?.date || firstPay?.paymentDate || "").trim()
+    const note = String(firstPay?.notes || "").trim()
+    const paySupplier = String(firstPay?.supplierName || "").trim()
+    lines.push({
+      id: row.id,
+      label: String(row.ledgerNumber || "Ledger").trim() || "Ledger",
+      sublabel: [paySupplier || supplier, product, note].filter(Boolean).join(" · ") || undefined,
+      amount: paid,
+      date: fmtDate(
+        DATE_ONLY.test(txnRaw)
+          ? `${txnRaw}T12:00:00+05:00`
+          : payDate
+            ? DATE_ONLY.test(payDate)
+              ? `${payDate}T12:00:00+05:00`
+              : payDate
+            : fallback.toISOString(),
+      ),
+      href: "/purchase",
     })
   }
   return lines.sort((a, b) => b.amount - a.amount)

@@ -100,8 +100,8 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
-            {activeTab !== "overview" && (
+          {activeTab !== "overview" && (
+            <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
               <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 <input
@@ -111,45 +111,45 @@ export default function FinancePage() {
                   className="w-full h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-sm sm:text-xs focus:outline-none"
                 />
               </div>
-            )}
-            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-              <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
-              />
-              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
-              />
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                />
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+                />
+              </div>
+              {activeTab === "client" && (
+                <select
+                  value={clientCreditFilter}
+                  onChange={(e) => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
+                  className="h-9 sm:h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
+                  aria-label="Credit filter"
+                >
+                  <option value="all">All orders</option>
+                  <option value="outstanding">Outstanding credit</option>
+                  <option value="on_credit">On credit (any)</option>
+                </select>
+              )}
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="h-9 sm:h-8 w-full sm:w-auto px-3 text-xs border rounded-md cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
             </div>
-            {activeTab === "client" && (
-              <select
-                value={clientCreditFilter}
-                onChange={(e) => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
-                className="h-9 sm:h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
-                aria-label="Credit filter"
-              >
-                <option value="all">All orders</option>
-                <option value="outstanding">Outstanding credit</option>
-                <option value="on_credit">On credit (any)</option>
-              </select>
-            )}
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="h-9 sm:h-8 w-full sm:w-auto px-3 text-xs border rounded-md cursor-pointer"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+          )}
 
           {activeTab === "overview" && (
             <FinanceHub
@@ -157,6 +157,8 @@ export default function FinancePage() {
               period={reportPeriod}
               dateFrom={dateFrom}
               dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
               onPeriodChange={selectPeriod}
             />
           )}

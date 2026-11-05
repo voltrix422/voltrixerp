@@ -464,7 +464,8 @@ export async function GET(req: NextRequest) {
       .reduce((s, r) => s + r.amount, 0)
     const loanSnapshot = summarizeLoans(loanRecords, start, end)
     const loansInPeriod = loanSnapshot.moneyIn
-    const loansGivenInPeriod = loanSnapshot.moneyOut
+    const loansGivenInPeriod = loanSnapshot.givenInPeriod
+    const loanRepaymentsInPeriod = loanSnapshot.repaidInPeriod
 
     const expensesByCategory: Record<string, number> = {}
     for (const r of recordsInPeriod) {
@@ -560,6 +561,7 @@ export async function GET(req: NextRequest) {
       moneyOut: {
         expenses: expensesInPeriod,
         loansGiven: loansGivenInPeriod,
+        loanRepayments: loanRepaymentsInPeriod,
         salaries: salariesInPeriod,
         localPurchases: localPoPaidInPeriod,
         purchaseLedger: purchaseLedgerPaidInPeriodTotal,
@@ -589,6 +591,7 @@ export async function GET(req: NextRequest) {
     const moneyOut =
       breakdown.moneyOut.expenses +
       breakdown.moneyOut.loansGiven +
+      breakdown.moneyOut.loanRepayments +
       breakdown.moneyOut.salaries +
       breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
@@ -669,6 +672,7 @@ export async function GET(req: NextRequest) {
         }
       }
       mo += sumApprovedReceiptsInPeriod(pettyReceipts, mStart, mEnd)
+      mo += purchaseLedgerPaidSplitInPeriod(purchaseLedger, mStart, mEnd, { purchaseScopeId: "P1" }).combined
       const monthImportCharges = importChargesSplitInPeriod(
         importShipments.map(sh => ({
           id: sh.id,
@@ -837,6 +841,7 @@ export async function GET(req: NextRequest) {
         salariesInPeriod,
         loansInPeriod,
         loansGivenInPeriod,
+        loanRepaymentsInPeriod,
         loans: loanSnapshot,
         advancesInPeriod,
         supplierAdvancesInPeriod,
