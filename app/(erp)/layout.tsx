@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { ErpWriteProtection } from "@/components/layout/erp-write-protection"
 import { MessageToastListener } from "@/components/layout/message-toast"
 import { NotificationAlertSetup } from "@/components/layout/notification-alert-setup"
+import { PostLoginSplash } from "@/components/layout/post-login-splash"
 import { PwaProvider } from "@/components/pwa/pwa-provider"
 
 export default function ERPLayout({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
         </div>
         <MessageToastListener />
         <NotificationAlertSetup />
+        <PostLoginSplash />
       </div>
     </PwaProvider>
   )

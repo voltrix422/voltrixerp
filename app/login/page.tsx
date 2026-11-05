@@ -5,21 +5,12 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { clearRememberedLogin, getRememberedLogin, homePathForUser, saveRememberedLogin } from "@/lib/auth"
-import { requestPushPermission, subscribeUserToPush } from "@/lib/push-client"
-import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
+import { subscribeUserToPush } from "@/lib/push-client"
+import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
 import { PwaProvider } from "@/components/pwa/pwa-provider"
-
-const modules = [
-  { icon: BarChart3, label: "Dashboard"   },
-  { icon: Package,   label: "Inventory"   },
-  { icon: Users2,    label: "CRM"         },
-  { icon: Globe,     label: "Website"     },
-  { icon: Zap,       label: "Finance"     },
-]
-
-const LOGIN_SPLASH_KEY = "voltrix-erp-login-splash-seen"
+import { POST_LOGIN_SPLASH_KEY } from "@/components/layout/post-login-splash"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -31,42 +22,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [staySignedIn, setStaySignedIn] = useState(true)
   const autoTried = useRef(false)
-  /** First ERP login visit in this tab session: logo splash, then content. */
-  const [showSplash, setShowSplash] = useState(true)
-  const [splashFading, setSplashFading] = useState(false)
-  const [contentReady, setContentReady] = useState(false)
-
-  useEffect(() => {
-    let fadeTimer: number | undefined
-    let doneTimer: number | undefined
-    try {
-      if (sessionStorage.getItem(LOGIN_SPLASH_KEY)) {
-        setShowSplash(false)
-        setContentReady(true)
-        return
-      }
-    } catch {
-      setShowSplash(false)
-      setContentReady(true)
-      return
-    }
-
-    fadeTimer = window.setTimeout(() => setSplashFading(true), 1600)
-    doneTimer = window.setTimeout(() => {
-      try {
-        sessionStorage.setItem(LOGIN_SPLASH_KEY, "1")
-      } catch {
-        /* ignore */
-      }
-      setShowSplash(false)
-      setContentReady(true)
-    }, 2100)
-
-    return () => {
-      if (fadeTimer) window.clearTimeout(fadeTimer)
-      if (doneTimer) window.clearTimeout(doneTimer)
-    }
-  }, [])
+  const loginInFlight = useRef(false)
 
   useEffect(() => {
     const remembered = getRememberedLogin()
@@ -82,7 +38,7 @@ export default function LoginPage() {
       return
     }
     const timer = window.setTimeout(() => {
-      if (autoTried.current || user) return
+      if (autoTried.current || user || loginInFlight.current) return
       const remembered = getRememberedLogin()
       if (!remembered) return
       autoTried.current = true
@@ -92,20 +48,40 @@ export default function LoginPage() {
   }, [user, router])
 
   async function completeLogin(nextEmail: string, nextPassword: string) {
-    setError("")
-    setLoading(true)
-    await requestPushPermission()
-    const loggedInUser = await login(nextEmail.trim(), nextPassword)
-    if (!loggedInUser) {
-      setLoading(false)
-      setError("Invalid email or password.")
+    if (loginInFlight.current) return
+    const trimmedEmail = nextEmail.trim()
+    const trimmedPassword = nextPassword
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Enter email and password.")
       return
     }
-    if (staySignedIn) saveRememberedLogin(nextEmail.trim(), nextPassword)
-    else clearRememberedLogin()
-    await subscribeUserToPush(loggedInUser.id)
-    router.replace(homePathForUser(loggedInUser))
-    setLoading(false)
+
+    loginInFlight.current = true
+    setError("")
+    setLoading(true)
+    try {
+      // Sign in first — do not block on push permission (that caused multi-click / stuck UI).
+      const loggedInUser = await login(trimmedEmail, trimmedPassword)
+      if (!loggedInUser) {
+        setError("Invalid email or password.")
+        return
+      }
+      if (staySignedIn) saveRememberedLogin(trimmedEmail, trimmedPassword)
+      else clearRememberedLogin()
+
+      try {
+        sessionStorage.setItem(POST_LOGIN_SPLASH_KEY, "1")
+      } catch {
+        /* ignore */
+      }
+
+      router.replace(homePathForUser(loggedInUser))
+      // Background only — never block navigation
+      void subscribeUserToPush(loggedInUser.id)
+    } finally {
+      setLoading(false)
+      loginInFlight.current = false
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -115,42 +91,10 @@ export default function LoginPage() {
 
   return (
     <PwaProvider>
-    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))] relative">
-      {showSplash && (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center bg-[#050505] transition-opacity duration-500 ${
-            splashFading ? "opacity-0" : "opacity-100"
-          }`}
-          aria-hidden={splashFading}
-        >
-          <Image
-            src="/logo.png"
-            alt="Voltrix"
-            width={220}
-            height={164}
-            priority
-            className="h-24 sm:h-28 w-auto object-contain drop-shadow-[0_0_28px_rgba(26,159,154,0.35)] voltrix-login-splash-logo"
-          />
-          <style>{`
-            @keyframes voltrixSplashIn {
-              0% { opacity: 0; transform: scale(0.88); }
-              40% { opacity: 1; transform: scale(1.04); }
-              100% { opacity: 1; transform: scale(1); }
-            }
-            .voltrix-login-splash-logo {
-              animation: voltrixSplashIn 1.1s ease-out both;
-            }
-          `}</style>
-        </div>
-      )}
+    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
 
       {/* Left — branding panel */}
-      <div
-        className={`hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16 transition-opacity duration-500 ${
-          contentReady ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ backgroundColor: "#1a9f9a" }}
-      >
+      <div className="hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16" style={{ backgroundColor: "#1a9f9a" }}>
         <a href="/">
           <Image src="/logo.png" alt="Voltrix" width={110} height={36} className="h-8 w-auto object-contain brightness-0 invert" />
         </a>
@@ -186,11 +130,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login form */}
-      <div
-        className={`flex-1 flex flex-col items-center justify-center px-8 py-12 bg-[hsl(var(--background))] transition-opacity duration-500 ${
-          contentReady ? "opacity-100" : "opacity-0"
-        }`}
-      >
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 bg-[hsl(var(--background))]">
         <div className="lg:hidden mb-10">
           <Image
             src="/logo.png"
@@ -267,7 +207,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+              className="w-full h-10 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               style={{ backgroundColor: "#1a9f9a" }}
             >
               {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
