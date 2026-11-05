@@ -19,6 +19,8 @@ const modules = [
   { icon: Zap,       label: "Finance"     },
 ]
 
+const LOGIN_SPLASH_KEY = "voltrix-erp-login-splash-seen"
+
 export default function LoginPage() {
   const router = useRouter()
   const { login, user } = useAuth()
@@ -29,6 +31,42 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [staySignedIn, setStaySignedIn] = useState(true)
   const autoTried = useRef(false)
+  /** First ERP login visit in this tab session: logo splash, then content. */
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashFading, setSplashFading] = useState(false)
+  const [contentReady, setContentReady] = useState(false)
+
+  useEffect(() => {
+    let fadeTimer: number | undefined
+    let doneTimer: number | undefined
+    try {
+      if (sessionStorage.getItem(LOGIN_SPLASH_KEY)) {
+        setShowSplash(false)
+        setContentReady(true)
+        return
+      }
+    } catch {
+      setShowSplash(false)
+      setContentReady(true)
+      return
+    }
+
+    fadeTimer = window.setTimeout(() => setSplashFading(true), 1600)
+    doneTimer = window.setTimeout(() => {
+      try {
+        sessionStorage.setItem(LOGIN_SPLASH_KEY, "1")
+      } catch {
+        /* ignore */
+      }
+      setShowSplash(false)
+      setContentReady(true)
+    }, 2100)
+
+    return () => {
+      if (fadeTimer) window.clearTimeout(fadeTimer)
+      if (doneTimer) window.clearTimeout(doneTimer)
+    }
+  }, [])
 
   useEffect(() => {
     const remembered = getRememberedLogin()
@@ -77,10 +115,42 @@ export default function LoginPage() {
 
   return (
     <PwaProvider>
-    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+    <div className="min-h-screen flex bg-[hsl(var(--background))] text-[hsl(var(--foreground))] relative">
+      {showSplash && (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center bg-[#050505] transition-opacity duration-500 ${
+            splashFading ? "opacity-0" : "opacity-100"
+          }`}
+          aria-hidden={splashFading}
+        >
+          <Image
+            src="/logo.png"
+            alt="Voltrix"
+            width={220}
+            height={164}
+            priority
+            className="h-24 sm:h-28 w-auto object-contain drop-shadow-[0_0_28px_rgba(26,159,154,0.35)] voltrix-login-splash-logo"
+          />
+          <style>{`
+            @keyframes voltrixSplashIn {
+              0% { opacity: 0; transform: scale(0.88); }
+              40% { opacity: 1; transform: scale(1.04); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            .voltrix-login-splash-logo {
+              animation: voltrixSplashIn 1.1s ease-out both;
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Left — branding panel */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16" style={{ backgroundColor: "#1a9f9a" }}>
+      <div
+        className={`hidden lg:flex flex-col justify-between w-1/2 shrink-0 p-16 transition-opacity duration-500 ${
+          contentReady ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ backgroundColor: "#1a9f9a" }}
+      >
         <a href="/">
           <Image src="/logo.png" alt="Voltrix" width={110} height={36} className="h-8 w-auto object-contain brightness-0 invert" />
         </a>
@@ -116,7 +186,11 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 bg-[hsl(var(--background))]">
+      <div
+        className={`flex-1 flex flex-col items-center justify-center px-8 py-12 bg-[hsl(var(--background))] transition-opacity duration-500 ${
+          contentReady ? "opacity-100" : "opacity-0"
+        }`}
+      >
         <div className="lg:hidden mb-10">
           <Image
             src="/logo.png"
