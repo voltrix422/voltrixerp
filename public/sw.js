@@ -1,5 +1,5 @@
 /* Voltrix PWA service worker — lock-screen notifications + in-app updates */
-const APP_SW_VERSION = "2026-11-05-hd-logo"
+const APP_SW_VERSION = "2026-11-05-logo-transparent"
 
 self.addEventListener("install", (event) => {
   // Activate new SW immediately so clients pick up logo/asset updates without a prompt.

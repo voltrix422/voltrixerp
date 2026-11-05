@@ -30,7 +30,7 @@ export const ORGANIZATION = {
   name: SITE_NAME,
   legalName: "Voltrix Batteries",
   url: SITE_URL,
-  logo: `${SITE_URL}/logo.png?v=20261105-logo`,
+  logo: `${SITE_URL}/logo.png?v=20261105-logo-t`,
   email: "ops@voltrixbatteries.com",
   telephone: "+92-303-4927779",
   address: {
@@ -141,7 +141,7 @@ export function buildPageMetadata({
     ? image.startsWith("http")
       ? image
       : absoluteUrl(image)
-    : absoluteUrl("/og-image.png?v=20261105-logo")
+    : absoluteUrl("/og-image.png?v=20261105-logo-t")
 
   return {
     title,

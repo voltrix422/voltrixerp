@@ -46,7 +46,7 @@ function useErpManifest() {
     document.querySelectorAll('link[rel="manifest"]').forEach((el) => el.remove())
     const link = document.createElement("link")
     link.rel = "manifest"
-    link.href = "/erp-manifest.json?v=20261105-logo"
+    link.href = "/erp-manifest.json?v=20261105-logo-t"
     document.head.appendChild(link)
   }, [])
 }
