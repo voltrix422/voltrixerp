@@ -467,91 +467,112 @@ function MoneyOutDetailsModal({
   if (!mounted) return null
 
   function toggleRow(id: string) {
-    setOpenIds(prev => ({ ...prev, [id]: !prev[id] }))
+    setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-5">
-      <button type="button" className="absolute inset-0 bg-black/40 cursor-pointer" aria-label="Close" onClick={onClose} />
-      <div className="relative w-full sm:max-w-5xl lg:max-w-6xl max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl">
-        <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-3.5 border-b shrink-0">
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-6">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/35 backdrop-blur-[2px] cursor-pointer"
+        aria-label="Close"
+        onClick={onClose}
+      />
+      <div className="relative w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[84vh] flex flex-col overflow-hidden rounded-t-[20px] sm:rounded-[20px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 shrink-0">
           <div className="min-w-0">
-            <p className="text-base font-semibold truncate">{title}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              {details.length} shipment{details.length === 1 ? "" : "s"} · {totalLabel}
+            <p className="text-[17px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+              {title}
+            </p>
+            <p className="text-[12px] text-[#86868b] mt-1">
+              {details.length} item{details.length === 1 ? "" : "s"} · {totalLabel}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-[hsl(var(--muted))]/40 cursor-pointer shrink-0"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/[0.05] dark:bg-white/10 text-[#86868b] hover:bg-black/[0.08] cursor-pointer shrink-0"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="overflow-y-auto px-4 sm:px-6 py-3 space-y-2.5">
-          {details.map(d => {
+
+        <div className="overflow-y-auto px-3 pb-3 space-y-1.5">
+          {details.map((d) => {
             const open = !!openIds[d.id]
             const hasItems = (d.items?.length ?? 0) > 0
             return (
-              <div key={d.id} className="rounded-lg border overflow-hidden">
-                <div className="flex items-stretch gap-0 bg-[hsl(var(--muted))]/15">
+              <div
+                key={d.id}
+                className="rounded-[14px] bg-[#f5f5f7] dark:bg-black/20 overflow-hidden"
+              >
+                <div className="flex items-stretch">
                   <button
                     type="button"
                     onClick={() => hasItems && toggleRow(d.id)}
-                    className={`flex-1 min-w-0 px-3.5 sm:px-4 py-3.5 flex items-start justify-between gap-4 text-left ${
-                      hasItems ? "cursor-pointer hover:bg-[hsl(var(--muted))]/25" : "cursor-default"
+                    className={`flex-1 min-w-0 px-3.5 py-3 flex items-start justify-between gap-3 text-left ${
+                      hasItems ? "cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.04]" : "cursor-default"
                     }`}
                   >
                     <div className="min-w-0 flex items-start gap-2.5">
                       {hasItems ? (
                         <ChevronDown
-                          className={`h-4 w-4 mt-0.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${
+                          className={`h-3.5 w-3.5 mt-1 shrink-0 text-[#aeaeb2] transition-transform ${
                             open ? "" : "-rotate-90"
                           }`}
                         />
                       ) : (
-                        <span className="w-4 shrink-0" />
+                        <span className="w-3.5 shrink-0" />
                       )}
                       <div className="min-w-0">
-                        <p className="text-[15px] font-semibold text-[hsl(var(--foreground))]">{d.label}</p>
+                        <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          {d.label}
+                        </p>
                         {d.sublabel ? (
-                          <p className="text-[13px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">{d.sublabel}</p>
+                          <p className="text-[11px] text-[#86868b] mt-0.5 leading-snug truncate">{d.sublabel}</p>
                         ) : null}
-                        {d.date ? (
-                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1.5">{d.date}</p>
-                        ) : null}
-                        {hasItems && !open ? (
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                            {d.items!.length} line{d.items!.length === 1 ? "" : "s"} · click to expand
-                          </p>
-                        ) : null}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {d.date ? (
+                            <span className="inline-flex rounded-full bg-white dark:bg-white/10 px-2 py-0.5 text-[10px] font-medium text-[#86868b]">
+                              {d.date}
+                            </span>
+                          ) : null}
+                          {hasItems ? (
+                            <span className="inline-flex rounded-full bg-white dark:bg-white/10 px-2 py-0.5 text-[10px] font-medium text-[#86868b]">
+                              {d.items!.length} line{d.items!.length === 1 ? "" : "s"}
+                              {!open ? " · expand" : ""}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                    <p className="text-[15px] font-semibold tabular-nums shrink-0 pt-0.5">{fmt(d.amount)}</p>
+                    <p className="text-[13px] font-semibold tabular-nums shrink-0 pt-0.5 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {fmt(d.amount)}
+                    </p>
                   </button>
                   {d.href ? (
                     <Link
                       href={d.href}
                       onClick={onClose}
-                      className="shrink-0 border-l px-4 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
+                      className="shrink-0 px-3.5 flex items-center justify-center text-[#0071e3] hover:bg-black/[0.03] cursor-pointer"
                       title="Open detail"
                     >
-                      <ArrowRight className="h-3.5 w-3.5" />
-                      Detail
+                      <ArrowRight className="h-4 w-4" />
                     </Link>
                   ) : null}
                 </div>
                 {open && hasItems && (
-                  <ul className="divide-y border-t">
+                  <ul className="mx-2.5 mb-2.5 rounded-[12px] bg-white dark:bg-white/5 overflow-hidden divide-y divide-black/[0.04]">
                     {d.items!.map((item, idx) => (
                       <li
                         key={`${d.id}-item-${idx}`}
-                        className="px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-4 text-sm"
+                        className="px-3 py-2.5 flex items-center justify-between gap-3 text-[12px]"
                       >
-                        <span className="text-[hsl(var(--muted-foreground))] min-w-0 pl-6">{item.label}</span>
-                        <span className="tabular-nums font-medium shrink-0">{fmt(item.amount)}</span>
+                        <span className="text-[#6e6e73] min-w-0 truncate">{item.label}</span>
+                        <span className="tabular-nums font-semibold shrink-0 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          {fmt(item.amount)}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -560,9 +581,12 @@ function MoneyOutDetailsModal({
             )
           })}
         </div>
-        <div className="border-t px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0 bg-[hsl(var(--muted))]/10">
-          <span className="text-sm font-semibold">Total</span>
-          <span className="text-base font-bold tabular-nums">{fmt(total)}</span>
+
+        <div className="border-t border-black/[0.06] px-5 py-3.5 flex items-center justify-between gap-3 shrink-0">
+          <span className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Total</span>
+          <span className="text-[15px] font-bold tabular-nums tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            {fmt(total)}
+          </span>
         </div>
       </div>
     </div>,
@@ -620,27 +644,66 @@ export function FinanceHub({
   const [moneyInOpen, setMoneyInOpen] = useState(false)
   const [moneyOutOpen, setMoneyOutOpen] = useState(false)
   const filtersRef = useRef<HTMLDivElement>(null)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number; notch: "top" | "left" } | null>(null)
   const [detailsModal, setDetailsModal] = useState<{
     label: string
     value: string
     details: MoneyOutDetailLine[]
   } | null>(null)
 
+  function placeFilterPanel() {
+    const btn = filterBtnRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    const panelW = Math.min(328, window.innerWidth - 24)
+    const panelH = 300
+    const pad = 12
+    const spaceRight = window.innerWidth - rect.right - pad
+    // Prefer floating to the right in empty space; otherwise below, right-aligned to the button.
+    if (spaceRight >= panelW + 8) {
+      setFilterPos({
+        top: Math.min(rect.top, window.innerHeight - panelH - pad),
+        left: rect.right + 10,
+        notch: "left",
+      })
+      return
+    }
+    let left = rect.right - panelW
+    if (left < pad) left = pad
+    let top = rect.bottom + 12
+    if (top + panelH > window.innerHeight - pad) {
+      top = Math.max(pad, rect.top - panelH - 12)
+    }
+    setFilterPos({ top, left, notch: "top" })
+  }
+
   useEffect(() => {
-    if (!filtersOpen) return
+    if (!filtersOpen) {
+      setFilterPos(null)
+      return
+    }
+    placeFilterPanel()
     function onDown(e: MouseEvent) {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
-        setFiltersOpen(false)
-      }
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setFiltersOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setFiltersOpen(false)
     }
+    function onReposition() {
+      placeFilterPanel()
+    }
     document.addEventListener("mousedown", onDown)
     document.addEventListener("keydown", onKey)
+    window.addEventListener("resize", onReposition)
+    window.addEventListener("scroll", onReposition, true)
     return () => {
       document.removeEventListener("mousedown", onDown)
       document.removeEventListener("keydown", onKey)
+      window.removeEventListener("resize", onReposition)
+      window.removeEventListener("scroll", onReposition, true)
     }
   }, [filtersOpen])
 
@@ -895,125 +958,137 @@ export function FinanceHub({
       ? `${dateFrom || "…"} → ${dateTo || "…"}`
       : PERIODS.find((p) => p.id === period)?.label || periodLabel
 
-  const filterPanel = (
-    <div className="relative" ref={filtersRef}>
-      <button
-        type="button"
-        onClick={() => setFiltersOpen((v) => !v)}
-        className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-          filtersOpen
-            ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-            : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
-        }`}
-        aria-label="Filters and reports"
-        aria-expanded={filtersOpen}
-        title={`Filters · ${filtersActiveLabel}`}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-      </button>
-      {filtersOpen && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.14)] p-3 space-y-2.5">
-          {/* Notch pointing up to the filter button */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -top-1.5 right-3 h-3 w-3 rotate-45 rounded-[2px] border-l border-t border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
-          />
-          <div className="flex items-center justify-between gap-2 px-0.5 relative">
-            <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              Filters
-            </p>
-            <p className="text-[10px] text-[#86868b] truncate">{filtersActiveLabel}</p>
-          </div>
-          <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
-                className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
-                  period === p.id && !dateFrom && !dateTo
-                    ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
-                    : "text-[#6e6e73] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => onDateFromChange?.(e.target.value)}
-              className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
-            />
-            <span className="text-[9px] text-[#86868b] shrink-0">to</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => onDateToChange?.(e.target.value)}
-              className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
-            />
-          </div>
-          <div className="grid grid-cols-5 gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-              onClick={() => setShowSalesReport(true)}
-              disabled={loading}
-              title="Sales cash report"
-            >
-              <FileSpreadsheet className="h-3 w-3" />
-              Sales
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-              onClick={() => setShowOpexReport(true)}
-              disabled={loading}
-              title="Operating expenses"
-            >
-              <FileSpreadsheet className="h-3 w-3" />
-              Exp
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-              onClick={() => setShowIfrs(true)}
-              disabled={loading}
-              title="IFRS statements"
-            >
-              <Scale className="h-3 w-3" />
-              IFRS
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-              onClick={() => void downloadPdf()}
-              disabled={pdfBusy}
-            >
-              {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-              PDF
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-              onClick={load}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Sync
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+  const filterButton = (
+    <button
+      ref={filterBtnRef}
+      type="button"
+      onClick={() => setFiltersOpen((v) => !v)}
+      className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+        filtersOpen
+          ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+          : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+      }`}
+      aria-label="Filters and reports"
+      aria-expanded={filtersOpen}
+      title={`Filters · ${filtersActiveLabel}`}
+    >
+      <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+    </button>
   )
+
+  const filterPopover =
+    filtersOpen &&
+    filterPos &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={filtersRef}
+        className="fixed z-[95] w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] p-3 space-y-2.5"
+        style={{ top: filterPos.top, left: filterPos.left }}
+      >
+        <span
+          aria-hidden
+          className={
+            filterPos.notch === "left"
+              ? "pointer-events-none absolute top-4 -left-1.5 h-3 w-3 rotate-45 rounded-[2px] border-b border-l border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+              : "pointer-events-none absolute -top-1.5 right-4 h-3 w-3 rotate-45 rounded-[2px] border-l border-t border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+          }
+        />
+        <div className="flex items-center justify-between gap-2 px-0.5 relative">
+          <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Filters
+          </p>
+          <p className="text-[10px] text-[#86868b] truncate">{filtersActiveLabel}</p>
+        </div>
+        <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
+          {PERIODS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
+              className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
+                period === p.id && !dateFrom && !dateTo
+                  ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                  : "text-[#6e6e73] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => onDateFromChange?.(e.target.value)}
+            className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+          />
+          <span className="text-[9px] text-[#86868b] shrink-0">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => onDateToChange?.(e.target.value)}
+            className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+          />
+        </div>
+        <div className="grid grid-cols-5 gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+            onClick={() => setShowSalesReport(true)}
+            disabled={loading}
+            title="Sales cash report"
+          >
+            <FileSpreadsheet className="h-3 w-3" />
+            Sales
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+            onClick={() => setShowOpexReport(true)}
+            disabled={loading}
+            title="Operating expenses"
+          >
+            <FileSpreadsheet className="h-3 w-3" />
+            Exp
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+            onClick={() => setShowIfrs(true)}
+            disabled={loading}
+            title="IFRS statements"
+          >
+            <Scale className="h-3 w-3" />
+            IFRS
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+            onClick={() => void downloadPdf()}
+            disabled={pdfBusy}
+          >
+            {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            PDF
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+            onClick={load}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Sync
+          </Button>
+        </div>
+      </div>,
+      document.body,
+    )
 
   return (
     <div className={`space-y-4 ${loading ? "opacity-60" : ""}`}>
@@ -1393,9 +1468,10 @@ export function FinanceHub({
             </div>
           </div>
           <div className="shrink-0 self-start pt-3 pr-3 pl-1">
-            {filterPanel}
+            {filterButton}
           </div>
         </div>
+        {filterPopover}
       </section>
 
       {/* Money in + Money out side by side */}
@@ -1491,11 +1567,11 @@ export function FinanceHub({
           )}
         </section>
 
-        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible min-w-0">
+        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden min-w-0">
           <button
             type="button"
             onClick={() => setMoneyOutOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer rounded-t-[18px]"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
           >
             <span className="flex items-center gap-2 min-w-0">
               <ChevronDown
