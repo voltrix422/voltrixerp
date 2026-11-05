@@ -63,32 +63,40 @@ export default function FinancePage() {
   return (
     <ModuleGuard module="finance">
       <Topbar title="Finance" />
-      <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
-        <div className="mx-auto w-full max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6 space-y-3">
-          <div className="inline-flex items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
-            {TABS.map((tab) => {
-              const selected = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer",
-                    selected
-                      ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
-                      : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
-                  )}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+        <div className="mx-auto flex w-full max-w-[1180px] flex-1 min-h-0 flex-col px-4 pt-5 sm:px-6 sm:pt-6">
+          <div className="shrink-0 pb-3">
+            <div className="inline-flex items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
+              {TABS.map((tab) => {
+                const selected = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer",
+                      selected
+                        ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                        : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div key={activeTab} className="dashboard-content-in space-y-3">
+          <div
+            key={activeTab}
+            className={cn(
+              "dashboard-content-in flex min-h-0 flex-1 flex-col pb-5 sm:pb-6",
+              activeTab === "client" ? "overflow-hidden" : "overflow-auto space-y-3",
+            )}
+          >
             {activeTab === "manage" && (
-              <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center">
+              <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center shrink-0">
                 <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
                   <input

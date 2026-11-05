@@ -173,9 +173,9 @@ export function ClientOrdersFinance({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {(filteredOrders.length > 0 || crmOrdersAll.length > 0) && (
-        <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+        <section className="shrink-0 rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
           <div className="flex items-center justify-end px-3 pt-2.5">
             <button
               ref={filterBtnRef}
@@ -339,21 +339,21 @@ export function ClientOrdersFinance({
       )}
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-24">
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
           <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
         </div>
       )}
 
       {!loading && filteredOrders.length === 0 && (
-        <div className="rounded-lg border border-dashed p-8 text-center">
+        <div className="rounded-lg border border-dashed p-8 text-center shrink-0">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">{emptyMessage}</p>
         </div>
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <>
-          <div className="md:hidden space-y-2">
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-white dark:bg-[hsl(var(--card))]">
+          <div className="md:hidden space-y-2 p-2">
             {filteredOrders.map((order) => {
               const { totalPaid, remaining } = orderPaymentTotals(order)
               return (
@@ -413,69 +413,65 @@ export function ClientOrdersFinance({
             })}
           </div>
 
-          <div className="hidden md:block rounded-lg border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[48rem]">
-                <thead>
-                  <tr className="border-b bg-[hsl(var(--muted))]/40">
-                    {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date"].map((h) => (
-                      <th
-                        key={h}
-                        className="h-8 px-4 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] whitespace-nowrap"
-                      >
-                        {h}
-                      </th>
-                    ))}
+          <table className="hidden md:table w-full text-sm min-w-[48rem]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b bg-[#f5f5f7] dark:bg-[hsl(var(--muted))] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+                {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date"].map((h) => (
+                  <th
+                    key={h}
+                    className="h-8 px-4 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))] whitespace-nowrap bg-[#f5f5f7] dark:bg-[hsl(var(--muted))]"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredOrders.map((order) => {
+                const { totalPaid, remaining } = orderPaymentTotals(order)
+                return (
+                  <tr
+                    key={order.id}
+                    onClick={() => setSelectedOrder(order)}
+                    className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))] whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        {order.orderNumber}
+                        {hasOutstandingCredit(order) && (
+                          <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">{order.clientName}</td>
+                    <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">
+                      PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs whitespace-nowrap tabular-nums">
+                      PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-medium whitespace-nowrap">
+                      {remaining <= 0.004 ? (
+                        <span className="text-emerald-600">Paid</span>
+                      ) : (
+                        <span className={`tabular-nums ${hasOutstandingCredit(order) ? "text-amber-700 dark:text-amber-300 font-semibold" : ""}`}>
+                          PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <OrderStatusBadge status={order.status} />
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredOrders.map((order) => {
-                    const { totalPaid, remaining } = orderPaymentTotals(order)
-                    return (
-                      <tr
-                        key={order.id}
-                        onClick={() => setSelectedOrder(order)}
-                        className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
-                      >
-                        <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))] whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5">
-                            {order.orderNumber}
-                            {hasOutstandingCredit(order) && (
-                              <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs">{order.clientName}</td>
-                        <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
-                        <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">
-                          PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs whitespace-nowrap tabular-nums">
-                          PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs font-medium whitespace-nowrap">
-                          {remaining <= 0.004 ? (
-                            <span className="text-emerald-600">Paid</span>
-                          ) : (
-                            <span className={`tabular-nums ${hasOutstandingCredit(order) ? "text-amber-700 dark:text-amber-300 font-semibold" : ""}`}>
-                              PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <OrderStatusBadge status={order.status} />
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selectedOrder && (
