@@ -4,8 +4,6 @@ import { useState, useEffect } from "react"
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -26,6 +24,64 @@ import {
   RangeToggle,
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
+
+const PETTY_BAR_COLORS = ["#007aff", "#34c759", "#ff9f0a", "#af52de", "#ff375f"]
+
+function PettyCashAppleList({
+  rows,
+}: {
+  rows: Array<{ name: string; amount: number; role: string }>
+}) {
+  const max = Math.max(...rows.map((r) => Number(r.amount) || 0), 1)
+
+  return (
+    <div className="h-full flex flex-col justify-center gap-3 px-2.5 py-1">
+      {rows.map((row, i) => {
+        const amount = Number(row.amount) || 0
+        const pct = Math.max(4, Math.round((amount / max) * 100))
+        const initials = String(row.name || "?")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((p) => p[0]?.toUpperCase() || "")
+          .join("")
+        const color = PETTY_BAR_COLORS[i % PETTY_BAR_COLORS.length]
+
+        return (
+          <div key={`${row.name}-${i}`} className="min-w-0">
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                style={{ backgroundColor: color }}
+              >
+                {initials || "?"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                    {row.name}
+                  </p>
+                  <p className="shrink-0 text-[12px] font-semibold tabular-nums tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {formatRsFull(amount)}
+                  </p>
+                </div>
+                {row.role ? (
+                  <p className="text-[10px] text-[#86868b] truncate mt-0.5">{row.role}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="ml-9 h-[6px] rounded-full bg-black/[0.05] dark:bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-[width] duration-500 ease-out"
+                style={{ width: `${pct}%`, backgroundColor: color }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | "investor" }) {
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
@@ -73,7 +129,6 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
   const deliveredTrend = charts?.deliveredTrend ?? []
   const deliveredYDomain = chartAmountDomain(deliveredTrend.map((d) => d.amount))
   const pettyCashByEmployee = (charts?.pettyCashByEmployee ?? []).slice(0, 5)
-  const inventoryTrend = charts?.inventoryTrend ?? []
   const ticketTrend = charts?.ticketTrend ?? []
   const pettyTotal = pettyCashByEmployee.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
 
@@ -90,7 +145,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
       />
 
       <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <ChartCard
             title="Delivered"
             tall
@@ -138,34 +193,15 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
               </ResponsiveContainer>
             )}
           </ChartCard>
-
-          <ChartCard title="Inventory" tall>
-            {loading ? (
-              <ChartLoading />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={inventoryTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="0" vertical={false} stroke={gridStroke} />
-                  <XAxis dataKey="day" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={22} />
-                  <YAxis tick={axisTick} tickLine={false} axisLine={false} width={28} />
-                  <Tooltip
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                    itemStyle={{ color: "#fff" }}
-                    labelStyle={{ color: "rgba(255,255,255,0.7)" }}
-                    formatter={(v) => `${Number(v ?? 0).toLocaleString()} qty`}
-                  />
-                  <Bar dataKey="quantity" fill="#34c759" radius={[5, 5, 5, 5]} maxBarSize={14} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <ChartCard
             title="Petty cash"
+            subtitle="By person"
+            tall
             footer={
-              <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
+              <p className="text-[22px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
                 {formatRsFull(pettyTotal)}
               </p>
             }
@@ -177,31 +213,11 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
                 No petty cash in range
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pettyCashByEmployee} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="0" horizontal={false} stroke={gridStroke} />
-                  <XAxis type="number" tick={axisTick} tickFormatter={formatRsAxis} axisLine={false} tickLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={72}
-                    tick={axisTick}
-                    tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                    itemStyle={{ color: "#fff" }}
-                    formatter={(v) => formatRsFull(Number(v ?? 0))}
-                  />
-                  <Bar dataKey="amount" fill="#af52de" radius={[0, 6, 6, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
+              <PettyCashAppleList rows={pettyCashByEmployee} />
             )}
           </ChartCard>
 
-          <ChartCard title="After Sale">
+          <ChartCard title="After Sale" tall>
             {loading ? (
               <ChartLoading />
             ) : (
