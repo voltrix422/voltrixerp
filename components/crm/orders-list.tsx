@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, type ReactNode } from "react"
+import { useState, useEffect } from "react"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle, SlidersHorizontal } from "lucide-react"
+import { Plus, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, Shield, PlayCircle, SlidersHorizontal } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
@@ -149,133 +149,6 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CollapsibleSection({
-  title,
-  subtitle,
-  summary,
-  open,
-  onToggle,
-  headerRight,
-  children,
-}: {
-  title: string
-  subtitle?: string
-  summary?: string
-  open: boolean
-  onToggle: () => void
-  headerRight?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <section className="rounded-lg border overflow-hidden">
-      <div className="flex items-stretch">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex flex-1 items-start gap-2 px-4 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors min-w-0"
-        >
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--muted-foreground))] transition-transform duration-200 ${
-              open ? "" : "-rotate-90"
-            }`}
-          />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold">{title}</p>
-            {subtitle && (
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{subtitle}</p>
-            )}
-            {!open && summary && (
-              <p className="text-sm font-semibold tabular-nums mt-1">{summary}</p>
-            )}
-          </div>
-        </button>
-        {headerRight && (
-          <div className="flex items-center px-3 py-2.5 shrink-0" onClick={e => e.stopPropagation()}>
-            {headerRight}
-          </div>
-        )}
-      </div>
-      {open && <div className="border-t">{children}</div>}
-    </section>
-  )
-}
-
-function ExpandableOrderPanel({
-  label,
-  count,
-  amount,
-  orders,
-  emptyLabel = "No orders",
-  panelTitle,
-  renderRowExtra,
-}: {
-  label: string
-  count: number
-  amount: string
-  orders: { order: Order; paid: number; balance: number }[]
-  emptyLabel?: string
-  panelTitle?: string
-  renderRowExtra?: (order: Order) => ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div className="bg-[hsl(var(--card))] p-3">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-start justify-between gap-2 text-left"
-      >
-        <div className="min-w-0">
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            {label} ({count})
-          </p>
-          <p className="text-sm font-semibold tabular-nums mt-0.5">{amount}</p>
-        </div>
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 mt-0.5 text-[hsl(var(--muted-foreground))] transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-      {open && (
-        <div className="mt-2 pt-2 border-t">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
-            {panelTitle ?? label}
-          </p>
-          {orders.length === 0 ? (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
-          ) : (
-            <ul className="space-y-2 max-h-56 overflow-y-auto">
-              {orders.map(({ order, paid, balance }) => (
-                <li key={order.id} className="rounded-md border px-2.5 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold">{order.orderNumber || "—"}</p>
-                      <p className="text-[11px] truncate">{order.clientName || "—"}</p>
-                    </div>
-                    <span className="shrink-0 text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
-                      {order.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  {renderRowExtra ? (
-                    renderRowExtra(order)
-                  ) : (
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums text-[hsl(var(--muted-foreground))]">
-                      <span>Paid {formatOrderPkr(paid)}</span>
-                      <span>Due {formatOrderPkr(balance)}</span>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "tomorrow", label: "Tomorrow" },
@@ -360,8 +233,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [exportingPdf, setExportingPdf] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
-  const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
-  const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
+  const [showOrderSummary, setShowOrderSummary] = useState(false)
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
@@ -595,21 +467,23 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const returnedRefundAmount = paymentStats.returnedRefundAmount
   const cashbackOrders = filtered.filter(orderHasCashback)
   const cashbackAmount = paymentStats.cashbackAmount
-  const cashbackOrderRows = cashbackOrders
-    .map((order) => ({
-      order,
-      paid: getOrderCashbackAmount(order),
-      balance: getOrderCashbackAmount(order, "other"),
-    }))
-    .sort((a, b) => b.paid - a.paid)
 
   const headlineTotal = includeOutstandingInTotal
     ? totalReceived + totalOutstanding
     : totalReceived
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-end gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs px-2.5 cursor-pointer"
+          onClick={() => setShowOrderSummary(true)}
+          disabled={loading || filtered.length === 0}
+        >
+          Order summary
+        </Button>
         {!workspace?.readOnly && (
           <Button
             size="sm"
@@ -619,218 +493,180 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
           </Button>
         )}
-        <button
-          type="button"
-          onClick={() => setShowFilters((v) => !v)}
-          className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
-            showFilters
-              ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
-              : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-          }`}
-          aria-label="Filters and exports"
-          title="Filters · ledger · export"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-          {hasActiveFilters && !showFilters && (
-            <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
-          )}
-        </button>
-      </div>
-
-      {showFilters && (
-        <div className="space-y-3 p-3 rounded-2xl border bg-[hsl(var(--card))] shadow-sm">
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Client ledger
-            </p>
-            <ClientLedgerPicker
-              clients={clients}
-              orders={orders}
-              selectedIds={ledgerClientIds}
-              onChange={selectLedgerClients}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <CrmExcelExportButton
-              onExport={exportListExcel}
-              exporting={exportingExcel}
-              disabled={loading || filtered.length === 0 || exportingPdf}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
-              disabled={loading || filtered.length === 0 || exportingPdf}
-              onClick={() => void exportListPdf()}
-            >
-              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-            </Button>
-            {hasActiveFilters && (
-              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer ml-auto" onClick={clearFilters}>
-                Clear
-              </Button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
+              showFilters
+                ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
+                : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+            }`}
+            aria-label="Filters and exports"
+            title="Filters · ledger · export"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {hasActiveFilters && !showFilters && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
             )}
-          </div>
+          </button>
+          {showFilters && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowFilters(false)} />
+              <div className="absolute right-0 top-full mt-2 z-40 w-[min(22rem,calc(100vw-1.25rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-2xl border bg-[hsl(var(--card))] shadow-xl p-3 space-y-2.5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Client ledger
+                  </p>
+                  <ClientLedgerPicker
+                    clients={clients}
+                    orders={orders}
+                    selectedIds={ledgerClientIds}
+                    onChange={selectLedgerClients}
+                  />
+                </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
-              Status
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setStatusFilter(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    statusFilter === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <CrmExcelExportButton
+                    onExport={exportListExcel}
+                    exporting={exportingExcel}
+                    disabled={loading || filtered.length === 0 || exportingPdf}
+                    className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                    disabled={loading || filtered.length === 0 || exportingPdf}
+                    onClick={() => void exportListPdf()}
+                  >
+                    {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    {exportingPdf ? "PDF…" : "PDF"}
+                  </Button>
+                  {hasActiveFilters && (
+                    <Button size="sm" variant="ghost" className="h-7 text-[10px] cursor-pointer ml-auto px-2" onClick={clearFilters}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
-              Payment
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {PAYMENT_FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setPaymentFilter(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    paymentFilter === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Status</p>
+                  <div className="flex flex-wrap gap-1">
+                    {STATUS_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setStatusFilter(opt.value)}
+                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                          statusFilter === opt.value
+                            ? "bg-[#1faca6] text-white border-[#1faca6]"
+                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <ClientExcludePicker
-            clients={clients}
-            orders={orders}
-            excludedIds={excludedClientIds}
-            onChange={(ids) => {
-              setExcludedClientIds(ids)
-              if (ids.length) setLedgerClientIds([])
-            }}
-          />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Payment</p>
+                  <div className="flex flex-wrap gap-1">
+                    {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPaymentFilter(opt.value)}
+                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                          paymentFilter === opt.value
+                            ? "bg-[#1faca6] text-white border-[#1faca6]"
+                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
-              Referrer
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setReferrerFilter("")}
-                className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                  !referrerFilter
-                    ? "bg-[#1faca6] text-white border-[#1faca6]"
-                    : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                }`}
-              >
-                All
-              </button>
-              {referrerOptions.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => setReferrerFilter(name)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    referrerFilter === name
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {name}
-                </button>
-              ))}
-              {referrerOptions.length === 0 && (
-                <span className="h-7 px-2.5 text-xs text-[hsl(var(--muted-foreground))] inline-flex items-center">
-                  No referrers yet
-                </span>
-              )}
-            </div>
-          </div>
+                <ClientExcludePicker
+                  clients={clients}
+                  orders={orders}
+                  excludedIds={excludedClientIds}
+                  onChange={(ids) => {
+                    setExcludedClientIds(ids)
+                    if (ids.length) setLedgerClientIds([])
+                  }}
+                />
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
-              Date range
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {DATE_PRESET_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => applyDatePreset(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    datePreset === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Referrer</p>
+                  <select
+                    value={referrerFilter}
+                    onChange={(e) => setReferrerFilter(e.target.value)}
+                    className="w-full h-7 px-2 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  >
+                    <option value="">All referrers</option>
+                    {referrerOptions.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
 
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => {
-                setFromDate(e.target.value)
-                setDatePreset("")
-              }}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-            />
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => {
-                setToDate(e.target.value)
-                setDatePreset("")
-              }}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-            />
-            <select
-              value={referrerFilter}
-              onChange={(e) => setReferrerFilter(e.target.value)}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] min-w-[10rem]"
-            >
-              <option value="">All referrers</option>
-              {referrerOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1 min-w-[12rem]">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search orders, client, or referrer..."
-                className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-              />
-            </div>
-          </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Date</p>
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {DATE_PRESET_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => applyDatePreset(opt.value)}
+                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                          datePreset === opt.value
+                            ? "bg-[#1faca6] text-white border-[#1faca6]"
+                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => {
+                        setFromDate(e.target.value)
+                        setDatePreset("")
+                      }}
+                      className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
+                    />
+                    <span className="text-[9px] text-[hsl(var(--muted-foreground))]">to</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => {
+                        setToDate(e.target.value)
+                        setDatePreset("")
+                      }}
+                      className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search orders, client, referrer…"
+                  className="w-full h-7 px-2.5 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                />
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -856,173 +692,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       ) : (
         <>
-          <div className="space-y-3">
-            <CollapsibleSection
-              title="Money received"
-              subtitle={
-                periodMoney.periodScoped
-                  ? "Payments received in the selected date range (credit collections = amount received then, not full order)"
-                  : "Sum of Paid column (gross collections; refunds are money out) · matches Finance"
-              }
-              summary={formatOrderPkr(headlineTotal)}
-              open={moneyReceivedOpen}
-              onToggle={() => setMoneyReceivedOpen(v => !v)}
-              headerRight={
-                <ToggleChip
-                  on={includeOutstandingInTotal}
-                  label={includeOutstandingInTotal ? "Including outstanding" : "+ Still outstanding"}
-                  onClick={() => setIncludeOutstandingInTotal(v => !v)}
-                />
-              }
-            >
-              <div className="p-4 space-y-3">
-                <div>
-                  <p className="text-2xl font-semibold tabular-nums">{formatOrderPkr(headlineTotal)}</p>
-                  {includeOutstandingInTotal && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                      Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid sm:grid-cols-3 gap-px rounded-lg border overflow-hidden bg-[hsl(var(--border))]">
-                  <div className="bg-[hsl(var(--card))] p-3">
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total received</p>
-                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] p-3">
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Still outstanding</p>
-                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] p-3">
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Orders in view</p>
-                    <p className="text-sm font-semibold tabular-nums mt-0.5">{filtered.length}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-3 space-y-1.5">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
-                    Breakdown
-                  </p>
-                  <SummaryRow
-                    label={`Delivered fully paid (${deliveredFullyPaid.length})`}
-                    value={formatOrderPkr(deliveredFullyPaidReceived)}
-                  />
-                  <SummaryRow
-                    label={`Partial payments (${partiallyPaidOrders.length})`}
-                    value={formatOrderPkr(partialPaymentAmount)}
-                  />
-                  {otherPaymentsReceived > 0.004 && (
-                    <SummaryRow
-                      label="Confirmed / in progress"
-                      value={formatOrderPkr(otherPaymentsReceived)}
-                    />
-                  )}
-                  {creditPaymentsReceived > 0.004 && (
-                    <SummaryRow
-                      label="Credit installments"
-                      value={formatOrderPkr(creditPaymentsReceived)}
-                    />
-                  )}
-                  <div className="flex items-baseline justify-between gap-3 text-xs pt-1.5 border-t font-medium">
-                    <span>Total received</span>
-                    <span className="tabular-nums">{formatOrderPkr(totalReceived)}</span>
-                  </div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] pt-1">
-                    Gross client payments collected. Refunds and cashback appear as money out in Finance.
-                  </p>
-                </div>
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              title="Order summary"
-              summary={`${filtered.length} orders · ${formatOrderPkr(totalOrderValue)}`}
-              open={orderSummaryOpen}
-              onToggle={() => setOrderSummaryOpen(v => !v)}
-            >
-              <div className="grid sm:grid-cols-3 gap-px bg-[hsl(var(--border))] border-b">
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total orders</p>
-                  <p className="text-lg font-semibold tabular-nums mt-0.5">{filtered.length}</p>
-                </div>
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total qty</p>
-                  <p className="text-lg font-semibold tabular-nums mt-0.5">{totalOrderQty}</p>
-                </div>
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total value</p>
-                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOrderValue)}</p>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[hsl(var(--border))]">
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Delivered fully paid ({deliveredFullyPaid.length})
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Delivered · zero balance</p>
-                </div>
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    On credit ({creditOrders.length})
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                    Still owed
-                    {creditPaymentsReceived > 0.004
-                      ? ` · ${formatOrderPkr(creditPaymentsReceived)} received`
-                      : ""}
-                  </p>
-                </div>
-                <ExpandableOrderPanel
-                  label="Partial received"
-                  count={partiallyPaidOrders.length}
-                  amount={formatOrderPkr(partialPaymentAmount)}
-                  orders={partiallyPaidOrders}
-                  panelTitle="Partial payments received"
-                />
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Approved unpaid ({approvedAwaitingPayment.length})
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Not delivered · payment pending</p>
-                </div>
-                <div className="bg-[hsl(var(--card))] p-3">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Returned ({returnedOrders.length})
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Refunded · stock restored</p>
-                </div>
-                <ExpandableOrderPanel
-                  label="Cashback"
-                  count={cashbackOrders.length}
-                  amount={formatOrderPkr(cashbackAmount)}
-                  emptyLabel="No cashback orders"
-                  panelTitle="Cashback orders"
-                  orders={cashbackOrderRows.map(({ order, paid }) => ({
-                    order,
-                    paid,
-                    balance: getOrderCashbackAmount(order, "other"),
-                  }))}
-                  renderRowExtra={(order) => {
-                    const fromOrder = getOrderCashbackAmount(order, "order")
-                    const other = getOrderCashbackAmount(order, "other")
-                    return (
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums text-[hsl(var(--muted-foreground))]">
-                        <span>Total {formatOrderPkr(getOrderCashbackAmount(order))}</span>
-                        {fromOrder > 0 && <span>From order {formatOrderPkr(fromOrder)}</span>}
-                        {other > 0 && <span>Bonus {formatOrderPkr(other)}</span>}
-                      </div>
-                    )
-                  }}
-                />
-              </div>
-            </CollapsibleSection>
-          </div>
-
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
@@ -1152,6 +821,117 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </>
       )}
         </>
+      )}
+
+      {showOrderSummary && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={() => setShowOrderSummary(false)}>
+          <div
+            className="w-full sm:max-w-xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Order summary</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                  {filtered.length} orders · {formatOrderPkr(totalOrderValue)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <ToggleChip
+                  on={includeOutstandingInTotal}
+                  label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
+                  onClick={() => setIncludeOutstandingInTotal((v) => !v)}
+                />
+                <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowOrderSummary(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Money received</p>
+                  <p className="text-lg font-semibold tabular-nums">{formatOrderPkr(headlineTotal)}</p>
+                </div>
+                {includeOutstandingInTotal && (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                    Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-px rounded-md border overflow-hidden bg-[hsl(var(--border))]">
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Received</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Outstanding</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">In view</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{filtered.length}</p>
+                  </div>
+                </div>
+                <div className="space-y-1 pt-1">
+                  <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
+                  <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
+                  {otherPaymentsReceived > 0.004 && (
+                    <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
+                  )}
+                  {creditPaymentsReceived > 0.004 && (
+                    <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
+                  )}
+                </div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">
+                  Gross collections · refunds/cashback are money out in Finance.
+                </p>
+              </div>
+
+              <div className="rounded-lg border overflow-hidden">
+                <div className="grid grid-cols-3 gap-px bg-[hsl(var(--border))] border-b">
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Orders</p>
+                    <p className="text-sm font-semibold tabular-nums">{filtered.length}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Qty</p>
+                    <p className="text-sm font-semibold tabular-nums">{totalOrderQty}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Value</p>
+                    <p className="text-xs font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-px bg-[hsl(var(--border))]">
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Delivered paid ({deliveredFullyPaid.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">On credit ({creditOrders.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Partial ({partiallyPaidOrders.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Approved unpaid ({approvedAwaitingPayment.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Returned ({returnedOrders.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Cashback ({cashbackOrders.length})</p>
+                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showForm && (
@@ -2241,129 +2021,106 @@ function OrderDetail({
       />
     )}
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-3" onClick={onClose}>
-      <div className="w-full max-w-[92rem] rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[94vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3 border-b shrink-0">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="w-full max-w-5xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-2 px-3 sm:px-4 py-2.5 border-b shrink-0">
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <OrderSourceBadge order={detailOrder} />
-              <p className="text-base sm:text-lg font-bold text-[#1faca6] truncate">{detailOrder.orderNumber}</p>
+              <p className="text-sm font-bold text-[#1faca6]">{detailOrder.orderNumber}</p>
               <OrderStatusBadge status={detailOrder.status} />
-              <p className="text-sm font-medium truncate">{detailOrder.clientName}</p>
+              <p className="text-xs font-medium truncate">{detailOrder.clientName}</p>
               {detailOrder.warrantyHolderName?.trim() && (
-                <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {detailOrder.warrantyHolderName}</p>
+                <p className="text-[10px] text-[#1a9f9a] truncate">Warranty: {detailOrder.warrantyHolderName}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
               {detailOrder.deliveryDate && (
-                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
-                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Delivery</p>
-                  <p className="mt-0.5 font-medium tabular-nums">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
-                </div>
+                <span><span className="font-medium text-[hsl(var(--foreground))]">Delivery</span> {new Date(detailOrder.deliveryDate).toLocaleDateString()}</span>
               )}
-              <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
-                <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Source</p>
-                <OrderSourceLabel order={detailOrder} className="mt-0.5 block truncate" />
-              </div>
-              <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
-                <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Created</p>
-                <p className="mt-0.5 font-medium truncate">{new Date(detailOrder.createdAt).toLocaleDateString()} · {detailOrder.createdBy}</p>
-              </div>
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <span className="font-medium text-[hsl(var(--foreground))] shrink-0">Source</span>
+                <OrderSourceLabel order={detailOrder} className="truncate" />
+              </span>
+              <span><span className="font-medium text-[hsl(var(--foreground))]">Created</span> {new Date(detailOrder.createdAt).toLocaleDateString()} · {detailOrder.createdBy}</span>
               {detailOrder.deliveryAddress && (
-                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15 sm:col-span-2">
-                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Delivery address</p>
-                  <p className="mt-0.5 font-medium line-clamp-2 whitespace-pre-wrap">{detailOrder.deliveryAddress}</p>
-                </div>
+                <span className="truncate max-w-[14rem]" title={detailOrder.deliveryAddress}>
+                  <span className="font-medium text-[hsl(var(--foreground))]">Addr</span> {detailOrder.deliveryAddress}
+                </span>
               )}
               {detailOrder.referrerName?.trim() && (
-                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
-                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Referrer</p>
-                  <p className="mt-0.5 font-medium truncate">{detailOrder.referrerName}</p>
-                  <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Internal only</p>
-                </div>
+                <span><span className="font-medium text-[hsl(var(--foreground))]">Referrer</span> {detailOrder.referrerName}</span>
               )}
               {detailOrder.dispatcher && (
-                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15">
-                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Dispatcher</p>
-                  <p className="mt-0.5 font-medium truncate">{detailOrder.dispatcher}</p>
-                </div>
+                <span className="truncate max-w-[12rem]"><span className="font-medium text-[hsl(var(--foreground))]">Dispatcher</span> {detailOrder.dispatcher}</span>
               )}
               {detailOrder.notes && (
-                <div className="rounded-md border px-2 py-1.5 bg-[hsl(var(--muted))]/15 sm:col-span-2 lg:col-span-3">
-                  <p className="text-[9px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Notes</p>
-                  <p className="mt-0.5 font-medium line-clamp-2 whitespace-pre-wrap">{detailOrder.notes}</p>
-                </div>
+                <span className="truncate max-w-[16rem]" title={detailOrder.notes}>
+                  <span className="font-medium text-[hsl(var(--foreground))]">Notes</span> {detailOrder.notes}
+                </span>
               )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-2.5">
 
           {detailOrder.status === "delivered" && (
-            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Shield className="h-3.5 w-3.5 text-[#1a9f9a]" />
-                <p className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-                  Warranty name
-                </p>
-              </div>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                Not the client ({detailOrder.clientName}). Used when they scan to start warranty.
-              </p>
+            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 px-2.5 py-2">
               {workspace?.readOnly ? (
-                <p className="text-sm font-medium">{detailOrder.warrantyHolderName?.trim() || "Not set"}</p>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Shield className="h-3.5 w-3.5 text-[#1a9f9a] shrink-0" />
+                  <span className="font-medium">Warranty</span>
+                  <span>{detailOrder.warrantyHolderName?.trim() || "Not set"}</span>
+                </div>
               ) : (
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-[#1a9f9a] shrink-0" />
+                  <span className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))] shrink-0">Warranty</span>
                   <input
                     value={warrantyHolderDraft}
                     onChange={(e) => setWarrantyHolderDraft(e.target.value)}
-                    placeholder="e.g. Ali Khan or Green Energy Pvt Ltd"
-                    className="flex-1 h-9 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm"
+                    placeholder="Warranty name"
+                    title={`Not the client (${detailOrder.clientName})`}
+                    className="h-7 min-w-[8rem] flex-1 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
                   />
                   <Button
                     size="sm"
-                    className="h-9 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer"
+                    className="h-7 px-2.5 text-xs bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer"
                     disabled={
                       savingWarrantyHolder ||
                       warrantyHolderDraft.trim() === (detailOrder.warrantyHolderName || "").trim()
                     }
                     onClick={() => void handleSaveWarrantyHolder()}
                   >
-                    {savingWarrantyHolder ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    {savingWarrantyHolder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
                   </Button>
-                </div>
-              )}
-              {!workspace?.readOnly && (
-                <div className="pt-1 space-y-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-9 w-full sm:w-auto cursor-pointer border-[#1a9f9a] text-[#1a9f9a] hover:bg-[#1a9f9a]/10"
+                    className="h-7 px-2.5 text-xs cursor-pointer border-[#1a9f9a] text-[#1a9f9a] hover:bg-[#1a9f9a]/10"
                     disabled={!canStartOrderWarranties || startingWarranties}
                     onClick={() => setShowStartWarrantiesConfirm(true)}
                   >
                     {startingWarranties ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <PlayCircle className="h-4 w-4 mr-2" />
+                      <>
+                        <PlayCircle className="h-3.5 w-3.5 mr-1" />
+                        {scannedSerialCount > 0 ? `Start ${scannedSerialCount}` : "Start"}
+                      </>
                     )}
-                    {startingWarranties
-                      ? "Starting warranties…"
-                      : scannedSerialCount > 0
-                        ? `Start warranty for ${scannedSerialCount} scanned units`
-                        : "Start warranty for scanned units"}
                   </Button>
                   {!savedWarrantyName && (
-                    <p className="text-[11px] text-amber-700">Save a warranty name before starting all units.</p>
+                    <span className="text-[10px] text-amber-700">Save name first</span>
                   )}
                   {savedWarrantyName && scannedSerialCount === 0 && (
-                    <p className="text-[11px] text-amber-700">No scanned serials on this order.</p>
+                    <span className="text-[10px] text-amber-700">No scanned serials</span>
                   )}
                   {warrantyStartResult && (
-                    <p className="text-[11px] text-emerald-800">{warrantyStartResult}</p>
+                    <span className="text-[10px] text-emerald-800">{warrantyStartResult}</span>
                   )}
                 </div>
               )}
@@ -2506,9 +2263,9 @@ function OrderDetail({
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-3 items-start">
-          <div className="rounded-lg border p-3 min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-2.5 items-start">
+          <div className="rounded-lg border p-2.5 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">Order Items</p>
             <CrmLineItemsDisplay items={detailOrder.items} size="sm" />
             <div className="mt-2">
               <CrmOrderSummaryDisplay order={detailOrder} />
