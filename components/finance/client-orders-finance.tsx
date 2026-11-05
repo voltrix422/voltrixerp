@@ -518,6 +518,16 @@ function ClientOrderDetail({
   const [approvingPayment, setApprovingPayment] = useState(false)
   const [approvingCredit, setApprovingCredit] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
 
   function approvePaymentsOnOrder(base: Order): Order {
     return {
@@ -570,8 +580,10 @@ function ClientOrderDetail({
     ? "Collect payment"
     : "Add payment"
 
+  if (!mounted) return null
+
   if (showPayment) {
-    return (
+    return createPortal(
       <PaymentCapture
         order={order}
         currentUser={user?.name || user?.email || "Finance"}
@@ -580,13 +592,14 @@ function ClientOrderDetail({
           onUpdate(updated)
           setShowPayment(false)
         }}
-      />
+      />,
+      document.body,
     )
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -809,6 +822,7 @@ function ClientOrderDetail({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
