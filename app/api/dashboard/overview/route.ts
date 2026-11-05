@@ -64,7 +64,6 @@ export async function GET(req: NextRequest) {
       staff,
       clients,
       quotations,
-      ordersCount,
       inventoryItems,
       financeAgg,
       poItems,
@@ -75,7 +74,6 @@ export async function GET(req: NextRequest) {
       prisma.erpStaff.count(),
       prisma.erpClient.count(),
       prisma.erpQuotation.count(),
-      prisma.erpOrder.count(),
       prisma.erpInventoryStock.count(),
       prisma.erpFinanceRecord.aggregate({
         where: { createdAt: { gte: rangeStart } },
@@ -110,6 +108,9 @@ export async function GET(req: NextRequest) {
         select: { employeeName: true, employeeRole: true, amount: true },
       }),
     ])
+
+    // Same set as CRM Orders: exclude Branch POS (already applied to Received below).
+    const ordersCount = orders.filter((o) => !isBranchPosOrderHiddenFromErp(o)).length
 
     let products = 0
     try {
