@@ -872,121 +872,104 @@ export function FinanceHub({
   return (
     <div className={`space-y-3 max-w-5xl ${loading ? "opacity-60" : ""}`}>
       {/* Compact filters & reports */}
-      <section className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+      <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer"
         >
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border bg-[hsl(var(--background))] shrink-0">
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] transition-transform ${filtersOpen ? "" : "-rotate-90"}`}
-              />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold">Filters & reports</span>
-              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">{filtersActiveLabel}</span>
-            </span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${filtersOpen ? "" : "-rotate-90"}`}
+            />
+            <span className="text-[11px] font-semibold">Filters & reports</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">· {filtersActiveLabel}</span>
           </span>
           <span className="text-[10px] font-medium text-[#1faca6] shrink-0">{filtersOpen ? "Hide" : "Show"}</span>
         </button>
         {filtersOpen && (
-          <div className="px-3.5 pb-3.5 pt-1 border-t space-y-3">
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Period</p>
-              <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 bg-[hsl(var(--muted))]/15">
+          <div className="px-3 pb-2.5 pt-1.5 border-t flex flex-col gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15 shrink-0">
                 {PERIODS.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
-                    className={`px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors cursor-pointer ${
+                    className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                       period === p.id && !dateFrom && !dateTo
-                        ? "bg-[#1faca6] text-white shadow-sm"
-                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--card))]"
+                        ? "bg-[#1faca6] text-white"
+                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                     }`}
                   >
                     {p.label}
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Custom range</p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => onDateFromChange?.(e.target.value)}
-                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 cursor-pointer"
+                  className="h-7 rounded-md border bg-[hsl(var(--background))] px-1.5 text-[11px] flex-1 min-w-0 cursor-pointer"
                 />
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">to</span>
+                <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">to</span>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => onDateToChange?.(e.target.value)}
-                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 cursor-pointer"
+                  className="h-7 rounded-md border bg-[hsl(var(--background))] px-1.5 text-[11px] flex-1 min-w-0 cursor-pointer"
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Reports</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 justify-start px-2.5 gap-1.5 text-[11px]"
-                  onClick={() => setShowSalesReport(true)}
-                  disabled={loading}
-                  title="Build CRM / POS sales cash report (PDF or Excel) with received and credit"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                  Sales
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 justify-start px-2.5 gap-1.5 text-[11px]"
-                  onClick={() => setShowOpexReport(true)}
-                  disabled={loading}
-                  title="Petty cash, purchase ledger & salaries — PDF or Excel (advances excluded)"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                  Expenses
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 justify-start px-2.5 gap-1.5 text-[11px]"
-                  onClick={() => setShowIfrs(true)}
-                  disabled={loading}
-                  title="IAS 1 profit or loss, financial position, and IAS 7 cash flows"
-                >
-                  <Scale className="h-3.5 w-3.5" />
-                  IFRS
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 justify-start px-2.5 gap-1.5 text-[11px]"
-                  onClick={() => void downloadPdf()}
-                  disabled={pdfBusy}
-                >
-                  {pdfBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  PDF
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 justify-start px-2.5 gap-1.5 text-[11px] sm:col-span-2"
-                  onClick={load}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  Refresh
-                </Button>
-              </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[10px]"
+                onClick={() => setShowSalesReport(true)}
+                disabled={loading}
+                title="Sales cash report"
+              >
+                <FileSpreadsheet className="h-3 w-3" />
+                Sales
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[10px]"
+                onClick={() => setShowOpexReport(true)}
+                disabled={loading}
+                title="Operating expenses"
+              >
+                <FileSpreadsheet className="h-3 w-3" />
+                Expenses
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[10px]"
+                onClick={() => setShowIfrs(true)}
+                disabled={loading}
+                title="IFRS statements"
+              >
+                <Scale className="h-3 w-3" />
+                IFRS
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 gap-1 text-[10px]"
+                onClick={() => void downloadPdf()}
+                disabled={pdfBusy}
+              >
+                {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                PDF
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-[10px]" onClick={load} disabled={loading}>
+                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Refresh
+              </Button>
             </div>
           </div>
         )}
@@ -1378,193 +1361,181 @@ export function FinanceHub({
         </button>
       </section>
 
-      {/* Money in — closed by default */}
-      <section className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-        <button
-          type="button"
-          onClick={() => setMoneyInOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-3.5 py-3 text-left hover:bg-emerald-500/[0.04] transition-colors cursor-pointer"
-        >
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/5 shrink-0">
+      {/* Money in + Money out side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+        <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden min-w-0">
+          <button
+            type="button"
+            onClick={() => setMoneyInOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-emerald-500/[0.04] transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
               <ChevronDown
-                className={`h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 transition-transform ${moneyInOpen ? "" : "-rotate-90"}`}
+                className={`h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400 transition-transform ${moneyInOpen ? "" : "-rotate-90"}`}
               />
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">Money in</span>
+                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">{periodLabel}</span>
+              </span>
             </span>
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">Money in</span>
-              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">{periodLabel} · open for breakdown</span>
+            <span className="text-xs font-bold tabular-nums text-emerald-800 dark:text-emerald-300 shrink-0">
+              {fmt(moneyInAll)}
             </span>
-          </span>
-          <span className="text-sm font-bold tabular-nums text-emerald-800 dark:text-emerald-300 shrink-0">
-            {fmt(moneyInAll)}
-          </span>
-        </button>
-        {moneyInOpen && (
-          <div className="px-3.5 pb-3.5 pt-1 border-t space-y-3">
-            <div className="rounded-lg border overflow-hidden">
-              <div className="flex items-center justify-between gap-2 px-2.5 py-2 border-b bg-[hsl(var(--muted))]/10">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold">Client receipts</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                    CRM · {activeOrderCount} active
-                    {returnedOrderCount > 0 ? ` · +${returnedOrderCount} returned` : ""}
-                  </p>
+          </button>
+          {moneyInOpen && (
+            <div className="px-3 pb-3 pt-1 border-t space-y-2.5">
+              <div className="rounded-md border overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b bg-[hsl(var(--muted))]/10">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold">Client receipts</p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                      CRM · {activeOrderCount} active
+                      {returnedOrderCount > 0 ? ` · +${returnedOrderCount} returned` : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href="/crm?tab=orders"
+                    className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0 cursor-pointer"
+                  >
+                    CRM <ArrowRight className="h-3 w-3" />
+                  </Link>
                 </div>
+                <div className="p-2 space-y-2">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
+                      <p className="text-base font-bold tabular-nums leading-none mt-0.5">{fmt(displayTotal, 0)}</p>
+                    </div>
+                    <ToggleChip
+                      on={includeOutstanding}
+                      label="+ Outstanding"
+                      amount={outstanding}
+                      onClick={() => setIncludeOutstanding((v) => !v)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <div className="rounded border px-1.5 py-1">
+                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Period</p>
+                      <p className="text-[10px] font-semibold tabular-nums mt-0.5">{fmt(periodReceived, 0)}</p>
+                    </div>
+                    <div className="rounded border px-1.5 py-1">
+                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">All-time</p>
+                      <p className="text-[10px] font-semibold tabular-nums mt-0.5">{fmt(orderPayments.allTime.totalReceived, 0)}</p>
+                    </div>
+                    <div className="rounded border px-1.5 py-1">
+                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Due</p>
+                      <p className="text-[10px] font-semibold tabular-nums mt-0.5 text-amber-700 dark:text-amber-400">
+                        {fmt(outstanding, 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {moneyInDisplayRows.length > 0 && (
+                <BreakdownTable
+                  rows={moneyInDisplayRows.map((r) => ({
+                    label: r.label,
+                    value: fmt(r.amount),
+                    details: r.details,
+                  }))}
+                  total={fmt(moneyInAll)}
+                  onOpenDetails={setDetailsModal}
+                />
+              )}
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+                <span className="inline-flex items-center gap-1">
+                  <HandCoins className="h-3 w-3" />
+                  Owe {fmt(loanSnap.weOwe, 0)} · Due to us {fmt(loanSnap.theyOwe, 0)}
+                </span>
                 <Link
-                  href="/crm?tab=orders"
-                  className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0 cursor-pointer"
+                  href="/finance?tab=manage&section=finance&add=loan"
+                  className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 hover:text-[hsl(var(--foreground))] cursor-pointer"
                 >
-                  CRM <ArrowRight className="h-3 w-3" />
+                  <Plus className="h-3 w-3" /> Add loan
                 </Link>
               </div>
-              <div className="p-2.5 space-y-2">
-                <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
-                  <p className="text-lg font-bold tabular-nums leading-none mt-1">{fmt(displayTotal, 0)}</p>
-                  {includeOutstanding ? (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-1">
-                      Base {fmt(periodReceived, 0)} + outstanding
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <ToggleChip
-                    on={includeOutstanding}
-                    label="+ Outstanding"
-                    amount={outstanding}
-                    onClick={() => setIncludeOutstanding((v) => !v)}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <div className="rounded-md border px-2 py-1.5">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Period</p>
-                    <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(periodReceived, 0)}</p>
-                  </div>
-                  <div className="rounded-md border px-2 py-1.5">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">All-time</p>
-                    <p className="text-[11px] font-semibold tabular-nums mt-0.5">{fmt(orderPayments.allTime.totalReceived, 0)}</p>
-                  </div>
-                  <div className="rounded-md border px-2 py-1.5">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Outstanding</p>
-                    <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-amber-700 dark:text-amber-400">
-                      {fmt(outstanding, 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
+          )}
+        </section>
 
-            {moneyInDisplayRows.length > 0 && (
+        <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden min-w-0">
+          <button
+            type="button"
+            onClick={() => setMoneyOutOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-rose-500/[0.04] transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 text-rose-700 dark:text-rose-400 transition-transform ${moneyOutOpen ? "" : "-rotate-90"}`}
+              />
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-rose-800 dark:text-rose-300">Money out</span>
+                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">Paid · {periodLabel}</span>
+              </span>
+            </span>
+            <span className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-400 shrink-0">
+              {fmt(moneyOutAll)}
+            </span>
+          </button>
+          {moneyOutOpen && (
+            <div className="px-3 pb-3 pt-1 border-t">
               <BreakdownTable
-                rows={moneyInDisplayRows.map((r) => ({
+                rows={moneyOutDisplayRows.map((r) => ({
                   label: r.label,
                   value: fmt(r.amount),
                   details: r.details,
                 }))}
-                total={fmt(moneyInAll)}
+                total={fmt(moneyOutAll)}
                 onOpenDetails={setDetailsModal}
               />
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]">
-              <span className="inline-flex items-center gap-1">
-                <HandCoins className="h-3 w-3" />
-                We owe {fmt(loanSnap.weOwe, 0)} · Owed to us {fmt(loanSnap.theyOwe, 0)}
-              </span>
-              <Link
-                href="/finance?tab=manage&section=finance&add=loan"
-                className="inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 hover:text-[hsl(var(--foreground))] cursor-pointer"
-              >
-                <Plus className="h-3 w-3" /> Add loan
-              </Link>
             </div>
-          </div>
-        )}
-      </section>
-
-      {/* Money out — closed by default */}
-      <section className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-        <button
-          type="button"
-          onClick={() => setMoneyOutOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-3.5 py-3 text-left hover:bg-rose-500/[0.04] transition-colors cursor-pointer"
-        >
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-rose-500/20 bg-rose-500/5 shrink-0">
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-rose-700 dark:text-rose-400 transition-transform ${moneyOutOpen ? "" : "-rotate-90"}`}
-              />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold text-rose-800 dark:text-rose-300">Money out</span>
-              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                Paid only · {periodLabel}
-              </span>
-            </span>
-          </span>
-          <span className="text-sm font-bold tabular-nums text-rose-700 dark:text-rose-400 shrink-0">
-            {fmt(moneyOutAll)}
-          </span>
-        </button>
-        {moneyOutOpen && (
-          <div className="px-3.5 pb-3.5 pt-1 border-t">
-            <BreakdownTable
-              rows={moneyOutDisplayRows.map((r) => ({
-                label: r.label,
-                value: fmt(r.amount),
-                details: r.details,
-              }))}
-              total={fmt(moneyOutAll)}
-              onOpenDetails={setDetailsModal}
-            />
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      </div>
 
       {/* Net toggles — compact, collapsed */}
-      <section className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+      <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
         <button
           type="button"
           onClick={() => setTogglesOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer"
         >
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border bg-[hsl(var(--background))] shrink-0">
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] transition-transform ${togglesOpen ? "" : "-rotate-90"}`}
-              />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-semibold">Adjust what counts in net</span>
-              <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">Toggle sources used in net</span>
-            </span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${togglesOpen ? "" : "-rotate-90"}`}
+            />
+            <span className="text-[11px] font-semibold">Adjust net</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">· toggle sources</span>
           </span>
           <span className="text-[11px] font-semibold tabular-nums text-[hsl(var(--muted-foreground))] shrink-0">
             {fmt(net)}
           </span>
         </button>
         {togglesOpen && (
-          <div className="px-3.5 pb-3.5 pt-1 border-t space-y-2.5">
+          <div className="px-3 pb-2.5 pt-1.5 border-t space-y-2">
             <div className="flex flex-wrap gap-1">
               <button type="button" onClick={() => setEnabled(defaultEnabled())} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">Reset</button>
               <button type="button" onClick={() => setSide("in", true)} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">All in</button>
               <button type="button" onClick={() => setSide("out", true)} className="text-[9px] px-1.5 py-0.5 rounded border cursor-pointer hover:bg-[hsl(var(--muted))]/30">All out</button>
             </div>
-            <div>
-              <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money in</p>
-              <div className="flex flex-wrap gap-1">
-                {inLines.filter((l) => l.amount > 0.004).map((l) => (
-                  <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money in</p>
+                <div className="flex flex-wrap gap-1">
+                  {inLines.filter((l) => l.amount > 0.004).map((l) => (
+                    <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
+                  ))}
+                </div>
               </div>
-            </div>
-            <div>
-              <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money out</p>
-              <div className="flex flex-wrap gap-1">
-                {outLines.filter((l) => l.amount > 0.004).map((l) => (
-                  <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
-                ))}
+              <div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase mb-1">Money out</p>
+                <div className="flex flex-wrap gap-1">
+                  {outLines.filter((l) => l.amount > 0.004).map((l) => (
+                    <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
