@@ -65,7 +65,7 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
       {/* Soft glow bloom */}
       <div className="pointer-events-none absolute h-64 w-64 rounded-full bg-[#2dd4bf]/25 blur-3xl voltrix-splash-bloom" />
 
-      <div className="relative z-10 flex flex-col items-center gap-4">
+      <div className="relative z-10 flex items-center justify-center">
         <Image
           src="/logo.png"
           alt="Voltrix"
@@ -74,39 +74,29 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
           priority
           className="h-32 sm:h-40 w-auto object-contain brightness-0 invert voltrix-splash-logo"
         />
-        <p className="text-[11px] sm:text-xs tracking-[0.35em] uppercase text-teal-100/80 font-medium voltrix-splash-tag">
-          Welcome in
-        </p>
       </div>
 
       <style>{`
         @keyframes voltrixSplashLogo {
           0% {
             opacity: 0;
-            transform: scale(0.35) rotate(-18deg);
-            filter: blur(12px) brightness(2);
+            transform: scale(0.4);
+            filter: blur(10px) brightness(1.8);
           }
-          35% {
+          40% {
             opacity: 1;
-            transform: scale(1.18) rotate(4deg);
-            filter: blur(0) brightness(1.35);
+            transform: scale(1.12);
+            filter: blur(0) brightness(1.25);
           }
-          55% {
-            transform: scale(0.94) rotate(-2deg);
-            filter: brightness(1.1);
-          }
-          75% {
-            transform: scale(1.06) rotate(1deg);
+          65% {
+            transform: scale(0.97);
+            filter: brightness(1.08);
           }
           100% {
             opacity: 1;
-            transform: scale(1) rotate(0deg);
+            transform: scale(1);
             filter: brightness(1);
           }
-        }
-        @keyframes voltrixSplashTag {
-          0%, 35% { opacity: 0; letter-spacing: 0.55em; transform: translateY(12px); }
-          100% { opacity: 1; letter-spacing: 0.35em; transform: translateY(0); }
         }
         @keyframes voltrixSplashRing {
           0% { opacity: 0.85; transform: scale(0.2); }
@@ -119,9 +109,6 @@ export function PostLoginSplash({ force = false, onDone }: Props = {}) {
         .voltrix-splash-logo {
           animation: voltrixSplashLogo 1.35s cubic-bezier(0.22, 1, 0.36, 1) both;
           filter: drop-shadow(0 0 28px rgba(45, 212, 191, 0.55));
-        }
-        .voltrix-splash-tag {
-          animation: voltrixSplashTag 1.1s ease-out 0.55s both;
         }
         .voltrix-splash-ring {
           position: absolute;
