@@ -240,12 +240,12 @@ export function InstallErpButton({ className }: { className?: string }) {
       onClick={() => void install()}
       className={
         className ??
-        "inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#1a9f9a]/40 bg-[#1a9f9a]/10 text-[#0d6b67] hover:bg-[#1a9f9a]/20 shrink-0"
+        "inline-flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 shrink-0"
       }
       title={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}
       aria-label={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}
     >
-      <Download className="h-4 w-4" />
+      <Download className="h-[15px] w-[15px]" strokeWidth={1.75} />
     </button>
   )
 }

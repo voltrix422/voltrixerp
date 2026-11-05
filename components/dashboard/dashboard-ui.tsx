@@ -32,7 +32,7 @@ export function chartAmountDomain(values: number[]): [number, number] {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+    <div className="flex-1 overflow-auto bg-white dark:bg-[hsl(var(--background))]">
       <div className="mx-auto w-full max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6 space-y-5">{children}</div>
     </div>
   )
@@ -113,7 +113,7 @@ export function DashboardMetricsStrip({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-3 lg:grid-cols-9 divide-x divide-y lg:divide-y-0 divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-y lg:divide-y-0 divide-black/[0.06] dark:divide-[hsl(var(--border))]">
         {items.map((item) => {
           const displayValue =
             loading
@@ -174,7 +174,7 @@ export function ChartCard({
     <div className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden flex flex-col min-w-0">
       <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-1">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+          <p className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
             {title}
           </p>
           {subtitle && (

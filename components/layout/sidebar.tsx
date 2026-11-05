@@ -246,7 +246,7 @@ export function Sidebar() {
         else toggleCollapsed()
       }}
       className={cn(
-        "flex h-14 w-full items-center border-b shrink-0 cursor-pointer hover:bg-[hsl(var(--accent))]/50 transition-colors",
+        "flex h-12 w-full items-center border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/5 transition-colors",
         collapsed && !opts?.mobile ? "justify-center px-1" : "justify-center px-4",
       )}
       title={opts?.mobile ? "Close menu" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -269,7 +269,7 @@ export function Sidebar() {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "hidden md:flex flex-col shrink-0 min-h-screen border-r bg-[hsl(var(--background))] transition-[width] duration-200 ease-out",
+          "hidden md:flex flex-col shrink-0 min-h-screen border-r border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] transition-[width] duration-200 ease-out",
           collapsed ? "w-[64px]" : "w-[220px]",
         )}
       >
@@ -290,7 +290,7 @@ export function Sidebar() {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="relative flex flex-col w-[220px] h-full bg-[hsl(var(--background))] border-r shadow-xl z-10">
+          <aside className="relative flex flex-col w-[220px] h-full bg-[#f5f5f7] dark:bg-[hsl(var(--background))] border-r border-black/[0.06] shadow-xl z-10">
             <div className="relative">
               {logoButton({ mobile: true })}
               <Button

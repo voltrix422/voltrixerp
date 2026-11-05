@@ -9,7 +9,7 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  if (!mounted) return <div className="h-8 w-8" />
+  if (!mounted) return <div className="h-7 w-7" />
 
   const isDark = resolvedTheme === "dark"
 
@@ -17,11 +17,11 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 cursor-pointer"
+      className="h-7 w-7 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle theme"
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {isDark ? <Sun className="h-[15px] w-[15px]" strokeWidth={1.75} /> : <Moon className="h-[15px] w-[15px]" strokeWidth={1.75} />}
     </Button>
   )
 }

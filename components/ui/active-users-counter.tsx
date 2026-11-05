@@ -183,11 +183,8 @@ export function ActiveUsersCounter({
 
   if (isLoading) {
     return (
-      <div className={`inline-flex items-center rounded-full border bg-[hsl(var(--background))] ${config.containerClass} ${className}`}>
-        <div className="animate-pulse flex items-center gap-1.5">
-          <Users className={config.iconClass} />
-          <span className="text-[hsl(var(--muted-foreground))]">--</span>
-        </div>
+      <div className={`inline-flex items-center justify-center h-7 w-7 rounded-full ${className}`}>
+        <Users className="h-[15px] w-[15px] text-[#86868b] animate-pulse" strokeWidth={1.75} />
       </div>
     )
   }
@@ -212,20 +209,20 @@ export function ActiveUsersCounter({
 
   return (
     <>
-      <div 
-        className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors cursor-pointer ${config.containerClass} ${className}`}
+      <button
+        type="button"
+        className={`relative inline-flex items-center justify-center h-7 w-7 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer ${className}`}
         onClick={openVisitorsModal}
+        aria-label={`${activeCount} active users`}
+        title={`${activeCount} active users`}
       >
-        <div className="flex items-center gap-1.5">
-          <Users className={`${config.iconClass} text-[hsl(var(--foreground))]`} />
-          <Badge 
-            variant="outline" 
-            className={`${config.badgeClass} border-[hsl(var(--primary))] text-[hsl(var(--foreground))]`}
-          >
-            {activeCount}
-          </Badge>
-        </div>
-      </div>
+        <Users className="h-[15px] w-[15px]" strokeWidth={1.75} />
+        {activeCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#34c759] px-0.5 text-[9px] font-semibold text-white tabular-nums">
+            {activeCount > 9 ? "9+" : activeCount}
+          </span>
+        )}
+      </button>
 
       {/* Visitors Modal */}
       {showVisitorsModal && (

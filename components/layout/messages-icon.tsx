@@ -88,13 +88,13 @@ export function MessagesIcon() {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer"
+        className="relative flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
         aria-label={unread > 0 ? `${unread} unread messages` : "Messages"}
         title="Messages"
       >
-        <MessageSquare className="h-4 w-4" />
+        <MessageSquare className="h-[15px] w-[15px]" strokeWidth={1.75} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1faca6] px-0.5 text-[9px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#0071e3] px-0.5 text-[9px] font-semibold text-white tabular-nums">
             {unread > 9 ? "9+" : unread}
           </span>
         )}

@@ -11,14 +11,12 @@ import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
 import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
-import { FinanceApprovalPanel } from "@/components/finance/finance-approval-panel"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
 import { FullBackupCard } from "@/components/dashboard/full-backup-card"
 import { useDashboardApprovalCounts } from "@/components/dashboard/use-dashboard-data"
 import { isErpAdmin } from "@/lib/auth"
 import {
   ApprovalTabs,
-  ApprovalsSummaryChips,
   DashboardMainTabs,
   DashboardShell,
   type DashboardMainTab,
@@ -246,9 +244,14 @@ export default function DashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
-  const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty" | "cash">("orders")
+  const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const approvalCounts = useDashboardApprovalCounts(!!user && isErpAdmin(user.role))
+  const approvalsBadge =
+    approvalCounts.crmOrders +
+    approvalCounts.purchaseOrders +
+    approvalCounts.transfers +
+    approvalCounts.pettyCash
 
   useEffect(() => {
     if (searchParams?.get("manageUsers") === "1") {
@@ -278,19 +281,8 @@ export default function DashboardPage() {
           <DashboardMainTabs
             active={mainTab}
             onChange={setMainTab}
-            approvalsPending={approvalCounts.total}
+            approvalsPending={approvalsBadge}
           />
-          {mainTab === "approvals" && approvalCounts.total > 0 && (
-            <ApprovalsSummaryChips
-              items={[
-                { label: "CRM orders", count: approvalCounts.crmOrders },
-                { label: "purchase orders", count: approvalCounts.purchaseOrders },
-                { label: "transfers", count: approvalCounts.transfers },
-                { label: "petty cash", count: approvalCounts.pettyCash },
-                { label: "cash requests", count: approvalCounts.cashRequests },
-              ]}
-            />
-          )}
         </div>
 
         {mainTab === "overview" ? (
@@ -299,14 +291,9 @@ export default function DashboardPage() {
           <FullBackupCard />
         ) : (
           <section className="space-y-3">
-            <div>
-              <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                Approvals
-              </h2>
-              <p className="text-[12px] text-[#86868b] mt-0.5">
-                Review what needs your action.
-              </p>
-            </div>
+            <h2 className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Approvals
+            </h2>
 
             <ApprovalTabs
               active={approvalTab}
@@ -316,11 +303,10 @@ export default function DashboardPage() {
                 { id: "po", label: "Purchase Orders", count: approvalCounts.purchaseOrders },
                 { id: "transfers", label: "Branch Transfers", count: approvalCounts.transfers },
                 { id: "petty", label: "Petty Cash", count: approvalCounts.pettyCash },
-                { id: "cash", label: "Cash requests", count: approvalCounts.cashRequests },
               ]}
             />
 
-            <div className="min-h-[260px] rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] p-4">
+            <div className="min-h-[260px] rounded-[18px] bg-[#f5f5f7] dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] p-4">
               <div className={approvalTab === "orders" ? "" : "hidden"}>
                 <ClientOrdersApproval />
               </div>
@@ -332,9 +318,6 @@ export default function DashboardPage() {
               </div>
               <div className={approvalTab === "petty" ? "" : "hidden"}>
                 <DashboardPettyCashApprovals />
-              </div>
-              <div className={approvalTab === "cash" ? "" : "hidden"}>
-                <FinanceApprovalPanel />
               </div>
             </div>
           </section>

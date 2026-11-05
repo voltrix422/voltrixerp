@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
   getPettyCashAllocations,
   getPettyCashReceipts,
@@ -14,7 +13,7 @@ import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { PettyCashApprovalForm } from "@/components/finance/petty-cash-approval"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/components/ui/toast"
-import { CheckCircle, Loader2, XCircle } from "lucide-react"
+import { Check, Loader2, X } from "lucide-react"
 
 export function DashboardPettyCashApprovals() {
   const { user } = useAuth()
@@ -72,65 +71,73 @@ export function DashboardPettyCashApprovals() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+      <div className="flex items-center justify-center py-12 gap-2 text-[13px] text-[#86868b]">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading petty cash approvals…
+        Loading…
       </div>
     )
   }
 
   if (pendingRequests.length === 0 && pendingReceipts.length === 0) {
     return (
-      <p className="text-sm text-[hsl(var(--muted-foreground))] py-8 text-center">
-        No petty cash items pending approval.
+      <p className="text-[13px] text-[#86868b] py-10 text-center">
+        Nothing pending.
       </p>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {pendingRequests.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-            Cash requests ({pendingRequests.length})
-          </p>
+        <div className="space-y-2.5">
+          <div className="flex items-baseline justify-between gap-2 px-0.5">
+            <p className="text-[13px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Requests
+            </p>
+            <p className="text-[11px] font-medium text-[#86868b] tabular-nums">{pendingRequests.length}</p>
+          </div>
           <div className="space-y-2">
             {pendingRequests.map((allocation) => (
               <div
                 key={allocation.id}
-                className="flex flex-col gap-2 rounded-lg border border-[hsl(var(--border))] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                className="rounded-[14px] bg-white dark:bg-[hsl(var(--background))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-3.5 py-3"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{allocation.employeeName}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
-                  <p className="text-xs font-semibold mt-1">
-                    PKR {allocation.amount.toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs bg-green-600 hover:bg-green-700"
-                    onClick={() => setApprovalAllocation(allocation)}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={async () => {
-                      try {
-                        await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
-                        await refresh()
-                        toast({ type: "success", title: "Request rejected" })
-                      } catch {
-                        toast({ type: "error", title: "Failed to reject request" })
-                      }
-                    }}
-                  >
-                    Reject
-                  </Button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                      {allocation.employeeName}
+                    </p>
+                    <p className="text-[12px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2">
+                      {allocation.purpose}
+                    </p>
+                    <p className="text-[15px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] mt-1.5 tabular-nums">
+                      PKR {allocation.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setApprovalAllocation(allocation)}
+                      className="inline-flex h-8 items-center rounded-full bg-[#34c759] px-3.5 text-[12px] font-semibold text-white hover:bg-[#2db84e] transition-colors cursor-pointer"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
+                          await refresh()
+                          toast({ type: "success", title: "Request rejected" })
+                        } catch {
+                          toast({ type: "error", title: "Failed to reject request" })
+                        }
+                      }}
+                      className="inline-flex h-8 items-center rounded-full bg-black/[0.06] dark:bg-white/10 px-3.5 text-[12px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.1] transition-colors cursor-pointer"
+                    >
+                      Reject
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -139,66 +146,57 @@ export function DashboardPettyCashApprovals() {
       )}
 
       {pendingReceipts.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-            Expense receipts ({pendingReceipts.length})
-          </p>
-          <div className="rounded-lg border border-[hsl(var(--border))] overflow-x-auto">
-            <table className="w-full min-w-[520px]">
-              <thead>
-                <tr className="border-b bg-[hsl(var(--muted))]/30">
-                  <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Employee
-                  </th>
-                  <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Category
-                  </th>
-                  <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Description
-                  </th>
-                  <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Amount
-                  </th>
-                  <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[hsl(var(--border))]/60">
-                {pendingReceipts.map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/20 transition-colors">
-                    <td className="px-3 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
-                    <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{receipt.category || "—"}</td>
-                    <td className="px-3 py-2 text-xs">{receipt.description}</td>
-                    <td className="px-3 py-2 text-xs font-semibold text-red-600">
+        <div className="space-y-2.5">
+          <div className="flex items-baseline justify-between gap-2 px-0.5">
+            <p className="text-[13px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Expense receipts
+            </p>
+            <p className="text-[11px] font-medium text-[#86868b] tabular-nums">{pendingReceipts.length}</p>
+          </div>
+          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--background))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-hidden">
+            <div className="divide-y divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+              {pendingReceipts.map((receipt) => (
+                <div
+                  key={receipt.id}
+                  className="flex items-start gap-3 px-3.5 py-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        {receipt.employeeName}
+                      </p>
+                      <span className="text-[11px] text-[#86868b]">{receipt.category || "—"}</span>
+                    </div>
+                    <p className="text-[12px] text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2">
+                      {receipt.description}
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] mt-1 tabular-nums">
                       PKR {receipt.amount.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          disabled={busyReceiptId === receipt.id}
-                          onClick={() => handleReviewReceipt(receipt, "approved")}
-                          className="text-green-600 hover:text-green-800 cursor-pointer disabled:opacity-50"
-                          title="Approve"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyReceiptId === receipt.id}
-                          onClick={() => handleReviewReceipt(receipt, "rejected")}
-                          className="text-red-600 hover:text-red-800 cursor-pointer disabled:opacity-50"
-                          title="Reject"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                    <button
+                      type="button"
+                      disabled={busyReceiptId === receipt.id}
+                      onClick={() => handleReviewReceipt(receipt, "approved")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#34c759]/15 text-[#248a3d] hover:bg-[#34c759]/25 disabled:opacity-50 cursor-pointer"
+                      title="Approve"
+                    >
+                      <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyReceiptId === receipt.id}
+                      onClick={() => handleReviewReceipt(receipt, "rejected")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#ff3b30]/12 text-[#d70015] hover:bg-[#ff3b30]/20 disabled:opacity-50 cursor-pointer"
+                      title="Reject"
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

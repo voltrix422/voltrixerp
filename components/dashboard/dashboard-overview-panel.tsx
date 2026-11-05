@@ -67,7 +67,6 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
     { label: "Orders", value: stats?.orders ?? 0, href: crmHref },
     { label: "Inventory", value: stats?.inventoryItems ?? 0, href: variant === "investor" ? undefined : "/inventory" },
     { label: "Expenses", value: formatCurrency(stats?.financeTotal ?? 0), href: variant === "investor" ? undefined : "/finance", isMoney: true },
-    { label: "PO value", value: formatCurrency(stats?.totalPOValue ?? 0), href: variant === "investor" ? undefined : "/purchase", isMoney: true },
     { label: "Delivered", value: formatCurrency(stats?.deliveredValue ?? 0), href: crmHref, isMoney: true },
   ]
 
@@ -94,7 +93,6 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           <ChartCard
             title="Delivered"
-            subtitle="Order amount"
             tall
             footer={
               <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
@@ -141,7 +139,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
             )}
           </ChartCard>
 
-          <ChartCard title="Inventory" subtitle="Units added" tall>
+          <ChartCard title="Inventory" tall>
             {loading ? (
               <ChartLoading />
             ) : (
@@ -166,7 +164,6 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <ChartCard
             title="Petty cash"
-            subtitle="By employee"
             footer={
               <p className="text-[20px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums leading-none">
                 {formatRsFull(pettyTotal)}
@@ -204,7 +201,7 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
             )}
           </ChartCard>
 
-          <ChartCard title="After Sale" subtitle="Opened vs closed">
+          <ChartCard title="After Sale">
             {loading ? (
               <ChartLoading />
             ) : (
