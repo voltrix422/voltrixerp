@@ -212,7 +212,7 @@ export function NotificationBell() {
           void requestDesktopNotificationPermission()
           setOpen(v => !v)
         }}
-        className="relative flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
+        className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
         aria-label={`${unread} unread notifications`}
       >
         <Bell className="h-[15px] w-[15px]" strokeWidth={1.75} />

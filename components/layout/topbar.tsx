@@ -47,14 +47,14 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1.5">
         {action && <>{action}</>}
         {!investor && <ActiveUsersCounter showLabel={false} />}
         {!investor && <DBStatusIndicator />}
         <ThemeToggle />
         {!investor && (
           <>
-            <InstallErpButton className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 shrink-0" />
+            <InstallErpButton className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10" />
             <MessagesIcon />
             <NotificationBell />
           </>
@@ -63,7 +63,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         {!investor && pendingCount !== undefined && pendingCount > 0 && (
           <button
             onClick={onPendingClick}
-            className="relative flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors"
+            className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors"
             aria-label={`${pendingCount} pending approvals`}
           >
             <svg className="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -75,10 +75,10 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
           </button>
         )}
 
-        <div className="relative ml-1" ref={ref}>
+        <div className="relative" ref={ref}>
           <button
             onClick={() => setOpen(v => !v)}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1d1d1f] text-white text-[10px] font-semibold cursor-pointer select-none hover:opacity-85 transition-opacity"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white text-[10px] font-semibold cursor-pointer select-none hover:opacity-85 transition-opacity"
             aria-label="User menu"
           >
             {initials}

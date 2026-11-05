@@ -35,32 +35,34 @@ export function DBStatusIndicator() {
   if (isConnected === null) return null
 
   return (
-    <div 
-      className="relative flex items-center gap-1.5 cursor-pointer"
+    <button
+      type="button"
+      className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
       onClick={checkConnection}
       title="Click to check connection"
+      aria-label={isConnected ? "Database connected" : "Database disconnected"}
     >
       {isConnected ? (
-        <Wifi className="h-3.5 w-3.5 text-green-500" />
+        <Wifi className="h-[15px] w-[15px] text-[#34c759]" strokeWidth={1.75} />
       ) : (
-        <WifiOff className="h-3.5 w-3.5 text-red-500" />
+        <WifiOff className="h-[15px] w-[15px] text-[#ff3b30]" strokeWidth={1.75} />
       )}
-      
+
       {showTooltip && (
-        <div className="absolute right-0 top-6 z-50 whitespace-nowrap rounded-md bg-[hsl(var(--popover))] px-3 py-2 text-[10px] text-[hsl(var(--popover-foreground))] shadow-lg border">
+        <div className="absolute right-0 top-8 z-50 whitespace-nowrap rounded-[10px] bg-[#1d1d1f] px-3 py-2 text-[10px] text-white shadow-lg">
           <div className="font-semibold mb-1">
-            {isConnected ? "✓ Connected" : "✗ Disconnected"}
+            {isConnected ? "Connected" : "Disconnected"}
           </div>
-          <div className="text-[9px] text-[hsl(var(--muted-foreground))]">
+          <div className="text-[9px] text-white/70">
             {lastChecked && `Last checked: ${lastChecked.toLocaleTimeString()}`}
           </div>
-          <div className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
+          <div className="text-[9px] text-white/70 mt-0.5">
             Click to check now
           </div>
         </div>
       )}
-    </div>
+    </button>
   )
 }

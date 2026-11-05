@@ -88,7 +88,7 @@ export function MessagesIcon() {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="relative flex h-7 w-7 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
+        className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
         aria-label={unread > 0 ? `${unread} unread messages` : "Messages"}
         title="Messages"
       >

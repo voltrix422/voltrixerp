@@ -211,7 +211,7 @@ export function ActiveUsersCounter({
     <>
       <button
         type="button"
-        className={`relative inline-flex items-center justify-center h-7 w-7 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer ${className}`}
+        className={`relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer ${className}`}
         onClick={openVisitorsModal}
         aria-label={`${activeCount} active users`}
         title={`${activeCount} active users`}
