@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { ArrowRight, Loader2, RefreshCw, ChevronDown, X, Download, FileSpreadsheet, Scale, SlidersHorizontal } from "lucide-react"
@@ -296,26 +296,74 @@ function BreakdownTable({
   rows,
   total,
   onOpenDetails,
-  tooltipSide = "left",
 }: {
   rows: { label: string; value: string; details?: MoneyOutDetailLine[] }[]
   total: string
   onOpenDetails?: (row: { label: string; value: string; details: MoneyOutDetailLine[] }) => void
   tooltipSide?: "left" | "right"
 }) {
+  const [hover, setHover] = useState<{
+    label: string
+    value: string
+    details: MoneyOutDetailLine[]
+    x: number
+    y: number
+  } | null>(null)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function clearHide() {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current)
+      hideTimer.current = null
+    }
+  }
+
+  function scheduleHide() {
+    clearHide()
+    hideTimer.current = setTimeout(() => setHover(null), 120)
+  }
+
+  function showPreview(
+    e: React.MouseEvent,
+    row: { label: string; value: string; details: MoneyOutDetailLine[] },
+  ) {
+    clearHide()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const width = Math.min(420, window.innerWidth - 24)
+    const pad = 12
+    let x = rect.left
+    if (x + width > window.innerWidth - pad) x = window.innerWidth - width - pad
+    if (x < pad) x = pad
+    let y = rect.bottom + 8
+    const maxH = Math.min(360, window.innerHeight - 24)
+    if (y + Math.min(280, maxH) > window.innerHeight - pad) {
+      y = Math.max(pad, rect.top - 8 - Math.min(280, maxH))
+    }
+    setHover({ ...row, x, y })
+  }
+
+  useEffect(() => () => clearHide(), [])
+
   return (
-    <div className="w-full rounded-[14px] bg-[#f5f5f7] dark:bg-black/20 overflow-visible">
+    <div className="w-full rounded-[14px] bg-[#f5f5f7] dark:bg-black/20 overflow-hidden">
       <table className="w-full border-collapse text-[12px]">
         <tbody>
           {rows.map((row, i) => {
             const hasDetails = (row.details?.length ?? 0) > 0
-            const detailCount = row.details?.length ?? 0
             return (
-              <tr key={row.label} className={`group/row ${i > 0 ? "border-t border-black/[0.05] dark:border-white/8" : ""}`}>
-                <td className="relative pl-3.5 pr-2 py-2.5 align-middle">
+              <tr key={row.label} className={i > 0 ? "border-t border-black/[0.05] dark:border-white/8" : ""}>
+                <td className="pl-3.5 pr-2 py-2.5 align-middle">
                   {hasDetails ? (
                     <button
                       type="button"
+                      onMouseEnter={(e) =>
+                        showPreview(e, {
+                          label: row.label,
+                          value: row.value,
+                          details: row.details || [],
+                        })
+                      }
+                      onMouseLeave={scheduleHide}
                       onClick={() =>
                         onOpenDetails?.({
                           label: row.label,
@@ -330,44 +378,6 @@ function BreakdownTable({
                     </button>
                   ) : (
                     <span className="text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))]">{row.label}</span>
-                  )}
-                  {hasDetails && (
-                    <div
-                      role="tooltip"
-                      className={`pointer-events-none absolute top-full z-[60] mt-1.5 hidden group-hover/row:block w-[min(34rem,calc(100vw-1.5rem))] rounded-[14px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.16)] p-3.5 ${
-                        tooltipSide === "right" ? "right-0 left-auto" : "left-0"
-                      }`}
-                    >
-                      <div className="flex items-baseline justify-between gap-3 mb-2.5 pb-2 border-b border-black/[0.06]">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{row.label}</p>
-                          <p className="text-[11px] text-[#86868b] mt-0.5">
-                            {detailCount} item{detailCount === 1 ? "" : "s"} · click row for full detail
-                          </p>
-                        </div>
-                        <p className="text-sm font-bold tabular-nums shrink-0">{row.value}</p>
-                      </div>
-                      <ul className="space-y-0 max-h-[22rem] overflow-y-auto divide-y divide-black/[0.05]">
-                        {row.details!.map((d) => (
-                          <li key={d.id} className="flex items-start justify-between gap-4 py-2 first:pt-0 last:pb-0">
-                            <span className="min-w-0">
-                              <span className="block text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug">
-                                {d.label}
-                              </span>
-                              {d.sublabel ? (
-                                <span className="block text-[11px] text-[#86868b] mt-0.5 leading-snug">
-                                  {d.sublabel}
-                                </span>
-                              ) : null}
-                              {d.date ? (
-                                <span className="block text-[10px] text-[#aeaeb2] mt-1">{d.date}</span>
-                              ) : null}
-                            </span>
-                            <span className="text-[13px] tabular-nums font-semibold shrink-0 pt-0.5">{fmt(d.amount)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
                   )}
                 </td>
                 <td className="pl-2 pr-3.5 py-2.5 tabular-nums font-semibold text-right align-middle whitespace-nowrap text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
@@ -386,6 +396,47 @@ function BreakdownTable({
           </tr>
         </tfoot>
       </table>
+
+      {hover &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="fixed z-[90] pointer-events-none w-[min(420px,calc(100vw-24px))] max-h-[min(360px,calc(100vh-24px))] overflow-hidden rounded-[14px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.16)]"
+            style={{ left: hover.x, top: hover.y }}
+            onMouseEnter={clearHide}
+            onMouseLeave={scheduleHide}
+          >
+            <div className="flex items-baseline justify-between gap-3 px-3.5 pt-3 pb-2 border-b border-black/[0.06]">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{hover.label}</p>
+                <p className="text-[11px] text-[#86868b] mt-0.5">
+                  {hover.details.length} item{hover.details.length === 1 ? "" : "s"} · click row for full detail
+                </p>
+              </div>
+              <p className="text-sm font-bold tabular-nums shrink-0">{hover.value}</p>
+            </div>
+            <ul className="max-h-[min(280px,calc(100vh-96px))] overflow-y-auto divide-y divide-black/[0.05] px-3.5">
+              {hover.details.map((d) => (
+                <li key={d.id} className="flex items-start justify-between gap-4 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug">
+                      {d.label}
+                    </span>
+                    {d.sublabel ? (
+                      <span className="block text-[11px] text-[#86868b] mt-0.5 leading-snug">{d.sublabel}</span>
+                    ) : null}
+                    {d.date ? (
+                      <span className="block text-[10px] text-[#aeaeb2] mt-1">{d.date}</span>
+                    ) : null}
+                  </span>
+                  <span className="text-[13px] tabular-nums font-semibold shrink-0 pt-0.5">{fmt(d.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -568,11 +619,30 @@ export function FinanceHub({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [moneyInOpen, setMoneyInOpen] = useState(false)
   const [moneyOutOpen, setMoneyOutOpen] = useState(false)
+  const filtersRef = useRef<HTMLDivElement>(null)
   const [detailsModal, setDetailsModal] = useState<{
     label: string
     value: string
     details: MoneyOutDetailLine[]
   } | null>(null)
+
+  useEffect(() => {
+    if (!filtersOpen) return
+    function onDown(e: MouseEvent) {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+        setFiltersOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFiltersOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [filtersOpen])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -825,118 +895,128 @@ export function FinanceHub({
       ? `${dateFrom || "…"} → ${dateTo || "…"}`
       : PERIODS.find((p) => p.id === period)?.label || periodLabel
 
+  const filterPanel = (
+    <div className="relative" ref={filtersRef}>
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((v) => !v)}
+        className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+          filtersOpen
+            ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+            : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+        }`}
+        aria-label="Filters and reports"
+        aria-expanded={filtersOpen}
+        title={`Filters · ${filtersActiveLabel}`}
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+      </button>
+      {filtersOpen && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.14)] p-3 space-y-2.5">
+          {/* Notch pointing up to the filter button */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-1.5 right-3 h-3 w-3 rotate-45 rounded-[2px] border-l border-t border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+          />
+          <div className="flex items-center justify-between gap-2 px-0.5 relative">
+            <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Filters
+            </p>
+            <p className="text-[10px] text-[#86868b] truncate">{filtersActiveLabel}</p>
+          </div>
+          <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
+            {PERIODS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
+                className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
+                  period === p.id && !dateFrom && !dateTo
+                    ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                    : "text-[#6e6e73] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => onDateFromChange?.(e.target.value)}
+              className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+            />
+            <span className="text-[9px] text-[#86868b] shrink-0">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => onDateToChange?.(e.target.value)}
+              className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+            />
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+              onClick={() => setShowSalesReport(true)}
+              disabled={loading}
+              title="Sales cash report"
+            >
+              <FileSpreadsheet className="h-3 w-3" />
+              Sales
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+              onClick={() => setShowOpexReport(true)}
+              disabled={loading}
+              title="Operating expenses"
+            >
+              <FileSpreadsheet className="h-3 w-3" />
+              Exp
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+              onClick={() => setShowIfrs(true)}
+              disabled={loading}
+              title="IFRS statements"
+            >
+              <Scale className="h-3 w-3" />
+              IFRS
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+              onClick={() => void downloadPdf()}
+              disabled={pdfBusy}
+            >
+              {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              PDF
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
+              onClick={load}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Sync
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className={`space-y-4 ${loading ? "opacity-60" : ""}`}>
-      {/* Filter icon — Apple-style, closed by default */}
-      <div className="flex items-center justify-end">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((v) => !v)}
-            className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-              filtersOpen
-                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-                : "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] border border-black/[0.06] dark:border-white/10 hover:bg-black/[0.03]"
-            }`}
-            aria-label="Filters and reports"
-            title={`Filters · ${filtersActiveLabel}`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-          </button>
-          {filtersOpen && (
-            <div className="absolute right-0 top-full mt-2 z-40 w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.14)] p-3 space-y-2.5">
-              <p className="text-[10px] font-medium text-[#86868b] px-0.5">{filtersActiveLabel}</p>
-              <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
-                {PERIODS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
-                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
-                      period === p.id && !dateFrom && !dateTo
-                        ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
-                        : "text-[#6e6e73] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => onDateFromChange?.(e.target.value)}
-                  className="h-8 rounded-xl border bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
-                />
-                <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">to</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => onDateToChange?.(e.target.value)}
-                  className="h-8 rounded-xl border bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
-                />
-              </div>
-              <div className="grid grid-cols-5 gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-                  onClick={() => setShowSalesReport(true)}
-                  disabled={loading}
-                  title="Sales cash report"
-                >
-                  <FileSpreadsheet className="h-3 w-3" />
-                  Sales
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-                  onClick={() => setShowOpexReport(true)}
-                  disabled={loading}
-                  title="Operating expenses"
-                >
-                  <FileSpreadsheet className="h-3 w-3" />
-                  Exp
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-                  onClick={() => setShowIfrs(true)}
-                  disabled={loading}
-                  title="IFRS statements"
-                >
-                  <Scale className="h-3 w-3" />
-                  IFRS
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-                  onClick={() => void downloadPdf()}
-                  disabled={pdfBusy}
-                >
-                  {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                  PDF
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-1 gap-0.5 text-[9px] rounded-xl"
-                  onClick={load}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  Sync
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {showSalesReport &&
         typeof document !== "undefined" &&
         createPortal(
@@ -1266,60 +1346,65 @@ export function FinanceHub({
           document.body,
         )}
 
-      {/* Hero: In / Out / Net — click In/Out to open detail */}
-      <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
-          <button
-            type="button"
-            onClick={() => {
-              setMoneyInOpen(true)
-              setMoneyOutOpen(false)
-            }}
-            className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
-              moneyInOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
-            }`}
-          >
-            <p className="text-[11px] font-medium text-[#86868b]">Money in</p>
-            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              {fmt(moneyInAll)}
-            </p>
-            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">{periodLabel}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMoneyOutOpen(true)
-              setMoneyInOpen(false)
-            }}
-            className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
-              moneyOutOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
-            }`}
-          >
-            <p className="text-[11px] font-medium text-[#86868b]">Money out</p>
-            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              {fmt(moneyOutAll)}
-            </p>
-            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">Paid costs</p>
-          </button>
-          <div className="px-4 py-4 sm:px-5">
-            <p className="text-[11px] font-medium text-[#86868b]">Net</p>
-            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-              {fmt(net)}
-            </p>
-            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">
-              {net >= 0 ? "Surplus" : "Deficit"}
-            </p>
+      {/* Hero: In / Out / Net + filter — one card under tabs */}
+      <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible relative z-20">
+        <div className="flex items-start">
+          <div className="grid flex-1 grid-cols-3 divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))] min-w-0">
+            <button
+              type="button"
+              onClick={() => {
+                setMoneyInOpen(true)
+                setMoneyOutOpen(false)
+              }}
+              className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] rounded-l-[18px] ${
+                moneyInOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
+              }`}
+            >
+              <p className="text-[11px] font-medium text-[#86868b]">Money in</p>
+              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                {fmt(moneyInAll)}
+              </p>
+              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">{periodLabel}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMoneyOutOpen(true)
+                setMoneyInOpen(false)
+              }}
+              className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
+                moneyOutOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
+              }`}
+            >
+              <p className="text-[11px] font-medium text-[#86868b]">Money out</p>
+              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                {fmt(moneyOutAll)}
+              </p>
+              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">Paid costs</p>
+            </button>
+            <div className="px-4 py-4 sm:px-5 pr-2 sm:pr-3">
+              <p className="text-[11px] font-medium text-[#86868b]">Net</p>
+              <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                {fmt(net)}
+              </p>
+              <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">
+                {net >= 0 ? "Surplus" : "Deficit"}
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0 self-start pt-3 pr-3 pl-1">
+            {filterPanel}
           </div>
         </div>
       </section>
 
       {/* Money in + Money out side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible min-w-0">
+        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden min-w-0">
           <button
             type="button"
             onClick={() => setMoneyInOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer rounded-t-[18px]"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
           >
             <span className="flex items-center gap-2 min-w-0">
               <ChevronDown
@@ -1426,7 +1511,7 @@ export function FinanceHub({
             </span>
           </button>
           {moneyOutOpen && (
-            <div className="px-4 pb-4 pt-1 border-t border-black/[0.05] dark:border-white/8 overflow-visible">
+            <div className="px-4 pb-4 pt-1 border-t border-black/[0.05] dark:border-white/8">
               <BreakdownTable
                 rows={moneyOutDisplayRows.map((r) => ({
                   label: r.label,
@@ -1435,7 +1520,6 @@ export function FinanceHub({
                 }))}
                 total={fmt(moneyOutAll)}
                 onOpenDetails={setDetailsModal}
-                tooltipSide="right"
               />
             </div>
           )}
