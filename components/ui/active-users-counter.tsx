@@ -1,8 +1,8 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { Users, X, Trash2 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Users } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { cn } from "@/lib/utils"
 
 interface ActiveUsersCounterProps {
   className?: string
@@ -21,51 +21,24 @@ interface Visitor {
   roleLabel?: string | null
 }
 
-export function ActiveUsersCounter({ 
-  className = "", 
-  showLabel = true,
-  size = "sm"
-}: ActiveUsersCounterProps) {
+export function ActiveUsersCounter({ className = "" }: ActiveUsersCounterProps) {
   const [activeCount, setActiveCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [isOnline, setIsOnline] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [showVisitorsModal, setShowVisitorsModal] = useState(false)
+  const [open, setOpen] = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
   const sessionIdRef = useRef<string | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { user } = useAuth()
 
-  // Size configurations
-  const sizeConfig = {
-    sm: {
-      containerClass: "h-7 px-2 gap-1.5 text-xs",
-      iconClass: "h-3.5 w-3.5",
-      badgeClass: "text-[10px] px-1 py-0"
-    },
-    md: {
-      containerClass: "h-8 px-3 gap-2 text-sm",
-      iconClass: "h-4 w-4",
-      badgeClass: "text-xs px-1.5 py-0"
-    },
-    lg: {
-      containerClass: "h-9 px-4 gap-2 text-base",
-      iconClass: "h-5 w-5",
-      badgeClass: "text-sm px-2 py-0.5"
-    }
-  }
-
-  const config = sizeConfig[size]
-
-  // Register/update user activity
   const updateActivity = async () => {
     if (!user?.id || !user?.name) {
       setIsLoading(false)
       return
     }
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      }
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (sessionIdRef.current) headers["x-session-id"] = sessionIdRef.current
 
       const response = await fetch("/api/active-users", {
@@ -77,144 +50,118 @@ export function ActiveUsersCounter({
           role: user.role || "",
         }),
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setActiveCount(data.count)
         setSessionId(data.sessionId)
         sessionIdRef.current = data.sessionId
-        setIsOnline(true)
-      } else {
-        setIsOnline(false)
       }
-    } catch (error) {
-      console.error('Failed to update activity:', error)
-      setIsOnline(false)
+    } catch {
+      /* ignore */
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Fetch current active users count and visitor list
   const fetchActiveUsers = async () => {
     try {
-      const response = await fetch('/api/active-users')
+      const response = await fetch("/api/active-users")
       if (response.ok) {
         const data = await response.json()
         setActiveCount(data.count)
         setVisitors((data.visitors || []).filter((v: Visitor) => Boolean(v.userName)))
-        setIsOnline(true)
-      } else {
-        setIsOnline(false)
       }
-    } catch (error) {
-      console.error('Failed to fetch active users:', error)
-      setIsOnline(false)
+    } catch {
+      /* ignore */
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Remove visitor
-  const removeVisitor = async (visitorSessionId: string) => {
-    try {
-      await fetch('/api/active-users', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': visitorSessionId,
-        },
-      })
-      fetchActiveUsers()
-    } catch (error) {
-      console.error('Failed to remove visitor:', error)
-    }
-  }
-
-  // Open visitors modal
-  const openVisitorsModal = () => {
-    fetchActiveUsers()
-    setShowVisitorsModal(true)
-  }
-
-  // Remove user from active list on unmount
   const removeActivity = async () => {
     const sid = sessionIdRef.current
-    if (sid) {
-      try {
-        await fetch('/api/active-users', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-session-id': sid,
-          },
-        })
-      } catch (error) {
-        console.error('Failed to remove activity:', error)
-      }
+    if (!sid) return
+    try {
+      await fetch("/api/active-users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-session-id": sid },
+      })
+    } catch {
+      /* ignore */
     }
   }
 
   useEffect(() => {
-    updateActivity()
-
-    const activityInterval = setInterval(updateActivity, 30000)
-    const countInterval = setInterval(fetchActiveUsers, 10000)
-
+    void updateActivity()
+    const activityInterval = setInterval(() => void updateActivity(), 30000)
+    const countInterval = setInterval(() => void fetchActiveUsers(), 10000)
     return () => {
       clearInterval(activityInterval)
       clearInterval(countInterval)
-      removeActivity()
+      void removeActivity()
     }
-    // Re-register when the ERP session user is known so the list shows the real name.
   }, [user?.id, user?.name, user?.role])
 
-  // Handle page visibility changes
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        updateActivity()
-      }
+      if (document.visibilityState === "visible") void updateActivity()
     }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
   }, [])
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    return () => document.removeEventListener("mousedown", onDown)
+  }, [])
+
+  function openPanel() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    void fetchActiveUsers()
+    setOpen(true)
+  }
+
+  function scheduleClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setOpen(false), 160)
+  }
+
+  function formatTimeAgo(timestamp: number) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+    if (seconds < 60) return `${seconds}s`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m`
+    return `${Math.floor(minutes / 60)}h`
+  }
 
   if (isLoading) {
     return (
-      <div className={`inline-flex items-center justify-center h-7 w-7 rounded-full ${className}`}>
+      <div className={cn("inline-flex items-center justify-center h-7 w-7 rounded-full", className)}>
         <Users className="h-[15px] w-[15px] text-[#86868b] animate-pulse" strokeWidth={1.75} />
       </div>
     )
   }
 
-  const formatTimeAgo = (timestamp: number) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000)
-    if (seconds < 60) return `${seconds}s ago`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
-  }
-
-  const formatUserAgent = (ua?: string) => {
-    if (!ua) return "Unknown"
-    if (ua.includes("Chrome")) return "Chrome"
-    if (ua.includes("Firefox")) return "Firefox"
-    if (ua.includes("Safari")) return "Safari"
-    if (ua.includes("Edge")) return "Edge"
-    return "Other"
-  }
-
   return (
-    <>
+    <div
+      className="relative"
+      ref={rootRef}
+      onMouseEnter={openPanel}
+      onMouseLeave={scheduleClose}
+    >
       <button
         type="button"
-        className={`relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer ${className}`}
-        onClick={openVisitorsModal}
-        aria-label={`${activeCount} active users`}
-        title={`${activeCount} active users`}
+        className={cn(
+          "relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer",
+          className,
+        )}
+        onClick={() => (open ? setOpen(false) : openPanel())}
+        aria-label="Active users"
+        title="Online"
       >
         <Users className="h-[15px] w-[15px]" strokeWidth={1.75} />
         {activeCount > 0 && (
@@ -224,76 +171,54 @@ export function ActiveUsersCounter({
         )}
       </button>
 
-      {/* Visitors Modal */}
-      {showVisitorsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowVisitorsModal(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-[hsl(var(--foreground))]" />
-                <p className="text-base font-semibold text-[hsl(var(--foreground))]">Active ERP users</p>
-                <Badge variant="outline" className="text-xs">{visitors.length}</Badge>
-              </div>
-              <button onClick={() => setShowVisitorsModal(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              {visitors.length === 0 ? (
-                <div className="text-center py-6">
-                  <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No ERP users online</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {visitors.filter((visitor) => visitor.userName).map((visitor) => (
-                    <div key={visitor.sessionId} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--foreground))] text-[hsl(var(--background))] text-[10px] font-semibold">
-                            {(visitor.userName || "E")
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate">
-                              {visitor.userName}
-                            </p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
-                              {[visitor.roleLabel, formatUserAgent(visitor.userAgent)].filter(Boolean).join(" · ")}
-                            </p>
-                            {visitor.ip && visitor.ip !== "unknown" && (
-                              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate">
-                                {visitor.ip}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimeAgo(visitor.lastSeen)}</span>
-                          <button
-                            onClick={() => removeVisitor(visitor.sessionId)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            title="Remove visitor"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 w-[240px] overflow-hidden rounded-[14px] border border-black/[0.08] bg-white/95 shadow-[0_12px_40px_rgba(0,0,0,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+          <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
+            <p className="text-[12px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Online
+            </p>
+            <span className="text-[11px] font-semibold tabular-nums text-[#86868b]">{visitors.length}</span>
+          </div>
+
+          <div className="max-h-[280px] overflow-y-auto px-1.5 pb-2">
+            {visitors.length === 0 ? (
+              <p className="px-2 py-6 text-center text-[11px] text-[#86868b]">Nobody online</p>
+            ) : (
+              <div className="space-y-0.5">
+                {visitors.map((visitor) => {
+                  const initials = (visitor.userName || "?")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
+                  return (
+                    <div
+                      key={visitor.sessionId}
+                      className="flex items-center gap-2.5 rounded-[10px] px-2 py-2 hover:bg-black/[0.04] dark:hover:bg-white/5"
+                    >
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-[9px] font-semibold text-white">
+                        {initials}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          {visitor.userName}
+                        </p>
+                        <p className="text-[10px] text-[#86868b] truncate">
+                          {visitor.roleLabel || "User"}
+                        </p>
                       </div>
+                      <span className="shrink-0 text-[10px] tabular-nums text-[#aeaeb2]">
+                        {formatTimeAgo(visitor.lastSeen)}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-4 text-center">
-                Auto-removed after 5 minutes of inactivity
-              </p>
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

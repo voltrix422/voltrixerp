@@ -3,6 +3,7 @@ import { useTheme } from "next-themes"
 import { Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
+import { NavTooltip } from "@/components/ui/nav-tooltip"
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
@@ -14,14 +15,17 @@ export function ThemeToggle() {
   const isDark = resolvedTheme === "dark"
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7 shrink-0 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label="Toggle theme"
-    >
-      {isDark ? <Sun className="h-[15px] w-[15px]" strokeWidth={1.75} /> : <Moon className="h-[15px] w-[15px]" strokeWidth={1.75} />}
-    </Button>
+    <NavTooltip label={isDark ? "Light mode" : "Dark mode"}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0 rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer"
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        aria-label={isDark ? "Light mode" : "Dark mode"}
+        title={isDark ? "Light mode" : "Dark mode"}
+      >
+        {isDark ? <Sun className="h-[15px] w-[15px]" strokeWidth={1.75} /> : <Moon className="h-[15px] w-[15px]" strokeWidth={1.75} />}
+      </Button>
+    </NavTooltip>
   )
 }

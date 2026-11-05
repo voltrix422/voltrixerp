@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { CheckCheck, MessageSquare } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { notifyMessagesChanged, useUnreadMessages } from "@/components/layout/use-unread-messages"
+import { NavTooltip } from "@/components/ui/nav-tooltip"
 import { cn } from "@/lib/utils"
 
 function timeAgo(iso: string) {
@@ -85,20 +86,22 @@ export function MessagesIcon() {
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
-        aria-label={unread > 0 ? `${unread} unread messages` : "Messages"}
-        title="Messages"
-      >
-        <MessageSquare className="h-[15px] w-[15px]" strokeWidth={1.75} />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#0071e3] px-0.5 text-[9px] font-semibold text-white tabular-nums">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </button>
+      <NavTooltip label="Messages">
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
+          aria-label={unread > 0 ? `${unread} unread messages` : "Messages"}
+          title="Messages"
+        >
+          <MessageSquare className="h-[15px] w-[15px]" strokeWidth={1.75} />
+          {unread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#0071e3] px-0.5 text-[9px] font-semibold text-white tabular-nums">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
+        </button>
+      </NavTooltip>
 
       {open && (
         <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-[hsl(var(--card))] shadow-lg">

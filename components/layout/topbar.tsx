@@ -6,6 +6,7 @@ import { ActiveUsersCounter } from "@/components/ui/active-users-counter"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { InstallErpButton } from "@/components/pwa/pwa-provider"
 import { MessagesIcon } from "@/components/layout/messages-icon"
+import { NavTooltip } from "@/components/ui/nav-tooltip"
 import { useAuth } from "@/components/auth-provider"
 import { isInvestorUser } from "@/lib/auth"
 import { useState, useRef, useEffect } from "react"
@@ -54,35 +55,53 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         <ThemeToggle />
         {!investor && (
           <>
-            <InstallErpButton className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer" />
+            <NavTooltip label="Install app">
+              <InstallErpButton className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 cursor-pointer" />
+            </NavTooltip>
             <MessagesIcon />
             <NotificationBell />
           </>
         )}
 
         {!investor && pendingCount !== undefined && pendingCount > 0 && (
-          <button
-            onClick={onPendingClick}
-            className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors"
-            aria-label={`${pendingCount} pending approvals`}
-          >
-            <svg className="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#ff3b30] px-0.5 text-[9px] font-semibold text-white tabular-nums">
-              {pendingCount > 9 ? "9+" : pendingCount}
-            </span>
-          </button>
+          <NavTooltip label="Pending approvals">
+            <button
+              onClick={onPendingClick}
+              className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label={`${pendingCount} pending approvals`}
+              title="Pending approvals"
+            >
+              <svg className="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#ff3b30] px-0.5 text-[9px] font-semibold text-white tabular-nums">
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            </button>
+          </NavTooltip>
         )}
 
         <div className="relative" ref={ref}>
-          <button
-            onClick={() => setOpen(v => !v)}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white text-[10px] font-semibold cursor-pointer select-none hover:opacity-85 transition-opacity"
-            aria-label="User menu"
-          >
-            {initials}
-          </button>
+          {open ? (
+            <button
+              onClick={() => setOpen(false)}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white text-[10px] font-semibold cursor-pointer select-none hover:opacity-85 transition-opacity"
+              aria-label="Account"
+            >
+              {initials}
+            </button>
+          ) : (
+            <NavTooltip label="Account">
+              <button
+                onClick={() => setOpen(true)}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white text-[10px] font-semibold cursor-pointer select-none hover:opacity-85 transition-opacity"
+                aria-label="Account"
+                title="Account"
+              >
+                {initials}
+              </button>
+            </NavTooltip>
+          )}
 
           {open && (
             <div className="absolute right-0 top-9 z-50 w-52 rounded-[12px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] shadow-[0_12px_40px_rgba(0,0,0,0.14)] py-1 overflow-hidden">
