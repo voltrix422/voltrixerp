@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { FinanceHub } from "@/components/finance/finance-hub"
-import { ClientOrdersFinance, type ClientOrdersCreditFilter } from "@/components/finance/client-orders-finance"
+import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { Search, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -25,7 +25,6 @@ export default function FinancePage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [clientCreditFilter, setClientCreditFilter] = useState<ClientOrdersCreditFilter>("all")
 
   useEffect(() => {
     if (!searchParams) return
@@ -47,13 +46,12 @@ export default function FinancePage() {
     }
   }, [searchParams, router])
 
-  const hasFilters = search || dateFrom || dateTo || clientCreditFilter !== "all"
+  const hasFilters = !!(search || dateFrom || dateTo)
 
   function clearFilters() {
     setSearch("")
     setDateFrom("")
     setDateTo("")
-    setClientCreditFilter("all")
   }
 
   function selectPeriod(id: string) {
@@ -89,7 +87,7 @@ export default function FinancePage() {
           </div>
 
           <div key={activeTab} className="dashboard-content-in space-y-3">
-            {activeTab !== "overview" && (
+            {activeTab === "manage" && (
               <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center">
                 <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
@@ -116,18 +114,6 @@ export default function FinancePage() {
                     className="h-9 sm:h-8 rounded-[10px] border border-black/[0.08] dark:border-[hsl(var(--border))] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32 cursor-pointer"
                   />
                 </div>
-                {activeTab === "client" && (
-                  <select
-                    value={clientCreditFilter}
-                    onChange={(e) => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
-                    className="h-9 sm:h-8 w-full sm:w-auto rounded-[10px] border border-black/[0.08] dark:border-[hsl(var(--border))] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
-                    aria-label="Credit filter"
-                  >
-                    <option value="all">All orders</option>
-                    <option value="outstanding">Outstanding credit</option>
-                    <option value="on_credit">On credit (any)</option>
-                  </select>
-                )}
                 {hasFilters && (
                   <button
                     type="button"
@@ -161,14 +147,7 @@ export default function FinancePage() {
               />
             )}
 
-            {activeTab === "client" && (
-              <ClientOrdersFinance
-                search={search}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                creditFilter={clientCreditFilter}
-              />
-            )}
+            {activeTab === "client" && <ClientOrdersFinance />}
           </div>
         </div>
       </div>

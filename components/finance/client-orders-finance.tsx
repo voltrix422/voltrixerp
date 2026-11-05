@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import {
   getOrders,
   saveOrder,
@@ -26,16 +27,20 @@ import { Button } from "@/components/ui/button"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
-import { Loader2, X, Plus } from "lucide-react"
+import { Loader2, X, Plus, SlidersHorizontal, Search } from "lucide-react"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 
 export type ClientOrdersCreditFilter = "all" | "outstanding" | "on_credit"
 
 interface ClientOrdersFinanceProps {
-  search: string
-  dateFrom: string
-  dateTo: string
+  search?: string
+  dateFrom?: string
+  dateTo?: string
   creditFilter?: ClientOrdersCreditFilter
+}
+
+function fmtPkr(n: number) {
+  return `PKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 function orderPaymentTotals(order: Order) {
@@ -50,11 +55,24 @@ function matchesCreditFilter(order: Order, creditFilter: ClientOrdersCreditFilte
   return true
 }
 
-export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "all" }: ClientOrdersFinanceProps) {
+export function ClientOrdersFinance({
+  search: searchProp = "",
+  dateFrom: dateFromProp = "",
+  dateTo: dateToProp = "",
+  creditFilter: creditFilterProp = "all",
+}: ClientOrdersFinanceProps) {
   const [crmOrdersAll, setCrmOrdersAll] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
+  const [search, setSearch] = useState(searchProp)
+  const [dateFrom, setDateFrom] = useState(dateFromProp)
+  const [dateTo, setDateTo] = useState(dateToProp)
+  const [creditFilter, setCreditFilter] = useState<ClientOrdersCreditFilter>(creditFilterProp)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const filtersRef = useRef<HTMLDivElement>(null)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
     const load = () =>
@@ -65,6 +83,48 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
     const interval = setInterval(load, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  function placeFilterPanel() {
+    const btn = filterBtnRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    const panelW = Math.min(328, window.innerWidth - 24)
+    const panelH = 280
+    const pad = 16
+    setFilterPos({
+      top: Math.max(pad, Math.min(rect.top, window.innerHeight - panelH - pad)),
+      left: Math.max(pad, window.innerWidth - panelW - pad),
+    })
+  }
+
+  useEffect(() => {
+    if (!filtersOpen) {
+      setFilterPos(null)
+      return
+    }
+    placeFilterPanel()
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setFiltersOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFiltersOpen(false)
+    }
+    function onReposition() {
+      placeFilterPanel()
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    window.addEventListener("resize", onReposition)
+    window.addEventListener("scroll", onReposition, true)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+      window.removeEventListener("resize", onReposition)
+      window.removeEventListener("scroll", onReposition, true)
+    }
+  }, [filtersOpen])
 
   const filteredCrmOrders = crmOrdersAll.filter((order) => {
     const q = search.toLowerCase()
@@ -94,7 +154,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
 
   const creditOrdersInView = filteredCrmOrders.filter(hasOutstandingCredit).length
 
-  const hasFilters = search || dateFrom || dateTo || creditFilter !== "all"
+  const hasFilters = !!(search || dateFrom || dateTo || creditFilter !== "all")
 
   const emptyMessage =
     creditFilter === "outstanding"
@@ -105,67 +165,177 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
           ? "No orders match your filters"
           : "No orders found"
 
+  function clearLocalFilters() {
+    setSearch("")
+    setDateFrom("")
+    setDateTo("")
+    setCreditFilter("all")
+  }
+
   return (
     <div className="space-y-3">
       {(filteredOrders.length > 0 || crmOrdersAll.length > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-6 sm:p-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-              {hasFilters ? "Filtered" : ""} Orders
-            </p>
-            <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">
-              {paymentStats.orderCount}
-              {paymentStats.returnedCount > 0 ? (
-                <span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">
-                  {" "}
-                  (+{paymentStats.returnedCount} returned)
-                </span>
-              ) : null}
-            </p>
-            {creditFilter === "outstanding" && creditOrdersInView > 0 && (
-              <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">with balance due</p>
-            )}
+        <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+          <div className="flex items-center justify-end px-3 pt-2.5">
+            <button
+              ref={filterBtnRef}
+              type="button"
+              onClick={() => setFiltersOpen((v) => !v)}
+              className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                filtersOpen
+                  ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                  : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+              }`}
+              aria-label="Filters"
+              aria-expanded={filtersOpen}
+              title="Filters"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
           </div>
-          <div className="sm:border-l sm:pl-6">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-              {hasFilters ? "Filtered" : "Money"} received
-            </p>
-            <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight break-words text-emerald-800">
-              PKR {displayPaymentsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+            <div className="min-w-0">
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  {hasFilters ? "Filtered orders" : "Orders"}
+                </p>
+                <p className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums">
+                  {paymentStats.orderCount}
+                  {paymentStats.returnedCount > 0 ? (
+                    <span className="text-[12px] font-semibold text-[#aeaeb2]">
+                      {" "}
+                      (+{paymentStats.returnedCount} returned)
+                    </span>
+                  ) : null}
+                </p>
+                {creditFilter === "outstanding" && creditOrdersInView > 0 ? (
+                  <p className="text-[10px] text-[#aeaeb2] truncate">with balance due</p>
+                ) : (
+                  <p className="text-[10px] text-[#aeaeb2] truncate">CRM active</p>
+                )}
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => setIncludeOutstanding(v => !v)}
-              className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
-                includeOutstanding
-                  ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
-                  : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"
-              }`}
+              onClick={() => setIncludeOutstanding((v) => !v)}
+              className="min-w-0 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
               title={includeOutstanding ? "Showing received + still outstanding" : "Add still outstanding to total"}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${includeOutstanding ? "bg-amber-600" : "bg-[hsl(var(--muted-foreground))]"}`} />
-              {includeOutstanding ? "Including outstanding" : "+ Still outstanding"}
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  Money received
+                </p>
+                <p
+                  className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                  title={fmtPkr(displayPaymentsTotal)}
+                >
+                  {fmtPkr(displayPaymentsTotal)}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] truncate">
+                  {includeOutstanding ? "Incl. outstanding" : "+ Still outstanding"}
+                </p>
+              </div>
             </button>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-              {includeOutstanding
-                ? `Received PKR ${totalPayments.toLocaleString()} + owed PKR ${totalOutstandingAll.toLocaleString()}`
-                : "Matches CRM Orders → Money received (excl. Branch POS)"}
-            </p>
+
+            <div className="min-w-0">
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  Credit outstanding
+                </p>
+                <p
+                  className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                  title={fmtPkr(totalCreditOutstanding)}
+                >
+                  {fmtPkr(totalCreditOutstanding)}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] truncate">
+                  {totalCreditOutstanding > 0.004
+                    ? `${creditOrdersInView} order${creditOrdersInView === 1 ? "" : "s"} on credit`
+                    : "No credit due"}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-              Credit outstanding
-            </p>
-            <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight text-amber-700 dark:text-amber-300 break-words">
-              PKR {totalCreditOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </p>
-            {totalCreditOutstanding > 0.004 && (
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                {creditOrdersInView} order{creditOrdersInView === 1 ? "" : "s"} on credit
-              </p>
+
+          {filtersOpen &&
+            filterPos &&
+            typeof document !== "undefined" &&
+            createPortal(
+              <div
+                ref={filtersRef}
+                className="fixed z-[95] w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] p-3 space-y-2.5"
+                style={{ top: filterPos.top, left: filterPos.left }}
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute top-4 -left-1.5 h-3 w-3 rotate-45 rounded-[2px] border-b border-l border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+                />
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    Filters
+                  </p>
+                  {hasFilters && (
+                    <button
+                      type="button"
+                      onClick={clearLocalFilters}
+                      className="text-[10px] font-medium text-[#0071e3] cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search orders..."
+                    className="w-full h-8 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] pl-8 pr-3 text-[11px] focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+                  />
+                  <span className="text-[9px] text-[#86868b] shrink-0">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-8 rounded-xl border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2 text-[11px] flex-1 min-w-0 cursor-pointer"
+                  />
+                </div>
+                <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
+                  {(
+                    [
+                      { id: "all", label: "All" },
+                      { id: "outstanding", label: "Due" },
+                      { id: "on_credit", label: "Credit" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCreditFilter(opt.id)}
+                      className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
+                        creditFilter === opt.id
+                          ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                          : "text-[#6e6e73] hover:text-[#1d1d1f]"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>,
+              document.body,
             )}
-          </div>
-        </div>
+        </section>
       )}
 
       {loading && (
