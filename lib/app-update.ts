@@ -46,6 +46,7 @@ export async function registerAndWatchUpdates(onUpdate: () => void) {
   return registration
 }
 
+/** Activate a waiting worker without prompting; controllerchange should reload. */
 export async function applyAppUpdate(registration?: ServiceWorkerRegistration | null) {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
     window.location.reload()
@@ -57,4 +58,11 @@ export async function applyAppUpdate(registration?: ServiceWorkerRegistration | 
     return
   }
   window.location.reload()
+}
+
+/** Silently apply any waiting SW update and remember the latest build id. */
+export async function autoApplyAppUpdate(registration?: ServiceWorkerRegistration | null) {
+  const latest = await fetchAppVersion().catch(() => "")
+  if (latest) rememberAppVersion(latest)
+  await applyAppUpdate(registration)
 }

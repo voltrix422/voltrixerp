@@ -49,13 +49,13 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: `${SITE_NAME} | LiFePO₄ Batteries & Solar Inverters Pakistan`,
     description: SITE_DESCRIPTION,
-    images: [{ url: "/og-image.png?v=20261030-logo", width: 1200, height: 630, alt: SITE_NAME }],
+    images: [{ url: "/og-image.png?v=20261105-logo", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE_NAME} | LiFePO₄ Batteries & Solar Inverters Pakistan`,
     description: SITE_DESCRIPTION,
-    images: ["/og-image.png?v=20261030-logo"],
+    images: ["/og-image.png?v=20261105-logo"],
   },
   robots: {
     index: true,
@@ -71,17 +71,17 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       // Google Search prefers square icons that are multiples of 48px
-      { url: "/voltrix-favicon-48.png", sizes: "48x48", type: "image/png" },
-      { url: "/voltrix-favicon-96.png", sizes: "96x96", type: "image/png" },
-      { url: "/voltrix-pwa-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/favicon-32x32.png?v=20261030-g", sizes: "32x32", type: "image/png" },
-      { url: "/favicon-16x16.png?v=20261030-g", sizes: "16x16", type: "image/png" },
-      { url: "/favicon.ico?v=20261030-g" },
+      { url: "/voltrix-favicon-48.png?v=20261105-logo", sizes: "48x48", type: "image/png" },
+      { url: "/voltrix-favicon-96.png?v=20261105-logo", sizes: "96x96", type: "image/png" },
+      { url: "/voltrix-pwa-192.png?v=20261105-logo", sizes: "192x192", type: "image/png" },
+      { url: "/favicon-32x32.png?v=20261105-logo", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png?v=20261105-logo", sizes: "16x16", type: "image/png" },
+      { url: "/favicon.ico?v=20261105-logo" },
     ],
-    shortcut: "/favicon.ico?v=20261030-g",
-    apple: "/apple-touch-icon.png?v=20261030-g",
+    shortcut: "/favicon.ico?v=20261105-logo",
+    apple: "/apple-touch-icon.png?v=20261105-logo",
   },
-  manifest: "/manifest.json?v=20261030-g",
+  manifest: "/manifest.json?v=20261105-logo",
   appleWebApp: {
     capable: true,
     title: "Voltrix ERP",

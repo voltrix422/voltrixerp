@@ -1,8 +1,9 @@
 /* Voltrix PWA service worker — lock-screen notifications + in-app updates */
-const APP_SW_VERSION = "2026-10-30-google-favicon"
+const APP_SW_VERSION = "2026-11-05-hd-logo"
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(Promise.resolve())
+  // Activate new SW immediately so clients pick up logo/asset updates without a prompt.
+  event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener("message", (event) => {
