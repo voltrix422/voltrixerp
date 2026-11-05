@@ -26,15 +26,19 @@ import { X, Upload, Trash2, Plus } from "lucide-react"
 
 const PAYMENT_STATUS_LABELS = {
   draft: "Draft",
-  pending_approval: "Pending finance approval",
-  approved: "Approved by finance",
+  pending_approval: "Pending approval",
+  approved: "Approved",
 } as const
 
 const PAYMENT_STATUS_COLORS = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  pending_approval: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  approved: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  draft: "bg-black/[0.06] text-[#6e6e73] dark:bg-white/10 dark:text-[#aeaeb2]",
+  pending_approval: "bg-[#ff9f0a]/18 text-[#9a6700] dark:bg-[#ff9f0a]/20 dark:text-[#ffd60a]",
+  approved: "bg-[#30d158]/18 text-[#248a3d] dark:bg-[#30d158]/20 dark:text-[#30d158]",
 } as const
+
+function fmtMoney(n: number) {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 function orderStatusAfterPaymentsRemoved(order: Order, remaining: OrderPayment[]) {
   if (order.status === "delivered") return "delivered" as const
@@ -426,22 +430,22 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     const isEditing = editingPaymentId === payment.id && !proofOnly
 
     return (
-      <div key={payment.id} className="rounded-md border px-2.5 py-1.5 space-y-1">
+      <div key={payment.id} className="rounded-[12px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3 py-2 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-semibold truncate">
+            <p className="text-[13px] font-semibold tracking-tight truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
               {proofOnly
                 ? `Proof ${paymentNumber}`
-                : `P${paymentNumber} · PKR ${payment.amount.toLocaleString()}`}
+                : `Payment ${paymentNumber} · PKR ${fmtMoney(payment.amount)}`}
             </p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+            <p className="text-[11px] text-[#86868b] truncate">
               {proofOnly
                 ? new Date(payment.date).toLocaleDateString()
                 : `${payment.method} · ${new Date(payment.date).toLocaleDateString()}`}
               {payment.notes ? ` · ${payment.notes}` : ""}
             </p>
           </div>
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 ${PAYMENT_STATUS_COLORS[status]}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-tight shrink-0 ${PAYMENT_STATUS_COLORS[status]}`}>
             {PAYMENT_STATUS_LABELS[status]}
           </span>
         </div>
@@ -508,142 +512,172 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     )
   }
 
+  const formLabel = deliveredNeedsPayment
+    ? payments.length > 0
+      ? "Another payment"
+      : "Record payment"
+    : deliveredProofOnly
+      ? payments.length > 0
+        ? "Another proof"
+        : "Attach proof"
+      : payments.length > 0
+        ? "Another payment"
+        : "Add payment"
+
+  const fieldClass =
+    "w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-3" onClick={onClose}>
-        <div className="w-full sm:max-w-md rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-start justify-between gap-2 px-3 py-2.5 border-b shrink-0">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-[hsl(var(--primary))] truncate">
-                Capture Payment — {order.orderNumber}
-              </p>
-              <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                <span><span className="font-medium text-[hsl(var(--foreground))]">Total</span> {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span><span className="font-medium text-[hsl(var(--foreground))]">Submitted</span> {totalSubmitted.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span><span className="font-medium text-[hsl(var(--foreground))]">Remaining</span> {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                {totalDraft > 0 && (
-                  <span>Draft {totalDraft.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                )}
+      <div
+        className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-5"
+        onClick={onClose}
+      >
+        <div
+          className="w-full sm:max-w-[560px] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="shrink-0 px-5 pt-4 pb-3 sm:px-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                  Capture payment
+                </p>
+                <p className="text-[13px] font-medium text-[#86868b] tracking-tight mt-0.5 truncate">
+                  {order.orderNumber}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" strokeWidth={2.25} />
+              </button>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[
+                { label: "Total", value: fmtMoney(order.total) },
+                { label: "Submitted", value: fmtMoney(totalSubmitted) },
+                { label: "Remaining", value: fmtMoney(remaining) },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-[12px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2.5 py-2"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                    {stat.label}
+                  </p>
+                  <p className="mt-0.5 text-[13px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                    {stat.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {totalDraft > 0 && (
+              <p className="mt-1.5 text-[11px] text-[#86868b] tabular-nums">
+                Draft {fmtMoney(totalDraft)}
+              </p>
+            )}
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 space-y-2.5">
+          <div className="px-5 sm:px-6 pb-3 space-y-3">
             {error && (
-              <div className="px-2.5 py-2 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-                <p className="text-xs text-red-800 dark:text-red-200 font-medium">{error}</p>
+              <div className="px-3 py-2 rounded-[12px] bg-[#ff3b30]/10">
+                <p className="text-[12px] font-medium text-[#d70015]">{error}</p>
               </div>
             )}
 
-            {financeLocked ? (
-              <p className="text-[11px] text-green-800 dark:text-green-200 rounded-md border border-green-200 bg-green-50 dark:bg-green-950 px-2.5 py-1.5">
-                {onCredit && remaining > 0
+            <p className="text-[12px] font-medium text-[#6e6e73] leading-snug">
+              {financeLocked
+                ? onCredit && remaining > 0
                   ? "Fully paid — no further payments."
-                  : "Finance approved — proofs locked."}
-              </p>
-            ) : deliveredNeedsPayment ? (
-              <p className="text-[11px] text-amber-900 dark:text-amber-100 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1.5">
-                Delivered with balance — record payment + proof.
-              </p>
-            ) : deliveredProofOnly ? (
-              <p className="text-[11px] text-emerald-900 dark:text-emerald-100 rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1.5">
-                Fully paid — attach proof only (doesn’t change balance).
-              </p>
-            ) : onCredit && remaining > 0 ? (
-              <p className="text-[11px] text-amber-900 dark:text-amber-100 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1.5">
-                On credit — add payments until cleared.
-              </p>
-            ) : (
-              <p className="text-[11px] text-blue-900 dark:text-blue-100 rounded-md border bg-blue-50 dark:bg-blue-950 px-2.5 py-1.5">
-                Submit payments with proof to Finance. Amount 0 = full credit.
-              </p>
-            )}
+                  : "Finance approved — proofs locked."
+                : deliveredNeedsPayment
+                  ? "Delivered with balance — record payment + proof."
+                  : deliveredProofOnly
+                    ? "Fully paid — attach proof only (doesn’t change balance)."
+                    : onCredit && remaining > 0
+                      ? "On credit — add payments until cleared."
+                      : "Submit payment with proof to Finance. Amount 0 = full credit."}
+            </p>
 
             {payments.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Recorded</p>
+              <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-0.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] px-0.5">
+                  Recorded
+                </p>
                 {payments.map((payment, index) => renderPaymentRow(payment, index + 1))}
               </div>
             )}
 
             {canAddPayments && (
-              <>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] pt-1 border-t">
-                  {deliveredNeedsPayment
-                    ? payments.length > 0
-                      ? "Another payment"
-                      : "Record payment"
-                    : deliveredProofOnly
-                      ? payments.length > 0
-                        ? "Another proof"
-                        : "Attach proof"
-                      : payments.length > 0
-                        ? "Another payment"
-                        : "Add payment"}
+              <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 space-y-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                  {formLabel}
                 </p>
 
                 {(!postDelivery || deliveredNeedsPayment) && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-0.5">
-                    <label className="text-[10px] font-medium">Amount *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={paymentAmount}
-                      onChange={e => setPaymentAmount(e.target.value)}
-                      className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                      placeholder="0.00"
-                    />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-[#6e6e73]">Amount</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className={fieldClass}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-[#6e6e73]">Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className={`${fieldClass} cursor-pointer`}
+                      >
+                        <option>Bank Transfer</option>
+                        <option>Cash</option>
+                        <option>Cheque</option>
+                        <option>Credit Card</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
                   </div>
-                  <div className="space-y-0.5">
-                    <label className="text-[10px] font-medium">Method *</label>
-                    <select
-                      value={paymentMethod}
-                      onChange={e => setPaymentMethod(e.target.value)}
-                      className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-                    >
-                      <option>Bank Transfer</option>
-                      <option>Cash</option>
-                      <option>Cheque</option>
-                      <option>Credit Card</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-                </div>
                 )}
 
                 {(!postDelivery || deliveredNeedsPayment) && (
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-medium">Date *</label>
-                  <input
-                    type="date"
-                    value={paymentDate}
-                    onChange={e => setPaymentDate(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#6e6e73]">Date</label>
+                    <input
+                      type="date"
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className={fieldClass}
+                    />
+                  </div>
                 )}
 
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-medium">Notes (optional)</label>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-[#6e6e73]">Notes</label>
                   <input
                     value={paymentNotes}
-                    onChange={e => setPaymentNotes(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    className={fieldClass}
                     placeholder="Txn ID, reference…"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-medium">
-                    {deliveredProofOnly ? "Proof *" : "Proof"}{deliveredNeedsPayment ? " *" : ""}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-[#6e6e73]">
+                    {deliveredProofOnly || deliveredNeedsPayment ? "Proof *" : "Proof"}
                   </label>
-                  <label className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed bg-[hsl(var(--background))] px-2 text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30">
-                    <Upload className="h-3.5 w-3.5" />
+                  <label className="flex items-center justify-center gap-1.5 h-9 rounded-[10px] border border-dashed border-black/[0.12] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] font-semibold text-[#0071e3] cursor-pointer hover:bg-black/[0.03] transition-colors">
+                    <Upload className="h-3.5 w-3.5" strokeWidth={2} />
                     <span>Upload</span>
                     <input
                       type="file"
@@ -656,87 +690,85 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                   {paymentProofFiles.length > 0 && (
                     <div className="space-y-1">
                       {paymentProofFiles.map((file, index) => (
-                        <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md border px-2 py-1 text-[10px]">
-                          <span className="truncate pr-2">{file.name}</span>
-                          <Button
+                        <div
+                          key={`${file.name}-${index}`}
+                          className="flex items-center justify-between rounded-[10px] bg-[#f5f5f7] dark:bg-white/5 px-2.5 py-1.5 text-[11px]"
+                        >
+                          <span className="truncate pr-2 font-medium">{file.name}</span>
+                          <button
                             type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0 cursor-pointer text-red-600"
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-full text-[#d70015] hover:bg-[#ff3b30]/10 cursor-pointer"
                             onClick={() => removeProofFile(index)}
                           >
                             <Trash2 className="h-3 w-3" />
-                          </Button>
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center gap-1.5 px-3 py-2.5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center gap-2 px-5 sm:px-6 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-black/[0.05] dark:border-[hsl(var(--border))]">
             {canAddPayments && !postDelivery && payments.length === 0 && !orderHasPendingFinancePayments({ ...order, payments }) && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-full sm:w-auto text-xs border-amber-500 text-amber-800 hover:bg-amber-50 dark:text-amber-200 dark:hover:bg-amber-950/40 cursor-pointer"
+              <button
+                type="button"
                 onClick={handleSubmitFullCreditForApproval}
                 disabled={saving || uploadingProof}
+                className="h-10 px-4 rounded-full border border-[#ff9f0a]/40 text-[13px] font-semibold text-[#9a6700] hover:bg-[#ff9f0a]/10 disabled:opacity-60 cursor-pointer"
               >
                 {saving ? "Submitting..." : "Full credit"}
-              </Button>
+              </button>
             )}
             {canAddPayments && deliveredProofOnly && (
-              <Button
-                size="sm"
-                className="h-8 w-full sm:w-auto text-xs bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
+              <button
+                type="button"
                 onClick={handleAttachPostDeliveryProof}
                 disabled={saving || uploadingProof || paymentProofFiles.length === 0}
+                className="h-10 flex-1 sm:flex-none px-5 rounded-full bg-[#0071e3] text-white text-[13px] font-semibold tracking-tight hover:bg-[#0077ed] disabled:opacity-60 cursor-pointer"
               >
                 {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Attach proof"}
-              </Button>
+              </button>
             )}
             {canAddPayments && deliveredNeedsPayment && (
-              <Button
-                size="sm"
-                className="h-8 w-full sm:w-auto text-xs bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
+              <button
+                type="button"
                 onClick={handleSavePostDeliveryCreditPayment}
                 disabled={saving || uploadingProof || !canSubmitNewPayment || paymentProofFiles.length === 0}
+                className="h-10 flex-1 sm:flex-none px-5 rounded-full bg-[#0071e3] text-white text-[13px] font-semibold tracking-tight hover:bg-[#0077ed] disabled:opacity-60 cursor-pointer"
               >
                 {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Record payment"}
-              </Button>
+              </button>
             )}
             {canAddPayments && !postDelivery && (
               <>
-                <Button
-                  size="sm"
-                  className="h-8 w-full sm:w-auto text-xs bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
+                <button
+                  type="button"
                   onClick={handleSubmitNewForApproval}
                   disabled={saving || uploadingProof || !canSubmitNewPayment}
+                  className="h-10 flex-1 sm:flex-none px-5 rounded-full bg-[#0071e3] text-white text-[13px] font-semibold tracking-tight hover:bg-[#0077ed] disabled:opacity-60 cursor-pointer"
                 >
                   {saving ? "Processing..." : uploadingProof ? "Uploading..." : isZeroAmountSubmit ? "Submit (0)" : "Submit"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 w-full sm:w-auto text-xs cursor-pointer"
+                </button>
+                <button
+                  type="button"
                   onClick={handleSaveDraft}
                   disabled={saving || uploadingProof || !canSubmitNewPayment}
+                  className="h-10 px-4 rounded-full bg-black/[0.06] text-[13px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] disabled:opacity-60 cursor-pointer dark:bg-white/10 dark:text-white"
                 >
                   {saving ? "Saving..." : "Draft"}
-                </Button>
+                </button>
               </>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 w-full sm:w-auto sm:ml-auto text-xs cursor-pointer"
+            <button
+              type="button"
               onClick={onClose}
+              className="h-10 px-4 rounded-full text-[13px] font-semibold text-[#0071e3] hover:bg-[#0071e3]/08 cursor-pointer sm:ml-auto"
             >
               {financeLocked || remaining <= 0 ? "Close" : "Done"}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
