@@ -1,20 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { createPortal } from "react-dom"
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Download,
   FileText,
-  HandCoins,
   Trash2,
-  Undo2,
   Upload,
   Users,
   X,
 } from "lucide-react"
 import { downloadLoanStatementPdf } from "@/lib/generate-loan-statement-pdf"
+import { cn } from "@/lib/utils"
 
 export interface LoanRecord {
   id: string
@@ -36,10 +32,10 @@ export interface LoanRecord {
 
 /**
  * Loan record categories:
- *  - "Loan"            â†’ loan received from a person (money in)
- *  - "Loan Given"      â†’ loan given to a person (money out)
- *  - "Loan Repayment"  â†’ we return money on a loan we received (money out)
- *  - "Loan Recovery"   â†’ a person returns money we gave them (money in)
+ *  - "Loan"            → loan received from a person (money in)
+ *  - "Loan Given"      → loan given to a person (money out)
+ *  - "Loan Repayment"  → we return money on a loan we received (money out)
+ *  - "Loan Recovery"   → a person returns money we gave them (money in)
  */
 export const LOAN_CATEGORIES = ["Loan", "Loan Given", "Loan Repayment", "Loan Recovery"] as const
 
@@ -58,7 +54,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 /** Legacy loans stored the person inside the title, e.g. "Syed Tauseef Raza Loan 1". */
 function cleanLegacyPersonName(title: string): string {
-  const cleaned = title.replace(/\s*[-â€”â€“:]?\s*Loan(\s*(received|given|returned|\d+))?\s*$/i, "").trim()
+  const cleaned = title.replace(/\s*[-—–:]?\s*Loan(\s*(received|given|returned|\d+))?\s*$/i, "").trim()
   return cleaned || title.trim()
 }
 
@@ -166,20 +162,41 @@ function csvEscape(v: string | number): string {
 }
 
 const inputCls =
-  "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6] transition-colors"
+  "w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3 text-[13px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 focus:border-[#007aff]/50 transition-colors"
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="space-y-1.5">
-    <label className="text-xs font-medium text-[hsl(var(--foreground))]">{label}</label>
+    <label className="text-[11px] font-medium text-[#86868b]">{label}</label>
     {children}
   </div>
 )
 
+function AppleGroup({
+  title,
+  children,
+  className,
+}: {
+  title?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      {title ? (
+        <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">{title}</p>
+      ) : null}
+      <div className="overflow-hidden rounded-[14px] border border-black/[0.04] bg-white dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))]">
+        {children}
+      </div>
+    </div>
+  )
+}
+
 type LoanFormMode = "receive" | "give" | "return"
 
 const MODE_TITLES: Record<LoanFormMode, string> = {
-  receive: "Loan received (money in)",
-  give: "Give loan (money out)",
+  receive: "Loan received",
+  give: "Give loan",
   return: "Return loan",
 }
 
@@ -276,7 +293,7 @@ function LoanFormDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${name} â€” ${purpose}`,
+          title: `${name} — ${purpose}`,
           amount: parsedAmount,
           currency,
           purpose,
@@ -305,34 +322,43 @@ function LoanFormDialog({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full sm:w-[min(440px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`h-1 w-full ${mode === "receive" ? "bg-emerald-500" : mode === "give" ? "bg-rose-500" : "bg-amber-500"}`} />
-        <div className="flex items-center justify-between px-5 py-3.5 border-b shrink-0">
-          <p className="text-sm font-semibold flex items-center gap-2">
-            {mode === "receive" ? <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
-              : mode === "give" ? <ArrowUpRight className="h-4 w-4 text-rose-600" />
-              : <Undo2 className="h-4 w-4 text-amber-600" />}
-            {MODE_TITLES[mode]}
-          </p>
-          <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+        <div className="shrink-0 flex items-center justify-between gap-3 px-5 pt-4 pb-3 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {MODE_TITLES[mode]}
+            </p>
+            <p className="text-[12px] text-[#86868b] mt-0.5">
+              {mode === "receive" ? "Money in from a person" : mode === "give" ? "Money out to a person" : "Settle an open balance"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15 transition-colors cursor-pointer"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" strokeWidth={2.25} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="overflow-y-auto p-5 space-y-3.5 flex-1 min-h-0">
-            <Field label="Person *">
+          <div className="overflow-y-auto px-5 sm:px-6 pb-4 space-y-3.5 flex-1 min-h-0">
+            <Field label="Person">
               <input
                 value={person}
                 onChange={(e) => setPerson(e.target.value)}
                 required
                 list="loan-people"
-                placeholder="e.g. Syed Tauseef Raza"
+                placeholder="Name"
                 className={inputCls}
               />
               <datalist id="loan-people">
@@ -343,37 +369,43 @@ function LoanFormDialog({
             </Field>
 
             {mode === "return" && (
-              <Field label="Who is returning? *">
+              <Field label="Direction">
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => setSide("theirs")}
-                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer ${
-                      side === "theirs" ? "border-rose-400 bg-rose-500/10" : "hover:border-rose-300"
-                    }`}
+                    className={cn(
+                      "rounded-[12px] border px-3.5 py-3 text-left transition-colors cursor-pointer",
+                      side === "theirs"
+                        ? "border-[#ff3b30]/35 bg-[#ff3b30]/08"
+                        : "border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]",
+                    )}
                   >
-                    <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" /> We return their loan (money out)
+                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      We return their loan
                     </p>
                     {matched && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 tabular-nums">
-                        We owe {matched.name}: PKR {fmt(Math.max(0, weOweThem))}
+                      <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
+                        Outstanding PKR {fmt(Math.max(0, weOweThem))}
                       </p>
                     )}
                   </button>
                   <button
                     type="button"
                     onClick={() => setSide("ours")}
-                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer ${
-                      side === "ours" ? "border-emerald-400 bg-emerald-500/10" : "hover:border-emerald-300"
-                    }`}
+                    className={cn(
+                      "rounded-[12px] border px-3.5 py-3 text-left transition-colors cursor-pointer",
+                      side === "ours"
+                        ? "border-[#30d158]/40 bg-[#30d158]/10"
+                        : "border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]",
+                    )}
                   >
-                    <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" /> They return our loan (money in)
+                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      They return our loan
                     </p>
                     {matched && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 tabular-nums">
-                        {matched.name} owes us: PKR {fmt(Math.max(0, theyOweUs))}
+                      <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
+                        Outstanding PKR {fmt(Math.max(0, theyOweUs))}
                       </p>
                     )}
                   </button>
@@ -382,7 +414,7 @@ function LoanFormDialog({
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Amount *">
+              <Field label="Amount">
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -390,7 +422,7 @@ function LoanFormDialog({
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="0.00"
+                  placeholder="0"
                   className={inputCls}
                 />
               </Field>
@@ -404,52 +436,49 @@ function LoanFormDialog({
             </div>
 
             {mode === "return" && outstanding > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setAmount(String(outstanding))}
-                  className="text-[11px] px-2.5 py-1 rounded-md border border-[#1faca6]/40 text-[#1faca6] hover:bg-[#1faca6]/10 transition-colors cursor-pointer"
-                >
-                  Full amount â€” PKR {fmt(outstanding)}
-                </button>
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">or type any partial amount</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => setAmount(String(outstanding))}
+                className="text-[12px] font-medium text-[#007aff] hover:underline cursor-pointer"
+              >
+                Use full amount · PKR {fmt(outstanding)}
+              </button>
             )}
             {overpay && (
-              <p className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/25 rounded-md px-2.5 py-1.5">
-                Amount is more than the outstanding PKR {fmt(outstanding)} â€” it will still be saved.
+              <p className="text-[12px] text-[#9a6700] bg-[#ff9f0a]/12 rounded-[10px] px-3 py-2">
+                Above outstanding PKR {fmt(outstanding)} — will still save.
               </p>
             )}
 
-            <Field label="Tag / Label">
-              <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. For clearance" className={inputCls} />
+            <Field label="Tag">
+              <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Optional" className={inputCls} />
             </Field>
             <Field label="Notes">
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                placeholder="Additional notes..."
-                className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6] resize-none transition-colors"
+                placeholder="Optional"
+                className="w-full rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 resize-none"
               />
             </Field>
 
-            <Field label="Attachment / proof (image or PDF, max 2MB)">
+            <Field label="Proof">
               <div
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-[#1faca6] hover:bg-[#1faca6]/5 transition-colors"
+                className="rounded-[12px] border border-dashed border-black/[0.12] bg-white dark:bg-[hsl(var(--card))] p-4 text-center cursor-pointer hover:border-[#007aff]/40 transition-colors"
               >
                 {proofPreview ? (
-                  <img src={proofPreview} alt="proof" className="max-h-28 mx-auto rounded object-contain" />
+                  <img src={proofPreview} alt="proof" className="max-h-28 mx-auto rounded-lg object-contain" />
                 ) : proofFile ? (
-                  <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                  <div className="flex items-center justify-center gap-2 text-[12px] text-[#86868b]">
                     <FileText className="h-4 w-4" />
                     {proofFile.name}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-1 text-[hsl(var(--muted-foreground))]">
+                  <div className="flex flex-col items-center gap-1 text-[#86868b]">
                     <Upload className="h-5 w-5" />
-                    <p className="text-xs">Click to upload proof</p>
+                    <p className="text-[12px]">Image or PDF · max 2MB</p>
                   </div>
                 )}
               </div>
@@ -461,34 +490,39 @@ function LoanFormDialog({
                     setProofFile(null)
                     setProofPreview("")
                   }}
-                  className="text-[10px] text-red-500 hover:underline mt-1"
+                  className="text-[11px] text-[#ff3b30] hover:underline mt-1.5 cursor-pointer"
                 >
-                  Remove file
+                  Remove
                 </button>
               )}
             </Field>
           </div>
 
-          <div className="shrink-0 border-t px-5 py-3 space-y-2 bg-[hsl(var(--card))]">
-            {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))] space-y-2">
+            {error && <p className="text-[12px] text-[#ff3b30]">{error}</p>}
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 cursor-pointer" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer"
-                disabled={saving}
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 h-10 rounded-full bg-black/[0.06] text-[13px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
               >
-                {saving ? "Saving..." : "Save"}
-              </Button>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 h-10 rounded-full bg-[#007aff] text-[13px] font-semibold text-white hover:bg-[#0066d6] disabled:opacity-60 cursor-pointer transition-colors"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
             </div>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
+
 }
 
 /* ------------------------------------------------------------------ */
@@ -538,7 +572,7 @@ function LoanProfileDialog({
   const hasDateFilter = !!(dateFrom || dateTo)
   const periodLabel =
     dateFrom && dateTo
-      ? `${fmtDate(dateFrom)} â€“ ${fmtDate(dateTo)}`
+      ? `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`
       : dateFrom
         ? `From ${fmtDate(dateFrom)}`
         : dateTo
@@ -629,7 +663,7 @@ function LoanProfileDialog({
         rows: chrono.map((r) => ({
           date: fmtDate(r.createdAt),
           type: CATEGORY_LABEL[r.category] ?? r.category,
-          detail: [r.tag, r.notes].filter(Boolean).join(" Â· ") || r.created_by,
+          detail: [r.tag, r.notes].filter(Boolean).join(" · ") || r.created_by,
           moneyIn: r.moneyIn,
           moneyOut: r.moneyOut,
           weOweAfter: r.weOweAfter,
@@ -649,254 +683,263 @@ function LoanProfileDialog({
     { id: "returned", label: "Returned" },
   ]
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={onClose}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-4xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+        className="w-full sm:w-[min(920px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-[#1faca6] to-emerald-500" />
-
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-11 w-11 rounded-full bg-[#1faca6]/15 text-[#17857f] flex items-center justify-center text-sm font-bold shrink-0">
+        <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-4 pb-3 sm:px-7 sm:pt-5">
+          <div className="min-w-0 flex items-center gap-3">
+            <div className="h-11 w-11 rounded-full bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
               {initialsOf(profile.name)}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold truncate">{profile.name}</p>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                Loan statement Â· {profile.records.length} transaction{profile.records.length === 1 ? "" : "s"} Â· last{" "}
-                {fmtDate(new Date(profile.lastAt).toISOString())}
+              <p className="text-[20px] sm:text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
+                {profile.name}
+              </p>
+              <p className="text-[12px] text-[#86868b] mt-0.5">
+                {profile.records.length} transaction{profile.records.length === 1 ? "" : "s"} · {fmtDate(new Date(profile.lastAt).toISOString())}
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15 transition-colors cursor-pointer"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" strokeWidth={2.25} />
+          </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 p-4 sm:p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-500/5 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 dark:text-rose-400">We owe them</p>
-              <p className="text-xl font-bold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">PKR {fmt(Math.max(0, weOwe))}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Received PKR {fmt(profile.received)} Â· returned PKR {fmt(profile.repaid)}
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 sm:px-7 pb-5 space-y-3.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3.5">
+              <p className="text-[11px] font-medium text-[#86868b]">We owe</p>
+              <p className="text-[22px] font-semibold tracking-tight tabular-nums text-[#ff3b30] mt-0.5">
+                PKR {fmt(Math.max(0, weOwe))}
+              </p>
+              <p className="text-[11px] text-[#aeaeb2] mt-1 tabular-nums">
+                In {fmt(profile.received)} · out {fmt(profile.repaid)}
               </p>
             </div>
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">They owe us</p>
-              <p className="text-xl font-bold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">PKR {fmt(Math.max(0, theyOwe))}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Given PKR {fmt(profile.given)} Â· returned PKR {fmt(profile.recovered)}
+            <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3.5">
+              <p className="text-[11px] font-medium text-[#86868b]">They owe</p>
+              <p className="text-[22px] font-semibold tracking-tight tabular-nums text-[#248a3d] mt-0.5">
+                PKR {fmt(Math.max(0, theyOwe))}
+              </p>
+              <p className="text-[11px] text-[#aeaeb2] mt-1 tabular-nums">
+                Out {fmt(profile.given)} · in {fmt(profile.recovered)}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
+            <button
+              type="button"
               onClick={() => onOpenForm("receive", profile.name)}
+              className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
             >
-              <ArrowDownLeft className="h-3.5 w-3.5" /> Loan received
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-rose-500/40 text-rose-700 hover:bg-rose-500/10 cursor-pointer"
+              Loan received
+            </button>
+            <button
+              type="button"
               onClick={() => onOpenForm("give", profile.name)}
+              className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
             >
-              <ArrowUpRight className="h-3.5 w-3.5" /> Give loan
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-800 hover:bg-amber-500/10 cursor-pointer"
+              Give loan
+            </button>
+            <button
+              type="button"
               onClick={() => onOpenForm("return", profile.name)}
+              className="h-8 px-3.5 rounded-full bg-[#007aff] text-[12px] font-semibold text-white hover:bg-[#0066d6] cursor-pointer transition-colors"
             >
-              <Undo2 className="h-3.5 w-3.5" /> Return loan
-            </Button>
+              Return loan
+            </button>
           </div>
 
-          <div className="rounded-lg border p-3 space-y-2.5">
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">From</label>
+          <AppleGroup>
+            <div className="px-3.5 py-3 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputCls + " h-8 w-[9.5rem]"} />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">To</label>
+                <span className="text-[11px] text-[#aeaeb2]">to</span>
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputCls + " h-8 w-[9.5rem]"} />
-              </div>
-              <div className="flex flex-wrap gap-1 pb-0.5">
-                {([
-                  ["all", "All"],
-                  ["month", "This month"],
-                  ["last", "Last month"],
-                  ["year", "This year"],
-                ] as const).map(([id, label]) => (
+                <div className="flex flex-wrap gap-1">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["month", "Month"],
+                      ["last", "Last"],
+                      ["year", "Year"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => applyPreset(id)}
+                      className="h-7 px-2.5 rounded-full text-[11px] font-medium bg-black/[0.04] text-[#6e6e73] hover:bg-black/[0.08] cursor-pointer"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1.5 ml-auto">
                   <button
-                    key={id}
                     type="button"
-                    onClick={() => applyPreset(id)}
-                    className="h-7 px-2 rounded-md border text-[10px] hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                    onClick={exportCsv}
+                    disabled={filtered.length === 0}
+                    className="h-7 px-2.5 rounded-full text-[11px] font-semibold bg-black/[0.06] text-[#1d1d1f] disabled:opacity-40 cursor-pointer"
                   >
-                    {label}
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void exportPdf()}
+                    disabled={exporting}
+                    className="h-7 px-2.5 rounded-full text-[11px] font-semibold bg-[#007aff] text-white disabled:opacity-40 cursor-pointer"
+                  >
+                    {exporting ? "PDF…" : "PDF"}
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {typeChips.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setTypeFilter(c.id)}
+                    className={cn(
+                      "h-7 px-2.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors",
+                      typeFilter === c.id
+                        ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                        : "bg-black/[0.04] text-[#6e6e73] hover:bg-black/[0.08]",
+                    )}
+                  >
+                    {c.label}
                   </button>
                 ))}
               </div>
-              <div className="flex gap-1.5 ml-auto">
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={exportCsv} disabled={filtered.length === 0}>
-                  <Download className="h-3.5 w-3.5" /> CSV
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer"
-                  onClick={() => void exportPdf()}
-                  disabled={exporting}
-                >
-                  <FileText className="h-3.5 w-3.5" /> {exporting ? "PDFâ€¦" : "PDF"}
-                </Button>
-              </div>
+              {(hasDateFilter || typeFilter !== "all") && (
+                <p className="text-[11px] text-[#86868b] tabular-nums">
+                  {filtered.length}/{profile.records.length} · in {fmt(periodIn)} · out {fmt(periodOut)}
+                </p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1">
-              {typeChips.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setTypeFilter(c.id)}
-                  className={`h-7 px-2.5 rounded-md border text-[10px] font-medium cursor-pointer ${
-                    typeFilter === c.id
-                      ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
-                      : "hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            {(hasDateFilter || typeFilter !== "all") && (
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                Showing {filtered.length} of {profile.records.length} Â· {periodLabel} Â· in PKR {fmt(periodIn)} Â· out PKR {fmt(periodOut)}
-              </p>
-            )}
-          </div>
+          </AppleGroup>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-              Full history â€” receive, give & return
-            </p>
+          <AppleGroup title="History">
             {displayRows.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
-                No transactions in this date range.
-              </div>
+              <div className="px-4 py-10 text-center text-[13px] text-[#86868b]">No transactions in this range.</div>
             ) : (
-              <div className="rounded-lg border overflow-x-auto">
-                <table className="w-full min-w-[40rem] text-[11px]">
-                  <thead>
-                    <tr className="border-b bg-[hsl(var(--muted))]/40">
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Date</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Type</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">In</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Out</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">We owe</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">They owe</th>
-                      <th className="w-16" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {displayRows.map((r) => (
-                      <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/25">
-                        <td className="px-3 py-2.5 align-top whitespace-nowrap text-[hsl(var(--muted-foreground))]">
-                          {fmtDate(r.createdAt)}
-                          <p className="text-[9px]">by {r.created_by}</p>
-                        </td>
-                        <td className="px-3 py-2.5 align-top">
-                          <p className="font-semibold">{CATEGORY_LABEL[r.category] ?? r.category}</p>
-                          {(r.tag || r.notes) && (
-                            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                              {[r.tag, r.notes].filter(Boolean).join(" Â· ")}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
-                          {r.moneyIn > 0.004 ? `+ ${r.currency} ${r.moneyIn.toLocaleString()}` : "â€”"}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-rose-700 dark:text-rose-400">
-                          {r.moneyOut > 0.004 ? `âˆ’ ${r.currency} ${r.moneyOut.toLocaleString()}` : "â€”"}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.weOweAfter)}</td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.theyOweAfter)}</td>
-                        <td className="px-3 py-2.5 align-top">
-                          <div className="flex items-center gap-1 justify-end">
-                            {r.proof_url && (
-                              <button
-                                onClick={() => setProofRecord(r)}
-                                className="text-[#1faca6] hover:underline cursor-pointer p-0.5"
-                                title="Proof"
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                if (confirm("Delete this loan transaction?")) onDelete(r.id)
-                              }}
-                              className="text-red-400 hover:text-red-600 cursor-pointer p-0.5"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+                {displayRows.map((r) => (
+                  <div key={r.id} className="px-3.5 py-3 flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          {CATEGORY_LABEL[r.category] ?? r.category}
+                        </p>
+                        <p className="text-[11px] text-[#aeaeb2] tabular-nums">{fmtDate(r.createdAt)}</p>
+                      </div>
+                      {(r.tag || r.notes) && (
+                        <p className="text-[12px] text-[#6e6e73] mt-1 leading-snug whitespace-pre-wrap break-words">
+                          {[r.tag, r.notes].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-[#aeaeb2] mt-1.5 tabular-nums">
+                        We owe {fmt(r.weOweAfter)} · They owe {fmt(r.theyOweAfter)}
+                        {r.created_by ? ` · ${r.created_by}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right space-y-1.5">
+                      {r.moneyIn > 0.004 ? (
+                        <p className="text-[13px] font-semibold tabular-nums text-[#248a3d]">
+                          + {r.currency} {r.moneyIn.toLocaleString()}
+                        </p>
+                      ) : r.moneyOut > 0.004 ? (
+                        <p className="text-[13px] font-semibold tabular-nums text-[#ff3b30]">
+                          − {r.currency} {r.moneyOut.toLocaleString()}
+                        </p>
+                      ) : null}
+                      <div className="flex items-center gap-1 justify-end">
+                        {r.proof_url && (
+                          <button
+                            type="button"
+                            onClick={() => setProofRecord(r)}
+                            className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#007aff] hover:bg-[#007aff]/10 cursor-pointer"
+                            title="Proof"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Delete this loan transaction?")) onDelete(r.id)
+                          }}
+                          className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
+          </AppleGroup>
         </div>
 
-        {proofRecord && (
-          <div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-            onClick={() => setProofRecord(null)}
-          >
+        {proofRecord &&
+          createPortal(
             <div
-              className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-[10px] p-4"
+              onClick={() => setProofRecord(null)}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b">
-                <p className="text-xs font-semibold truncate">{proofRecord.proof_name || "Proof"}</p>
-                <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={() => setProofRecord(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="p-4">
-                {proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
-                  <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-lg object-contain max-h-[60vh] border" />
-                ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
-                  <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-lg border" title="proof" />
-                ) : (
-                  <a
-                    href={proofRecord.proof_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-[#1faca6] hover:underline"
+              <div
+                className="w-full max-w-lg rounded-[20px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3.5">
+                  <p className="text-[15px] font-semibold truncate">{proofRecord.proof_name || "Proof"}</p>
+                  <button
+                    type="button"
+                    onClick={() => setProofRecord(null)}
+                    className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
                   >
-                    <FileText className="h-4 w-4" /> View {proofRecord.proof_name || "document"}
-                  </a>
-                )}
+                    <X className="h-4 w-4" strokeWidth={2.25} />
+                  </button>
+                </div>
+                <div className="px-5 pb-5">
+                  {proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
+                    <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-[14px] object-contain max-h-[60vh]" />
+                  ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
+                    <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-[14px]" title="proof" />
+                  ) : (
+                    <a
+                      href={proofRecord.proof_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[13px] text-[#007aff] hover:underline"
+                    >
+                      <FileText className="h-4 w-4" /> View {proofRecord.proof_name || "document"}
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            </div>,
+            document.body,
+          )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
+
 }
 
 /* ------------------------------------------------------------------ */
@@ -930,121 +973,100 @@ export function FinanceLoans({
   const totalOwedToUs = profiles.reduce((s, p) => s + Math.max(0, p.given - p.recovered), 0)
 
   return (
-    <div className="rounded-xl border overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gradient-to-r from-amber-500/[0.07] to-[#1faca6]/[0.07] border-b">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-amber-500/15 text-amber-700 flex items-center justify-center">
-            <HandCoins className="h-4.5 w-4.5" />
-          </div>
-          <div>
-            <p className="text-sm font-bold leading-tight">Loans</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              {profiles.length} {profiles.length === 1 ? "person" : "people"} Â· give, receive & return with proof
-            </p>
-          </div>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Loans</p>
+          <p className="text-[12px] text-[#86868b] mt-0.5">
+            {profiles.length} {profiles.length === 1 ? "person" : "people"}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
+          <button
+            type="button"
             onClick={() => setForm({ mode: "receive", person: "" })}
+            className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
           >
-            <ArrowDownLeft className="h-3.5 w-3.5" /> Loan received
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 border-rose-500/40 text-rose-700 hover:bg-rose-500/10 cursor-pointer"
+            Loan received
+          </button>
+          <button
+            type="button"
             onClick={() => setForm({ mode: "give", person: "" })}
+            className="h-8 px-3.5 rounded-full bg-black/[0.06] text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer transition-colors"
           >
-            <ArrowUpRight className="h-3.5 w-3.5" /> Give loan
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-800 hover:bg-amber-500/10 cursor-pointer"
+            Give loan
+          </button>
+          <button
+            type="button"
             onClick={() => setForm({ mode: "return", person: "" })}
+            className="h-8 px-3.5 rounded-full bg-[#007aff] text-[12px] font-semibold text-white hover:bg-[#0066d6] cursor-pointer transition-colors"
           >
-            <Undo2 className="h-3.5 w-3.5" /> Return loan
-          </Button>
+            Return loan
+          </button>
         </div>
       </div>
 
-      {/* Totals */}
       {profiles.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 divide-x border-b">
-          <div className="px-4 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 dark:text-rose-400">We owe</p>
-            <p className="text-base font-bold tabular-nums text-rose-700 dark:text-rose-400">PKR {fmt(totalWeOwe)}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3">
+            <p className="text-[11px] font-medium text-[#86868b]">We owe</p>
+            <p className="text-[18px] font-semibold tabular-nums text-[#ff3b30] mt-0.5">PKR {fmt(totalWeOwe)}</p>
           </div>
-          <div className="px-4 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Owed to us</p>
-            <p className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">PKR {fmt(totalOwedToUs)}</p>
+          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3">
+            <p className="text-[11px] font-medium text-[#86868b]">Owed to us</p>
+            <p className="text-[18px] font-semibold tabular-nums text-[#248a3d] mt-0.5">PKR {fmt(totalOwedToUs)}</p>
           </div>
-          <div className="px-4 py-2.5 hidden sm:block">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">People</p>
-            <p className="text-base font-bold tabular-nums">{profiles.length}</p>
+          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-4 py-3 hidden sm:block">
+            <p className="text-[11px] font-medium text-[#86868b]">People</p>
+            <p className="text-[18px] font-semibold tabular-nums mt-0.5">{profiles.length}</p>
           </div>
         </div>
       )}
 
-      {/* People */}
       {profiles.length === 0 ? (
-        <div className="px-4 py-8 text-center">
-          <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))]/40 mb-2" />
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            No loans yet. Use the buttons above to record a loan given or received.
-          </p>
+        <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-10 text-center">
+          <Users className="h-7 w-7 mx-auto text-[#aeaeb2] mb-2" />
+          <p className="text-[13px] text-[#86868b]">No loans yet</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 p-3">
-          {profiles.map((p) => {
-            const weOwe = p.received - p.repaid
-            const theyOwe = p.given - p.recovered
-            const settled = weOwe <= 0.004 && theyOwe <= 0.004
-            return (
-              <button
-                key={p.key}
-                onClick={() => setProfileKey(p.key)}
-                className="text-left rounded-lg border bg-[hsl(var(--background))] px-3.5 py-3 hover:border-[#1faca6]/60 hover:shadow-sm transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="h-9 w-9 rounded-full bg-[#1faca6]/15 text-[#17857f] flex items-center justify-center text-xs font-bold shrink-0">
+        <AppleGroup>
+          <div className="divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+            {profiles.map((p) => {
+              const weOwe = p.received - p.repaid
+              const theyOwe = p.given - p.recovered
+              const settled = weOwe <= 0.004 && theyOwe <= 0.004
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setProfileKey(p.key)}
+                  className="w-full text-left px-3.5 py-3 flex items-center gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
+                >
+                  <div className="h-9 w-9 rounded-full bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
                     {initialsOf(p.name)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate">{p.name}</p>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                      {p.records.length} txn{p.records.length === 1 ? "" : "s"} Â· {fmtDate(new Date(p.lastAt).toISOString())}
+                    <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{p.name}</p>
+                    <p className="text-[11px] text-[#86868b] mt-0.5">
+                      {p.records.length} txn{p.records.length === 1 ? "" : "s"} · {fmtDate(new Date(p.lastAt).toISOString())}
                     </p>
                   </div>
-                </div>
-                <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                  {weOwe > 0.004 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold tabular-nums bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
-                      We owe PKR {fmt(weOwe)}
-                    </span>
-                  )}
-                  {theyOwe > 0.004 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold tabular-nums bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                      Owes us PKR {fmt(theyOwe)}
-                    </span>
-                  )}
-                  {settled && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-500/10 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-500/30">
-                      Settled
-                    </span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                  <div className="shrink-0 text-right">
+                    {weOwe > 0.004 && (
+                      <p className="text-[12px] font-semibold tabular-nums text-[#ff3b30]">We owe {fmt(weOwe)}</p>
+                    )}
+                    {theyOwe > 0.004 && (
+                      <p className="text-[12px] font-semibold tabular-nums text-[#248a3d]">Owes us {fmt(theyOwe)}</p>
+                    )}
+                    {settled && <p className="text-[12px] font-medium text-[#86868b]">Settled</p>}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </AppleGroup>
       )}
 
-      {/* Dialogs */}
       {form && (
         <LoanFormDialog
           mode={form.mode}
