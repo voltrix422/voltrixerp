@@ -277,13 +277,13 @@ function ToggleChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] transition-colors cursor-pointer ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors cursor-pointer ${
         on
-          ? "border-[hsl(var(--foreground))]/40 bg-[hsl(var(--muted))]/30"
-          : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] opacity-60"
+          ? "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/12 dark:text-[hsl(var(--foreground))]"
+          : "bg-black/[0.03] text-[#aeaeb2] dark:bg-white/5"
       }`}
     >
-      <span className={`h-1 w-1 rounded-full ${on ? "bg-[hsl(var(--foreground))]" : "bg-[hsl(var(--muted-foreground))]"}`} />
+      <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-[#1a9f9a]" : "bg-[#aeaeb2]"}`} />
       {label}
       {amount != null && amount > 0.004 && (
         <span className="tabular-nums opacity-70">{fmt(amount, 0)}</span>
@@ -304,15 +304,15 @@ function BreakdownTable({
   tooltipSide?: "left" | "right"
 }) {
   return (
-    <div className="w-full rounded-md border overflow-visible">
-      <table className="w-full border-collapse text-[11px]">
+    <div className="w-full rounded-[14px] bg-[#f5f5f7] dark:bg-black/20 overflow-visible">
+      <table className="w-full border-collapse text-[12px]">
         <tbody>
           {rows.map((row, i) => {
             const hasDetails = (row.details?.length ?? 0) > 0
             const detailCount = row.details?.length ?? 0
             return (
-              <tr key={row.label} className={`group/row ${i > 0 ? "border-t" : ""}`}>
-                <td className="relative pl-2.5 pr-2 py-1.5 align-middle">
+              <tr key={row.label} className={`group/row ${i > 0 ? "border-t border-black/[0.05] dark:border-white/8" : ""}`}>
+                <td className="relative pl-3.5 pr-2 py-2.5 align-middle">
                   {hasDetails ? (
                     <button
                       type="button"
@@ -323,44 +323,44 @@ function BreakdownTable({
                           details: row.details || [],
                         })
                       }
-                      className="text-left text-[hsl(var(--muted-foreground))] cursor-pointer underline decoration-dotted decoration-[hsl(var(--muted-foreground))]/50 underline-offset-2 hover:text-[hsl(var(--foreground))]"
+                      className="text-left text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] cursor-pointer hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))] transition-colors"
                       title="Hover for preview · click for full detail"
                     >
                       {row.label}
                     </button>
                   ) : (
-                    <span className="text-[hsl(var(--muted-foreground))]">{row.label}</span>
+                    <span className="text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))]">{row.label}</span>
                   )}
                   {hasDetails && (
                     <div
                       role="tooltip"
-                      className={`pointer-events-none absolute top-full z-[60] mt-1.5 hidden group-hover/row:block w-[min(34rem,calc(100vw-1.5rem))] rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl p-3.5 ${
+                      className={`pointer-events-none absolute top-full z-[60] mt-1.5 hidden group-hover/row:block w-[min(34rem,calc(100vw-1.5rem))] rounded-[14px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.16)] p-3.5 ${
                         tooltipSide === "right" ? "right-0 left-auto" : "left-0"
                       }`}
                     >
-                      <div className="flex items-baseline justify-between gap-3 mb-2.5 pb-2 border-b">
+                      <div className="flex items-baseline justify-between gap-3 mb-2.5 pb-2 border-b border-black/[0.06]">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate">{row.label}</p>
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          <p className="text-sm font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{row.label}</p>
+                          <p className="text-[11px] text-[#86868b] mt-0.5">
                             {detailCount} item{detailCount === 1 ? "" : "s"} · click row for full detail
                           </p>
                         </div>
                         <p className="text-sm font-bold tabular-nums shrink-0">{row.value}</p>
                       </div>
-                      <ul className="space-y-0 max-h-[22rem] overflow-y-auto divide-y">
+                      <ul className="space-y-0 max-h-[22rem] overflow-y-auto divide-y divide-black/[0.05]">
                         {row.details!.map((d) => (
                           <li key={d.id} className="flex items-start justify-between gap-4 py-2 first:pt-0 last:pb-0">
                             <span className="min-w-0">
-                              <span className="block text-[13px] font-semibold text-[hsl(var(--foreground))] leading-snug">
+                              <span className="block text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug">
                                 {d.label}
                               </span>
                               {d.sublabel ? (
-                                <span className="block text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">
+                                <span className="block text-[11px] text-[#86868b] mt-0.5 leading-snug">
                                   {d.sublabel}
                                 </span>
                               ) : null}
                               {d.date ? (
-                                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] mt-1">{d.date}</span>
+                                <span className="block text-[10px] text-[#aeaeb2] mt-1">{d.date}</span>
                               ) : null}
                             </span>
                             <span className="text-[13px] tabular-nums font-semibold shrink-0 pt-0.5">{fmt(d.amount)}</span>
@@ -370,7 +370,7 @@ function BreakdownTable({
                     </div>
                   )}
                 </td>
-                <td className="pl-2 pr-2.5 py-1.5 tabular-nums font-semibold text-right align-middle whitespace-nowrap">
+                <td className="pl-2 pr-3.5 py-2.5 tabular-nums font-semibold text-right align-middle whitespace-nowrap text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                   {row.value}
                 </td>
               </tr>
@@ -378,9 +378,9 @@ function BreakdownTable({
           })}
         </tbody>
         <tfoot>
-          <tr className="border-t bg-[hsl(var(--muted))]/20">
-            <td className="pl-2.5 pr-2 py-1.5 font-semibold align-middle">Total</td>
-            <td className="pl-2 pr-2.5 py-1.5 tabular-nums font-bold text-right align-middle whitespace-nowrap">
+          <tr className="border-t border-black/[0.08] dark:border-white/10">
+            <td className="pl-3.5 pr-2 py-2.5 font-semibold align-middle text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Total</td>
+            <td className="pl-2 pr-3.5 py-2.5 tabular-nums font-bold text-right align-middle whitespace-nowrap text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
               {total}
             </td>
           </tr>
@@ -826,17 +826,17 @@ export function FinanceHub({
       : PERIODS.find((p) => p.id === period)?.label || periodLabel
 
   return (
-    <div className={`space-y-3 max-w-5xl ${loading ? "opacity-60" : ""}`}>
+    <div className={`space-y-4 ${loading ? "opacity-60" : ""}`}>
       {/* Filter icon — Apple-style, closed by default */}
       <div className="flex items-center justify-end">
         <div className="relative">
           <button
             type="button"
             onClick={() => setFiltersOpen((v) => !v)}
-            className={`h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
+            className={`h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
               filtersOpen
-                ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
-                : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] border border-black/[0.06] dark:border-white/10 hover:bg-black/[0.03]"
             }`}
             aria-label="Filters and reports"
             title={`Filters · ${filtersActiveLabel}`}
@@ -844,18 +844,18 @@ export function FinanceHub({
             <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
           {filtersOpen && (
-            <div className="absolute right-0 top-full mt-2 z-40 w-[min(20.5rem,calc(100vw-1.5rem))] rounded-2xl border bg-[hsl(var(--card))] shadow-xl p-3 space-y-2.5">
-              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] px-0.5">{filtersActiveLabel}</p>
-              <div className="flex rounded-xl border p-0.5 bg-[hsl(var(--muted))]/15">
+            <div className="absolute right-0 top-full mt-2 z-40 w-[min(20.5rem,calc(100vw-1.5rem))] rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.14)] p-3 space-y-2.5">
+              <p className="text-[10px] font-medium text-[#86868b] px-0.5">{filtersActiveLabel}</p>
+              <div className="flex rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
                 {PERIODS.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
-                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[10px] transition-colors cursor-pointer ${
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
                       period === p.id && !dateFrom && !dateTo
-                        ? "bg-[#1faca6] text-white shadow-sm"
-                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                        ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                        : "text-[#6e6e73] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]"
                     }`}
                   >
                     {p.label}
@@ -1267,100 +1267,98 @@ export function FinanceHub({
         )}
 
       {/* Hero: In / Out / Net — click In/Out to open detail */}
-      <section className="grid grid-cols-3 gap-px rounded-xl border overflow-hidden bg-[hsl(var(--border))] shadow-sm">
-        <button
-          type="button"
-          onClick={() => {
-            setMoneyInOpen(true)
-            setMoneyOutOpen(false)
-          }}
-          className={`bg-[hsl(var(--card))] px-3 py-3 sm:px-4 text-left transition-colors cursor-pointer hover:bg-emerald-500/[0.04] ${
-            moneyInOpen ? "ring-1 ring-inset ring-emerald-500/30" : ""
-          }`}
-        >
-          <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-medium">Money in</p>
-          <p className="text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5 text-emerald-800 dark:text-emerald-300">
-            {fmt(moneyInAll)}
-          </p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">{periodLabel}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setMoneyOutOpen(true)
-            setMoneyInOpen(false)
-          }}
-          className={`bg-[hsl(var(--card))] px-3 py-3 sm:px-4 text-left transition-colors cursor-pointer hover:bg-rose-500/[0.04] ${
-            moneyOutOpen ? "ring-1 ring-inset ring-rose-500/30" : ""
-          }`}
-        >
-          <p className="text-[10px] uppercase tracking-wide text-rose-700 dark:text-rose-400 font-medium">Money out</p>
-          <p className="text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5 text-rose-800 dark:text-rose-300">
-            {fmt(moneyOutAll)}
-          </p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">Paid costs</p>
-        </button>
-        <div className="bg-[hsl(var(--card))] px-3 py-3 sm:px-4">
-          <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-medium">Net</p>
-          <p
-            className={`text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5 ${
-              net >= 0
-                ? "text-emerald-800 dark:text-emerald-300"
-                : "text-rose-800 dark:text-rose-300"
+      <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
+        <div className="grid grid-cols-3 divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+          <button
+            type="button"
+            onClick={() => {
+              setMoneyInOpen(true)
+              setMoneyOutOpen(false)
+            }}
+            className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
+              moneyInOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
             }`}
           >
-            {fmt(net)}
-          </p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
-            {net >= 0 ? "Surplus" : "Deficit"}
-          </p>
+            <p className="text-[11px] font-medium text-[#86868b]">Money in</p>
+            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {fmt(moneyInAll)}
+            </p>
+            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">{periodLabel}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMoneyOutOpen(true)
+              setMoneyInOpen(false)
+            }}
+            className={`px-4 py-4 sm:px-5 text-left transition-colors cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] ${
+              moneyOutOpen ? "bg-black/[0.02] dark:bg-white/[0.04]" : ""
+            }`}
+          >
+            <p className="text-[11px] font-medium text-[#86868b]">Money out</p>
+            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {fmt(moneyOutAll)}
+            </p>
+            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">Paid costs</p>
+          </button>
+          <div className="px-4 py-4 sm:px-5">
+            <p className="text-[11px] font-medium text-[#86868b]">Net</p>
+            <p className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums leading-none mt-2 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {fmt(net)}
+            </p>
+            <p className="text-[11px] text-[#aeaeb2] mt-2 truncate">
+              {net >= 0 ? "Surplus" : "Deficit"}
+            </p>
+          </div>
         </div>
       </section>
 
       {/* Money in + Money out side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-        <section className="rounded-lg border bg-[hsl(var(--card))] overflow-visible min-w-0">
+        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible min-w-0">
           <button
             type="button"
             onClick={() => setMoneyInOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-emerald-500/[0.04] transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer rounded-t-[18px]"
           >
-            <span className="flex items-center gap-1.5 min-w-0">
+            <span className="flex items-center gap-2 min-w-0">
               <ChevronDown
-                className={`h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400 transition-transform ${moneyInOpen ? "" : "-rotate-90"}`}
+                className={`h-3.5 w-3.5 shrink-0 text-[#86868b] transition-transform ${moneyInOpen ? "" : "-rotate-90"}`}
               />
               <span className="min-w-0">
-                <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">Money in</span>
-                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">{periodLabel}</span>
+                <span className="block text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Money in</span>
+                <span className="block text-[11px] text-[#86868b] truncate">{periodLabel}</span>
               </span>
             </span>
-            <span className="text-xs font-bold tabular-nums text-emerald-800 dark:text-emerald-300 shrink-0">
+            <span className="text-[13px] font-bold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shrink-0">
               {fmt(moneyInAll)}
             </span>
           </button>
           {moneyInOpen && (
-            <div className="px-3 pb-3 pt-1 border-t space-y-2.5">
-              <div className="rounded-md border overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b bg-[hsl(var(--muted))]/10">
+            <div className="px-4 pb-4 pt-1 border-t border-black/[0.05] dark:border-white/8 space-y-3">
+              <div className="rounded-[14px] bg-[#f5f5f7] dark:bg-black/20 overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold">Client receipts</p>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                    <p className="text-[12px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Client receipts</p>
+                    <p className="text-[11px] text-[#86868b] truncate">
                       CRM · {activeOrderCount} active
                       {returnedOrderCount > 0 ? ` · +${returnedOrderCount} returned` : ""}
                     </p>
                   </div>
                   <Link
                     href="/crm?tab=orders"
-                    className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0 cursor-pointer"
+                    className="text-[11px] font-medium text-[#0071e3] hover:opacity-80 inline-flex items-center gap-0.5 shrink-0 cursor-pointer"
                   >
                     CRM <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
-                <div className="p-2 space-y-2">
+                <div className="px-3.5 pb-3 space-y-3">
                   <div className="flex items-end justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
-                      <p className="text-base font-bold tabular-nums leading-none mt-0.5">{fmt(displayTotal, 0)}</p>
+                      <p className="text-[11px] text-[#86868b]">{periodLabel} received</p>
+                      <p className="text-[22px] font-bold tracking-tight tabular-nums leading-none mt-1 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        {fmt(displayTotal, 0)}
+                      </p>
                     </div>
                     <ToggleChip
                       on={includeOutstanding}
@@ -1369,18 +1367,22 @@ export function FinanceHub({
                       onClick={() => setIncludeOutstanding((v) => !v)}
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-1">
-                    <div className="rounded border px-1.5 py-1">
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Period</p>
-                      <p className="text-[10px] font-semibold tabular-nums mt-0.5">{fmt(periodReceived, 0)}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="rounded-[10px] bg-white dark:bg-white/5 px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Period</p>
+                      <p className="text-[11px] font-semibold tabular-nums mt-1 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        {fmt(periodReceived, 0)}
+                      </p>
                     </div>
-                    <div className="rounded border px-1.5 py-1">
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">All-time</p>
-                      <p className="text-[10px] font-semibold tabular-nums mt-0.5">{fmt(orderPayments.allTime.totalReceived, 0)}</p>
+                    <div className="rounded-[10px] bg-white dark:bg-white/5 px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">All-time</p>
+                      <p className="text-[11px] font-semibold tabular-nums mt-1 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        {fmt(orderPayments.allTime.totalReceived, 0)}
+                      </p>
                     </div>
-                    <div className="rounded border px-1.5 py-1">
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Due</p>
-                      <p className="text-[10px] font-semibold tabular-nums mt-0.5 text-amber-700 dark:text-amber-400">
+                    <div className="rounded-[10px] bg-white dark:bg-white/5 px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Due</p>
+                      <p className="text-[11px] font-semibold tabular-nums mt-1 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                         {fmt(outstanding, 0)}
                       </p>
                     </div>
@@ -1404,27 +1406,27 @@ export function FinanceHub({
           )}
         </section>
 
-        <section className="rounded-lg border bg-[hsl(var(--card))] overflow-visible min-w-0">
+        <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible min-w-0">
           <button
             type="button"
             onClick={() => setMoneyOutOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-rose-500/[0.04] transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer rounded-t-[18px]"
           >
-            <span className="flex items-center gap-1.5 min-w-0">
+            <span className="flex items-center gap-2 min-w-0">
               <ChevronDown
-                className={`h-3.5 w-3.5 shrink-0 text-rose-700 dark:text-rose-400 transition-transform ${moneyOutOpen ? "" : "-rotate-90"}`}
+                className={`h-3.5 w-3.5 shrink-0 text-[#86868b] transition-transform ${moneyOutOpen ? "" : "-rotate-90"}`}
               />
               <span className="min-w-0">
-                <span className="block text-xs font-semibold text-rose-800 dark:text-rose-300">Money out</span>
-                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate">Paid · {periodLabel}</span>
+                <span className="block text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Money out</span>
+                <span className="block text-[11px] text-[#86868b] truncate">Paid · {periodLabel}</span>
               </span>
             </span>
-            <span className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-400 shrink-0">
+            <span className="text-[13px] font-bold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shrink-0">
               {fmt(moneyOutAll)}
             </span>
           </button>
           {moneyOutOpen && (
-            <div className="px-3 pb-3 pt-1 border-t overflow-visible">
+            <div className="px-4 pb-4 pt-1 border-t border-black/[0.05] dark:border-white/8 overflow-visible">
               <BreakdownTable
                 rows={moneyOutDisplayRows.map((r) => ({
                   label: r.label,
