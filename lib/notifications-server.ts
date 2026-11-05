@@ -360,17 +360,17 @@ export async function notifyOnPettyCashPending(
   type: "allocation" | "receipt",
 ) {
   const label = type === "allocation" ? "Petty cash allocation" : "Petty cash receipt"
-  await notifyUsersByModule("dashboard", {
+  const userIds = [
+    ...new Set([
+      ...(await getUserIdsByModule("dashboard")),
+      ...(await getUserIdsByModule("finance")),
+    ]),
+  ]
+  await notifyUsers(userIds, {
     title: `${label} awaiting approval`,
     message: `${employeeName} — Rs ${amount.toLocaleString()} for ${purpose}.`,
     type: "warning",
     link: "/dashboard",
-  })
-  await notifyUsersByModule("finance", {
-    title: `${label} pending review`,
-    message: `${employeeName} — Rs ${amount.toLocaleString()} for ${purpose}.`,
-    type: "info",
-    link: "/petty-cash",
   })
 }
 

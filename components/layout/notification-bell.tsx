@@ -1,17 +1,15 @@
 "use client"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, CheckCheck, ExternalLink } from "lucide-react"
+import { Bell, CheckCheck } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import {
   fetchNotifications,
   fetchUnreadCount,
   markAllNotificationsRead,
   markNotificationRead,
-  sendTestNotification,
   type AppNotification,
 } from "@/lib/notifications"
-import { subscribeUserToPush } from "@/lib/push-client"
 import {
   announceIncomingAlerts,
   requestDesktopNotificationPermission,
@@ -20,10 +18,10 @@ import {
 import { cn } from "@/lib/utils"
 
 const TYPE_DOT: Record<string, string> = {
-  info: "bg-blue-500",
-  warning: "bg-amber-500",
-  success: "bg-emerald-500",
-  error: "bg-red-500",
+  info: "bg-[#007aff]",
+  warning: "bg-[#ff9f0a]",
+  success: "bg-[#34c759]",
+  error: "bg-[#ff3b30]",
 }
 
 function timeAgo(iso: string) {
@@ -37,44 +35,6 @@ function timeAgo(iso: string) {
   return `${days}d ago`
 }
 
-export function TestNotificationButton() {
-  const { user } = useAuth()
-  const [testing, setTesting] = useState(false)
-  const [done, setDone] = useState(false)
-
-  if (!user?.id) return null
-
-  async function handleClick() {
-    if (!user?.id || testing) return
-    setTesting(true)
-    setDone(false)
-    const ready = await subscribeUserToPush(user.id)
-    if (!ready.ok) {
-      window.alert(ready.message)
-      setTesting(false)
-      return
-    }
-    const result = await sendTestNotification(user.id)
-    setDone(result.ok)
-    if (!result.ok) window.alert(result.message)
-    setTesting(false)
-    window.setTimeout(() => setDone(false), 4000)
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => void handleClick()}
-      disabled={testing}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#1a9f9a]/40 bg-[#1a9f9a]/10 px-2.5 text-[11px] font-semibold text-[#0d6b67] hover:bg-[#1a9f9a]/20 disabled:opacity-60 shrink-0"
-      title="Send a live test alert to admins and this phone"
-    >
-      <Bell className="h-3.5 w-3.5" />
-      <span>{testing ? "Sending..." : done ? "Sent" : "Test alert"}</span>
-    </button>
-  )
-}
-
 export function NotificationBell() {
   const { user } = useAuth()
   const router = useRouter()
@@ -82,8 +42,6 @@ export function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testMessage, setTestMessage] = useState("")
   const ref = useRef<HTMLDivElement>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
@@ -185,22 +143,6 @@ export function NotificationBell() {
     setUnread(0)
   }
 
-  async function handleTest() {
-    if (!user?.id || testing) return
-    setTesting(true)
-    setTestMessage("")
-    const ready = await subscribeUserToPush(user.id)
-    if (!ready.ok) {
-      setTestMessage(ready.message)
-      setTesting(false)
-      return
-    }
-    const result = await sendTestNotification(user.id)
-    setTestMessage(result.message)
-    if (result.ok) void refresh()
-    setTesting(false)
-  }
-
   if (!user) return null
 
   return (
@@ -224,14 +166,16 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-[hsl(var(--card))] shadow-lg">
-          <div className="flex items-center justify-between border-b px-3 py-2">
-            <p className="text-xs font-semibold">Notifications</p>
+        <div className="absolute right-0 top-10 z-50 w-[340px] overflow-hidden rounded-2xl border border-black/[0.08] bg-white/95 shadow-[0_12px_40px_rgba(0,0,0,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+          <div className="flex items-center justify-between px-4 pt-3.5 pb-2.5">
+            <p className="text-[13px] font-bold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Notifications
+            </p>
             {unread > 0 && (
               <button
                 type="button"
                 onClick={handleMarkAll}
-                className="flex items-center gap-1 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-[#007aff] hover:bg-black/[0.07] dark:bg-white/10 dark:hover:bg-white/15 cursor-pointer transition-colors"
               >
                 <CheckCheck className="h-3 w-3" />
                 Mark all read
@@ -239,50 +183,60 @@ export function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-[min(420px,70vh)] overflow-y-auto px-2 pb-2">
             {loading && (
-              <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">Loading...</p>
+              <p className="px-2 py-10 text-center text-[12px] text-[#86868b]">Loading…</p>
             )}
             {!loading && items.length === 0 && (
-              <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No notifications yet</p>
+              <p className="px-2 py-10 text-center text-[12px] text-[#86868b]">
+                No notifications yet
+              </p>
             )}
-            {!loading && items.map(n => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => handleClick(n)}
-                className={cn(
-                  "flex w-full items-start gap-2 border-b px-3 py-2.5 text-left transition-colors hover:bg-[hsl(var(--accent))] cursor-pointer last:border-b-0",
-                  !n.read && "bg-[hsl(var(--accent))]/40",
-                )}
-              >
-                <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", TYPE_DOT[n.type] || TYPE_DOT.info)} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium leading-snug">{n.title}</p>
-                  {n.message && (
-                    <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))] line-clamp-2">{n.message}</p>
-                  )}
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[9px] text-[hsl(var(--muted-foreground))]">{timeAgo(n.createdAt)}</span>
-                    {n.link && <ExternalLink className="h-2.5 w-2.5 text-[hsl(var(--muted-foreground))]" />}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t px-3 py-2.5">
-            <button
-              type="button"
-              onClick={() => void handleTest()}
-              disabled={testing}
-              className="inline-flex h-8 w-full items-center justify-center rounded-md bg-[#1a9f9a] px-3 text-[11px] font-semibold text-white hover:bg-[#158a85] disabled:opacity-60"
-            >
-              {testing ? "Sending test..." : "Send test notification"}
-            </button>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]">
-              {testMessage || "Sends a live alert to admins and this account. Installed phones get it on the lock screen."}
-            </p>
+            {!loading && items.length > 0 && (
+              <div className="space-y-0.5">
+                {items.map(n => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => handleClick(n)}
+                    className={cn(
+                      "flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition-colors cursor-pointer",
+                      !n.read
+                        ? "bg-[#007aff]/[0.06] hover:bg-[#007aff]/[0.1]"
+                        : "hover:bg-black/[0.04] dark:hover:bg-white/5",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                        TYPE_DOT[n.type] || TYPE_DOT.info,
+                        n.read && "opacity-40",
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={cn(
+                            "text-[12px] leading-snug tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]",
+                            !n.read ? "font-semibold" : "font-medium",
+                          )}
+                        >
+                          {n.title}
+                        </p>
+                        <span className="shrink-0 text-[10px] tabular-nums text-[#86868b] pt-0.5">
+                          {timeAgo(n.createdAt)}
+                        </span>
+                      </div>
+                      {n.message && (
+                        <p className="mt-0.5 text-[11px] leading-snug text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] line-clamp-2">
+                          {n.message}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
