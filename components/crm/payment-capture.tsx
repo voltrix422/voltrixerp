@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, type ChangeEvent } from "react"
+import { createPortal } from "react-dom"
 import {
   saveOrder,
   type Order,
@@ -529,12 +530,13 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
   return (
     <>
+      {typeof document !== "undefined" && createPortal(
       <div
-        className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-5"
+        className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-5"
         onClick={onClose}
       >
         <div
-          className="w-full sm:max-w-[560px] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col"
+          className="w-full sm:max-w-[560px] max-h-[min(92vh,720px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0 px-5 pt-4 pb-3 sm:px-6">
@@ -771,7 +773,9 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body,
+      )}
 
       <ConfirmDialog
         isOpen={deletePaymentId !== null}

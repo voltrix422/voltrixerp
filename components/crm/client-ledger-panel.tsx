@@ -51,10 +51,10 @@ export function ClientLedgerPicker({
   const matches = q ? filteredMatches : filteredMatches.slice(0, 80)
   const label =
     selected.length === 0
-      ? "Select client ledger..."
+      ? "Select ledger…"
       : selected.length === 1
         ? selected[0].name
-        : `${selected.length} clients selected`
+        : `${selected.length} clients`
 
   function toggle(id: string) {
     if (!id) return
@@ -68,9 +68,9 @@ export function ClientLedgerPicker({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex-1 h-8 min-w-0 rounded border bg-[hsl(var(--background))] px-2.5 text-xs text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          className="flex-1 h-8 min-w-0 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none"
         >
-          <span className={`truncate ${selected.length ? "font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
+          <span className={`truncate ${selected.length ? "font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]" : "text-[#86868b]"}`}>
             {label}
           </span>
           <svg className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,21 +201,18 @@ export function ClientExcludePicker({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-        Except clients
-      </p>
-      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-        Export every order except the clients you add here.
+    <div className="space-y-1">
+      <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">
+        Exclude
       </p>
       <div className="relative">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2.5 text-xs text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          className="w-full h-8 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none"
         >
-          <span className="truncate text-[hsl(var(--muted-foreground))]">
-            {excluded.length ? `${excluded.length} client${excluded.length === 1 ? "" : "s"} excluded` : "Add a client to exclude..."}
+          <span className="truncate text-[#86868b]">
+            {excluded.length ? `${excluded.length} excluded` : "Exclude clients…"}
           </span>
           <svg className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

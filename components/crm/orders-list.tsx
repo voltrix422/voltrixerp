@@ -515,21 +515,39 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         createPortal(
           <div
             ref={filtersRef}
-            className="fixed z-[95] w-[min(20.5rem,calc(100vw-1.5rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] p-3 space-y-2.5"
+            className="fixed z-[95] w-[min(19.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,34rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
             style={{ top: filterPos.top, left: filterPos.left }}
           >
-            <div className="flex items-center justify-between gap-2 px-0.5">
-              <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                 Filters
               </p>
-              {hasActiveFilters && (
-                <button type="button" onClick={clearFilters} className="text-[10px] font-medium text-[#0071e3] cursor-pointer">
-                  Clear
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <button type="button" onClick={clearFilters} className="text-[11px] font-semibold text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
                 </button>
-              )}
+              </div>
             </div>
+
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search orders…"
+              className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+            />
+
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">Client ledger</p>
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Ledger</p>
               <ClientLedgerPicker
                 clients={clients}
                 orders={orders}
@@ -537,37 +555,37 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 onChange={selectLedgerClients}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
+
+            <div className="flex items-center gap-1.5">
               <CrmExcelExportButton
                 onExport={exportListExcel}
                 exporting={exportingExcel}
                 disabled={loading || filtered.length === 0 || exportingPdf}
-                className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                className="h-7 flex-1 text-[11px] gap-1 cursor-pointer rounded-full"
               />
-              <Button
+              <button
                 type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
                 disabled={loading || filtered.length === 0 || exportingPdf}
                 onClick={() => void exportListPdf()}
+                className="h-7 px-3 rounded-full text-[11px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] disabled:opacity-40 cursor-pointer inline-flex items-center gap-1"
               >
                 {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                {exportingPdf ? "PDF…" : "PDF"}
-              </Button>
+                PDF
+              </button>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Status</p>
-              <div className="flex flex-wrap gap-1">
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Status</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
                 {STATUS_FILTER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setStatusFilter(opt.value)}
-                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                    className={`h-6 px-2 rounded-[7px] text-[10px] font-semibold transition-colors cursor-pointer ${
                       statusFilter === opt.value
-                        ? "bg-[#1d1d1f] text-white"
-                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                        ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                        : "text-[#6e6e73] hover:text-[#1d1d1f]"
                     }`}
                   >
                     {opt.label}
@@ -575,18 +593,19 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 ))}
               </div>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Payment</p>
-              <div className="flex flex-wrap gap-1">
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Payment</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
                 {PAYMENT_FILTER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setPaymentFilter(opt.value)}
-                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                    className={`h-6 px-2 rounded-[7px] text-[10px] font-semibold transition-colors cursor-pointer ${
                       paymentFilter === opt.value
-                        ? "bg-[#1d1d1f] text-white"
-                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                        ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                        : "text-[#6e6e73] hover:text-[#1d1d1f]"
                     }`}
                   >
                     {opt.label}
@@ -594,6 +613,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 ))}
               </div>
             </div>
+
             <ClientExcludePicker
               clients={clients}
               orders={orders}
@@ -603,12 +623,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 if (ids.length) setLedgerClientIds([])
               }}
             />
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Referrer</p>
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Referrer</p>
               <select
                 value={referrerFilter}
                 onChange={(e) => setReferrerFilter(e.target.value)}
-                className="w-full h-8 px-2 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px] focus:outline-none"
+                className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none"
               >
                 <option value="">All referrers</option>
                 {referrerOptions.map((name) => (
@@ -616,18 +637,19 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 ))}
               </select>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Date</p>
-              <div className="flex flex-wrap gap-1 mb-1.5">
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Date</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
                 {DATE_PRESET_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => applyDatePreset(opt.value)}
-                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                    className={`h-6 px-2 rounded-[7px] text-[10px] font-semibold transition-colors cursor-pointer ${
                       datePreset === opt.value
-                        ? "bg-[#1d1d1f] text-white"
-                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                        ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                        : "text-[#6e6e73] hover:text-[#1d1d1f]"
                     }`}
                   >
                     {opt.label}
@@ -642,9 +664,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     setFromDate(e.target.value)
                     setDatePreset("")
                   }}
-                  className="h-8 flex-1 min-w-0 px-1.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px]"
+                  className="h-8 flex-1 min-w-0 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[11px]"
                 />
-                <span className="text-[9px] text-[#86868b]">to</span>
+                <span className="text-[10px] text-[#aeaeb2]">–</span>
                 <input
                   type="date"
                   value={toDate}
@@ -652,16 +674,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     setToDate(e.target.value)
                     setDatePreset("")
                   }}
-                  className="h-8 flex-1 min-w-0 px-1.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px]"
+                  className="h-8 flex-1 min-w-0 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[11px]"
                 />
               </div>
             </div>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search orders, client, referrer…"
-              className="w-full h-8 px-2.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px] focus:outline-none"
-            />
           </div>,
           document.body,
         )}
