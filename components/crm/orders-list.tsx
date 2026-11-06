@@ -412,9 +412,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const activeOrderCount = Math.max(0, filtered.length - returnedOrders.length)
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {(filtered.length > 0 || orders.length > 0 || !loading) && (
-        <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+        <section className="shrink-0 rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
           <div className="flex items-center justify-end gap-1.5 px-3 pt-2.5">
             {!workspace?.readOnly && (
               <button
@@ -667,16 +667,18 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-24">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
         </div>
       ) : (
         <>
           {ledgerClients.length > 0 && (
-            <ClientLedgerSummary clients={ledgerClients} orders={filtered} currentUser={currentUser} />
+            <div className="shrink-0">
+              <ClientLedgerSummary clients={ledgerClients} orders={filtered} currentUser={currentUser} />
+            </div>
           )}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-20 text-center">
           <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {orders.length === 0
@@ -689,7 +691,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           </p>
         </div>
       ) : (
-        <>
+        <div className="min-h-0 flex-1 overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
@@ -697,9 +699,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <table className="w-full text-[13px]">
-            <thead>
+          <table className="hidden md:table w-full text-[13px]">
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date", ""].map((h) => (
                   <th
@@ -796,8 +797,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               })}
             </tbody>
           </table>
-          </div>
-        </>
+        </div>
       )}
         </>
       )}
@@ -1104,7 +1104,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
       )}
-      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
+      {typeof document !== "undefined" && createPortal(
+      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-3 ${isEdit ? "z-[110]" : "z-[100]"}`} onClick={onClose}>
         <div className="w-full sm:w-[min(1180px,calc(100vw-1.25rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[96vh]" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 px-5 sm:px-7 pt-4 pb-3 shrink-0">
             <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
@@ -1401,7 +1402,9 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           </button>
         </div>
       </div>
-      </div>
+      </div>,
+      document.body,
+      )}
 
       <CrmWarehouseInventoryPicker
         open={showInventory}
@@ -1790,7 +1793,8 @@ function OrderDetail({
         }}
       />
     )}
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3" onClick={onClose}>
+    {typeof document !== "undefined" && createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-3" onClick={onClose}>
       <div className="w-full sm:w-[min(1320px,calc(100vw-1.25rem))] sm:max-h-[min(94vh,920px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[96vh]" onClick={e => e.stopPropagation()}>
         <div className="shrink-0 px-5 pt-3.5 pb-1.5 sm:px-7 sm:pt-4">
           <div className="flex items-start justify-between gap-3">
@@ -2323,7 +2327,9 @@ function OrderDetail({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
+    )}
     </>
       )}
 

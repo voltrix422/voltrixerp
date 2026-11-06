@@ -32,7 +32,7 @@ export function CrmOrdersListCards({
   pdfDownloadingId?: string | null
 }) {
   return (
-    <div className="md:hidden rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] overflow-hidden divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+    <div className="md:hidden divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
       {orders.map((order) => {
         const paid = getOrderAmountPaid(order)
         const due = getOrderCreditBalance(order)

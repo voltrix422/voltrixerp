@@ -96,9 +96,17 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div className="dashboard-content-in relative min-h-0 flex-1 overflow-auto pb-5 sm:pb-6">
+          <div
+            className={cn(
+              "dashboard-content-in relative min-h-0 flex-1 pb-5 sm:pb-6",
+              tab === "orders" ? "flex flex-col overflow-hidden" : "overflow-auto",
+            )}
+          >
             {visited.has("orders") && (
-              <div className={tab === "orders" ? "relative block" : "hidden"} aria-hidden={tab !== "orders"}>
+              <div
+                className={tab === "orders" ? "relative flex min-h-0 flex-1 flex-col" : "hidden"}
+                aria-hidden={tab !== "orders"}
+              >
                 <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
               </div>
             )}
