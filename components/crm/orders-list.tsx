@@ -233,7 +233,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [exportingPdf, setExportingPdf] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
-  const [showOrderSummary, setShowOrderSummary] = useState(false)
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
@@ -475,15 +474,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs px-2.5 cursor-pointer"
-          onClick={() => setShowOrderSummary(true)}
-          disabled={loading || filtered.length === 0}
-        >
-          Order summary
-        </Button>
         {!workspace?.readOnly && (
           <Button
             size="sm"
@@ -692,6 +682,110 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       ) : (
         <>
+          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
+            <div className="flex flex-wrap items-start justify-between gap-2 px-3.5 pt-3 pb-2">
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  Order summary
+                </p>
+                <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
+                  {filtered.length} orders · {formatOrderPkr(totalOrderValue)}
+                </p>
+              </div>
+              <ToggleChip
+                on={includeOutstandingInTotal}
+                label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
+                onClick={() => setIncludeOutstandingInTotal((v) => !v)}
+              />
+            </div>
+
+            <div className="px-3.5 pb-3.5 space-y-3">
+              <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
+                  <p className="text-[18px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {formatOrderPkr(headlineTotal)}
+                  </p>
+                </div>
+                {includeOutstandingInTotal && (
+                  <p className="text-[11px] text-[#aeaeb2] tabular-nums">
+                    Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-px rounded-[10px] border border-black/[0.05] overflow-hidden bg-black/[0.04] dark:bg-[hsl(var(--border))]">
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Received</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Outstanding</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">In view</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{filtered.length}</p>
+                  </div>
+                </div>
+                <div className="space-y-1 pt-0.5">
+                  <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
+                  <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
+                  {otherPaymentsReceived > 0.004 && (
+                    <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
+                  )}
+                  {creditPaymentsReceived > 0.004 && (
+                    <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
+                  )}
+                </div>
+                <p className="text-[10px] text-[#aeaeb2]">
+                  Gross collections · refunds/cashback are money out in Finance.
+                </p>
+              </div>
+
+              <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] overflow-hidden">
+                <div className="grid grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))] border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                    <p className="text-[10px] text-[#86868b]">Orders</p>
+                    <p className="text-[15px] font-semibold tabular-nums">{filtered.length}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                    <p className="text-[10px] text-[#86868b]">Qty</p>
+                    <p className="text-[15px] font-semibold tabular-nums">{totalOrderQty}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                    <p className="text-[10px] text-[#86868b]">Value</p>
+                    <p className="text-[13px] font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))]">
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Delivered paid ({deliveredFullyPaid.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">On credit ({creditOrders.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Returned ({returnedOrders.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                    <p className="text-[10px] text-[#86868b]">Cashback ({cashbackOrders.length})</p>
+                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
@@ -821,117 +915,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </>
       )}
         </>
-      )}
-
-      {showOrderSummary && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={() => setShowOrderSummary(false)}>
-          <div
-            className="w-full sm:max-w-xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Order summary</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                  {filtered.length} orders · {formatOrderPkr(totalOrderValue)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <ToggleChip
-                  on={includeOutstandingInTotal}
-                  label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
-                  onClick={() => setIncludeOutstandingInTotal((v) => !v)}
-                />
-                <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowOrderSummary(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              <div className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Money received</p>
-                  <p className="text-lg font-semibold tabular-nums">{formatOrderPkr(headlineTotal)}</p>
-                </div>
-                {includeOutstandingInTotal && (
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                    Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
-                  </p>
-                )}
-                <div className="grid grid-cols-3 gap-px rounded-md border overflow-hidden bg-[hsl(var(--border))]">
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Received</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Outstanding</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">In view</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{filtered.length}</p>
-                  </div>
-                </div>
-                <div className="space-y-1 pt-1">
-                  <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
-                  <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
-                  {otherPaymentsReceived > 0.004 && (
-                    <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
-                  )}
-                  {creditPaymentsReceived > 0.004 && (
-                    <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
-                  )}
-                </div>
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">
-                  Gross collections · refunds/cashback are money out in Finance.
-                </p>
-              </div>
-
-              <div className="rounded-lg border overflow-hidden">
-                <div className="grid grid-cols-3 gap-px bg-[hsl(var(--border))] border-b">
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Orders</p>
-                    <p className="text-sm font-semibold tabular-nums">{filtered.length}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Qty</p>
-                    <p className="text-sm font-semibold tabular-nums">{totalOrderQty}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Value</p>
-                    <p className="text-xs font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-px bg-[hsl(var(--border))]">
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Delivered paid ({deliveredFullyPaid.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">On credit ({creditOrders.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Partial ({partiallyPaidOrders.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Approved unpaid ({approvedAwaitingPayment.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Returned ({returnedOrders.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
-                  </div>
-                  <div className="bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Cashback ({cashbackOrders.length})</p>
-                    <p className="text-xs font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {showForm && (
