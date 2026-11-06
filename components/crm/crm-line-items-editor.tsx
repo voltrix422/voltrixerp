@@ -21,9 +21,15 @@ const inputSm =
   "w-full rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
 const inputMd =
   "w-full rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+const inputSheet =
+  "w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
 
 function formatPkr(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatPkrShort(value: number) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 function resolveCompanyPrice(item: CrmLineItem) {
@@ -42,6 +48,7 @@ export function CrmLineItemsEditor({
   lockUnitPrice = false,
   /** Branch POS: show company list price + editable customer price + line profit */
   showCompanyPrice = false,
+  variant = "default",
 }: {
   items: CrmLineItem[]
   onUpdate: (id: string, key: CrmLineItemField, value: string | number) => void
@@ -53,7 +60,108 @@ export function CrmLineItemsEditor({
   /** When true, unit price is read-only (set from CRM price list). */
   lockUnitPrice?: boolean
   showCompanyPrice?: boolean
+  /** Apple sheet layout for New Order / compact modals. */
+  variant?: "default" | "sheet"
 }) {
+  const RemoveIcon = removeIcon === "trash" ? Trash2 : X
+
+  if (variant === "sheet") {
+    return (
+      <div className="rounded-[14px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
+        {items.map((item) => {
+          const lineTotal = item.qty * item.unitPrice
+          const gstBreakdown =
+            gstPercent != null && gstPercent > 0 && lineTotal > 0
+              ? splitGstInclusiveAmount(lineTotal, gstPercent)
+              : null
+          return (
+            <div key={item.id} className="px-3.5 py-3 space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-[minmax(0,1.7fr)_72px_118px_128px_28px] sm:gap-2.5 sm:items-start">
+              <div className="min-w-0 space-y-1 flex gap-2 sm:block">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <input
+                    value={item.description}
+                    onChange={(e) => onUpdate(item.id, "description", e.target.value)}
+                    disabled={!item.isCustom}
+                    placeholder="Item"
+                    className={`${inputSheet} font-medium disabled:opacity-70`}
+                  />
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-0.5">
+                    {item.availableQty !== undefined && (
+                      <span className="text-[11px] text-[#34c759] tabular-nums">
+                        {item.availableQty} in stock
+                      </span>
+                    )}
+                    {item.costPrice != null && item.costPrice > 0 && (
+                      <span className="text-[11px] text-[#86868b] tabular-nums">
+                        Cost {formatPkrShort(item.costPrice)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="sm:hidden h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full text-[#aeaeb2] hover:text-[#ff3b30] hover:bg-black/[0.04] cursor-pointer"
+                  aria-label="Remove item"
+                >
+                  <RemoveIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 sm:contents">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-[#86868b] px-0.5">Qty</p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={item.availableQty}
+                    value={item.qty}
+                    onChange={(e) => onUpdate(item.id, "qty", Number(e.target.value))}
+                    className={`${inputSheet} text-center tabular-nums`}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] text-[#86868b] px-0.5">Price</p>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={item.unitPrice}
+                    readOnly={lockUnitPrice}
+                    onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
+                    className={`${inputSheet} text-right tabular-nums ${lockUnitPrice ? "opacity-70 cursor-not-allowed" : ""}`}
+                  />
+                </div>
+
+                <div className="space-y-1 text-right pr-0.5">
+                  <p className="text-[10px] text-[#86868b]">Total</p>
+                  <p className="h-9 flex items-center justify-end text-[13px] font-semibold tabular-nums tracking-tight">
+                    {formatPkrShort(lineTotal)}
+                  </p>
+                  {gstBreakdown && (
+                    <p className="text-[10px] text-[#aeaeb2] tabular-nums leading-tight">
+                      {formatPkrShort(gstBreakdown.base)} + GST {formatPkrShort(gstBreakdown.gst)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                className="hidden sm:inline-flex mt-5 h-8 w-7 items-center justify-center rounded-full text-[#aeaeb2] hover:text-[#ff3b30] hover:bg-black/[0.04] cursor-pointer"
+                aria-label="Remove item"
+              >
+                <RemoveIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   const inputClass = size === "md" ? inputMd : inputSm
   const inputH = size === "md" ? "h-9" : "h-8"
   const thClass =
@@ -62,7 +170,6 @@ export function CrmLineItemsEditor({
       : "px-3 py-2 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]"
   const tdClass = size === "md" ? "px-3 py-2" : "px-2 py-1.5"
 
-  const RemoveIcon = removeIcon === "trash" ? Trash2 : X
   const removeBtnClass =
     removeIcon === "trash"
       ? "p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500 shrink-0"
@@ -180,7 +287,7 @@ export function CrmLineItemsEditor({
                   {gstPercent != null && gstPercent > 0 && (
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))]">GST-inclusive price</p>
                   )}
-                  {item.costPrice !== undefined && (
+                  {item.costPrice !== undefined && item.costPrice > 0 && (
                     <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
                       Cost: PKR {item.costPrice.toLocaleString()}
                     </p>
@@ -326,7 +433,7 @@ export function CrmLineItemsEditor({
                           GST-inclusive
                         </p>
                       )}
-                      {item.costPrice !== undefined && (
+                      {item.costPrice !== undefined && item.costPrice > 0 && (
                         <p className={`text-blue-600 dark:text-blue-400 font-medium mt-1 px-1 ${size === "md" ? "text-xs" : "text-[10px]"}`}>
                           Cost: PKR {item.costPrice.toLocaleString()}
                         </p>

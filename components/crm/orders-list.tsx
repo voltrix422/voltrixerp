@@ -42,7 +42,6 @@ import { canEditOrderInvoice } from "@/lib/invoice-edit"
 import {
   calculateGstInclusiveTotals,
   DEFAULT_GST_PERCENT,
-  splitGstInclusiveAmount,
 } from "@/lib/gst-inclusive-pricing"
 import { CrmPriceTierSelect } from "@/components/crm/crm-price-tier-select"
 import {
@@ -1005,7 +1004,9 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [clientId, setClientId] = useState(existing?.clientId ?? "")
   const [items, setItems] = useState<OrderItem[]>(existing?.items ?? [])
   const [deliveryAddress, setDeliveryAddress] = useState(existing?.deliveryAddress ?? "")
-  const [deliveryDate, setDeliveryDate] = useState(existing?.deliveryDate ?? "")
+  const [deliveryDate, setDeliveryDate] = useState(
+    existing?.deliveryDate ?? toYmd(new Date()),
+  )
   const [notes, setNotes] = useState(existing?.notes ?? "")
   const [referrerName, setReferrerName] = useState(existing?.referrerName ?? "")
   const [saving, setSaving] = useState(false)
@@ -1069,7 +1070,6 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   }, [quantityError])
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
-  const subtotalGstBreakdown = splitGstInclusiveAmount(subtotal, taxPercent)
   const pricing = calculateGstInclusiveTotals({
     subtotalInclGst: subtotal,
     gstPercent: taxPercent,
@@ -1227,9 +1227,9 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
       )}
-      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
-        <div className="w-full sm:w-[min(920px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-4 pb-3 shrink-0">
+      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
+        <div className="w-full sm:w-[min(1180px,calc(100vw-1.25rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:h-[min(96vh,980px)] sm:max-h-[96vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-7 pt-4 pb-3 shrink-0">
             <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
               {isEdit ? existing?.orderNumber : "New order"}
             </p>
@@ -1243,19 +1243,31 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-6 pb-4 space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto sm:overflow-hidden overflow-x-hidden overscroll-contain px-5 sm:px-7 pb-3 space-y-3 sm:flex sm:flex-col">
             <div className="space-y-1.5 relative">
             <label className="text-[11px] font-medium text-[#86868b]">Client</label>
+            {(() => {
+              const selectedClient = clients.find((c) => c.id === clientId)
+              return (
             <button
               type="button"
               onClick={() => setShowClientDropdown(!showClientDropdown)}
-              className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] text-left focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 flex items-center justify-between cursor-pointer"
+              className="w-full min-h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 py-2 text-[13px] text-left focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 flex items-center justify-between gap-3 cursor-pointer"
             >
-              <span className={clientId ? "capitalize text-[#1d1d1f] dark:text-[hsl(var(--foreground))]" : "text-[#aeaeb2]"}>
-                {clientId ? clients.find(c => c.id === clientId)?.name : "Select client"}
-              </span>
-              <ChevronDown className="h-4 w-4 text-[#86868b]" strokeWidth={2} />
+              {selectedClient ? (
+                <span className="min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                  <span className="capitalize text-[#1d1d1f] dark:text-[hsl(var(--foreground))] font-medium truncate">{selectedClient.name}</span>
+                  {selectedClient.company ? (
+                    <span className="text-[11px] text-[#86868b] truncate">{selectedClient.company}</span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-[#aeaeb2]">Select client</span>
+              )}
+              <ChevronDown className="h-4 w-4 text-[#86868b] shrink-0" strokeWidth={2} />
             </button>
+              )
+            })()}
             {showClientDropdown && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowClientDropdown(false)} />
@@ -1265,26 +1277,34 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                       type="text"
                       value={clientSearch}
                       onChange={e => setClientSearch(e.target.value)}
-                      placeholder="Search"
+                      placeholder="Search name or company"
+                      autoFocus
                       className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
                   </div>
-                  {clients.filter(c => 
-                    c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-                    (c.company && c.company.toLowerCase().includes(clientSearch.toLowerCase()))
-                  ).map(c => (
+                  {clients.filter(c => {
+                    const q = clientSearch.trim().toLowerCase()
+                    if (!q) return true
+                    return (
+                      c.name.toLowerCase().includes(q) ||
+                      (c.company && c.company.toLowerCase().includes(q))
+                    )
+                  }).map(c => (
                     <button
                       type="button"
                       key={c.id}
                       onClick={() => {
                         setClientId(c.id)
+                        setDeliveryAddress(c.address?.trim() || "")
                         setShowClientDropdown(false)
                         setClientSearch("")
                       }}
-                      className="w-full px-3.5 py-2.5 text-[13px] text-left cursor-pointer hover:bg-black/[0.04] border-t border-black/[0.04] capitalize"
+                      className="w-full px-3.5 py-2.5 text-[13px] text-left cursor-pointer hover:bg-black/[0.04] border-t border-black/[0.04]"
                     >
-                      {c.name}
-                      {c.company && <span className="text-[#86868b] ml-2 text-[11px]">{c.company}</span>}
+                      <span className="capitalize font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{c.name}</span>
+                      {c.company ? (
+                        <span className="block text-[11px] text-[#86868b] mt-0.5 truncate">{c.company}</span>
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -1292,8 +1312,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
               <label className="text-[11px] font-medium text-[#86868b]">Address</label>
               <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
                 placeholder="Optional"
@@ -1321,8 +1341,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </div>
           </div>
 
-          <div className="space-y-2.5">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2 min-h-0 sm:flex-1 sm:flex sm:flex-col">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0">
               <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Items</p>
               <div className="flex flex-wrap items-center gap-2">
                 <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} />
@@ -1337,11 +1357,11 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-8 text-center">
+              <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-6 text-center">
                 <p className="text-[13px] text-[#86868b]">No items yet</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="min-h-0 sm:flex-1 sm:overflow-y-auto">
                 <CrmLineItemsEditor
                   items={items}
                   onUpdate={(id, key, value) => updateItem(id, key, value)}
@@ -1349,184 +1369,146 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   size="md"
                   removeIcon="trash"
                   gstPercent={taxPercent}
+                  variant="sheet"
                 />
-                {subtotal > 0 && (
-                  <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3.5 py-3 grid grid-cols-3 gap-2">
-                    <div>
-                      <p className="text-[10px] text-[#86868b]">Base</p>
-                      <p className="text-[12px] font-semibold tabular-nums mt-0.5">
-                        {subtotalGstBreakdown.base.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#86868b]">GST {taxPercent}%</p>
-                      <p className="text-[12px] font-semibold tabular-nums mt-0.5 text-[#007aff]">
-                        {subtotalGstBreakdown.gst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#86868b]">Incl. GST</p>
-                      <p className="text-[12px] font-semibold tabular-nums mt-0.5">
-                        {subtotalGstBreakdown.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
 
-          {items.length > 0 && (
-            <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] p-3.5 space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Discount %</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
-                    onChange={e => {
-                      const value = Number(e.target.value)
-                      setDiscount(value)
-                      setDiscountIsPercentage(true)
-                    }}
-                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Discount PKR</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={discountIsPercentage ? discountAmount : discount}
-                    onChange={e => {
-                      setDiscount(Number(e.target.value))
-                      setDiscountIsPercentage(false)
-                    }}
-                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">GST</label>
-                  <div className="h-9 flex items-center px-3 rounded-[10px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[13px] font-medium tabular-nums">
-                    {taxPercent}% · {taxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Applied</label>
-                  <div className="h-9 flex items-center px-3 rounded-[10px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[13px] font-semibold tabular-nums text-[#34c759]">
-                    −{discountAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Expense</label>
-                  <input
-                    value={transportLabel}
-                    onChange={e => setTransportLabel(e.target.value)}
-                    placeholder="Transport"
-                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Amount</label>
-                  <div className="flex gap-1.5">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_280px] gap-3 shrink-0">
+            {items.length > 0 ? (
+              <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] p-3 space-y-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-[#86868b]">Discount %</label>
                     <input
                       type="number"
                       min="0"
-                      step={transportIsPercentage ? "0.01" : "1"}
-                      value={transportCost}
-                      onChange={e => setTransportCost(Number(e.target.value))}
+                      max="100"
+                      value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
+                      onChange={e => {
+                        const value = Number(e.target.value)
+                        setDiscount(value)
+                        setDiscountIsPercentage(true)
+                      }}
                       className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setTransportIsPercentage((v) => !v)}
-                      className={`h-9 px-2.5 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
-                        transportIsPercentage
-                          ? "bg-[#1d1d1f] text-white"
-                          : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
-                      }`}
-                    >
-                      %
-                    </button>
                   </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Other</label>
-                  <input
-                    value={otherCostLabel}
-                    onChange={e => setOtherCostLabel(e.target.value)}
-                    placeholder="Other"
-                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#86868b]">Amount</label>
-                  <div className="flex gap-1.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-[#86868b]">Discount PKR</label>
                     <input
                       type="number"
                       min="0"
-                      step={otherCostIsPercentage ? "0.01" : "1"}
-                      value={otherCost}
-                      onChange={e => setOtherCost(Number(e.target.value))}
+                      value={discountIsPercentage ? discountAmount : discount}
+                      onChange={e => {
+                        setDiscount(Number(e.target.value))
+                        setDiscountIsPercentage(false)
+                      }}
                       className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setOtherCostIsPercentage((v) => !v)}
-                      className={`h-9 px-2.5 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
-                        otherCostIsPercentage
-                          ? "bg-[#1d1d1f] text-white"
-                          : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
-                      }`}
-                    >
-                      %
-                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-[#86868b]">Expense</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={transportLabel}
+                        onChange={e => setTransportLabel(e.target.value)}
+                        placeholder="Transport"
+                        className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step={transportIsPercentage ? "0.01" : "1"}
+                        value={transportCost}
+                        onChange={e => setTransportCost(Number(e.target.value))}
+                        className="w-[88px] h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setTransportIsPercentage((v) => !v)}
+                        className={`h-9 px-2 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
+                          transportIsPercentage
+                            ? "bg-[#1d1d1f] text-white"
+                            : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
+                        }`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-[#86868b]">Other</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={otherCostLabel}
+                        onChange={e => setOtherCostLabel(e.target.value)}
+                        placeholder="Other"
+                        className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step={otherCostIsPercentage ? "0.01" : "1"}
+                        value={otherCost}
+                        onChange={e => setOtherCost(Number(e.target.value))}
+                        className="w-[88px] h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setOtherCostIsPercentage((v) => !v)}
+                        className={`h-9 px-2 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
+                          otherCostIsPercentage
+                            ? "bg-[#1d1d1f] text-white"
+                            : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
+                        }`}
+                      >
+                        %
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div />
+            )}
 
-          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3.5 py-3 space-y-1.5">
-            <div className="flex items-center justify-between text-[12px]">
-              <span className="text-[#86868b]">Base</span>
-              <span className="tabular-nums font-medium">PKR {subtotalBeforeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-            {discountAmount > 0 && (
+            <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3.5 py-3 space-y-1.5">
               <div className="flex items-center justify-between text-[12px]">
-                <span className="text-[#34c759]">Discount{discountIsPercentage ? ` (${discount}%)` : ""}</span>
-                <span className="tabular-nums font-medium text-[#34c759]">− PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="text-[#86868b]">Base</span>
+                <span className="tabular-nums font-medium">PKR {subtotalBeforeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-            )}
-            <div className="flex items-center justify-between text-[12px]">
-              <span className="text-[#86868b]">GST ({taxPercent}%)</span>
-              <span className="tabular-nums font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-            {transportAmount > 0 && (
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-[#34c759]">Discount{discountIsPercentage ? ` (${discount}%)` : ""}</span>
+                  <span className="tabular-nums font-medium text-[#34c759]">− PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-[12px]">
-                <span className="text-[#86868b]">{transportLabel}{transportIsPercentage ? ` (${transportCost}%)` : ""}</span>
-                <span className="tabular-nums font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="text-[#86868b]">GST ({taxPercent}%)</span>
+                <span className="tabular-nums font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-            )}
-            {otherAmount > 0 && (
-              <div className="flex items-center justify-between text-[12px]">
-                <span className="text-[#86868b]">{otherCostLabel}{otherCostIsPercentage ? ` (${otherCost}%)` : ""}</span>
-                <span className="tabular-nums font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              {transportAmount > 0 && (
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-[#86868b]">{transportLabel}{transportIsPercentage ? ` (${transportCost}%)` : ""}</span>
+                  <span className="tabular-nums font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {otherAmount > 0 && (
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-[#86868b]">{otherCostLabel}{otherCostIsPercentage ? ` (${otherCost}%)` : ""}</span>
+                  <span className="tabular-nums font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1.5 border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+                <span className="text-[15px] font-semibold tracking-tight">Total</span>
+                <span className="text-[17px] font-semibold tracking-tight tabular-nums">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-            )}
-            <div className="flex items-center justify-between pt-1.5 border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
-              <span className="text-[15px] font-semibold tracking-tight">Total</span>
-              <span className="text-[17px] font-semibold tracking-tight tabular-nums">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-5 sm:px-6 py-3.5 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+        <div className="flex items-center gap-2 px-5 sm:px-7 py-3.5 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
           <button
             type="button"
             onClick={onClose}
