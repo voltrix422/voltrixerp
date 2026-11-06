@@ -71,8 +71,8 @@ export default function CRMPage() {
       <Topbar title="Customer relationship management" />
 
       <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
-        <div className="mx-auto w-full max-w-[1180px] px-4 pt-3 pb-5 sm:px-6 sm:pt-4 sm:pb-6 space-y-3">
-          <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
+        <div className="mx-auto w-full max-w-[1180px] px-4 pt-1.5 pb-5 sm:px-6 sm:pt-2 sm:pb-6 space-y-1">
+          <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-1 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
             <div className="inline-flex max-w-full items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px] overflow-x-auto scrollbar-none">
               {visibleTabs.map((t) => {
                 const selected = tab === t.id
@@ -96,7 +96,7 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div className="relative min-w-0 overflow-x-hidden min-h-[min(70vh,720px)]">
+          <div className="relative min-w-0 overflow-x-hidden">
             {visited.has("orders") && (
               <div className={tab === "orders" ? "relative block" : "hidden"} aria-hidden={tab !== "orders"}>
                 <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />

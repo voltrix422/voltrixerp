@@ -40,11 +40,11 @@ export function CrmLineItemsDisplay({
 }) {
   const labelClass =
     "text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
-  const cellClass = size === "md" ? "px-4 py-3 text-sm" : "px-3 py-2 text-xs"
+  const cellClass = size === "md" ? "px-4 py-3 text-sm" : "px-2 py-1.5 text-xs"
   const headClass =
     size === "md"
       ? "px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))]"
-      : "h-8 px-3 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+      : "h-7 px-2 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
 
   const rows = items.map((item) => {
     const company = resolveCompanyPrice(item)

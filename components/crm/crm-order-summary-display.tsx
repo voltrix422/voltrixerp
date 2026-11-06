@@ -13,7 +13,7 @@ function SummaryRow({
   className?: string
 }) {
   return (
-    <div className={`flex items-center justify-between gap-3 px-3 py-2.5 text-sm ${className}`}>
+    <div className={`flex items-center justify-between gap-3 px-0 py-1.5 text-[13px] ${className}`}>
       <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
       <span className="font-medium text-right tabular-nums">{value}</span>
     </div>
@@ -96,27 +96,27 @@ export function CrmOrderSummaryDisplay({ order }: { order: Order }) {
         {rows.map((row) => (
           <SummaryRow key={row.label} label={row.label} value={row.value} className={row.className} />
         ))}
-        <div className="flex items-center justify-between gap-3 px-3 py-3 bg-[hsl(var(--muted))]/50 font-bold text-base">
+        <div className="flex items-center justify-between gap-3 px-0 py-2 bg-[hsl(var(--muted))]/50 font-bold text-[15px]">
           <span>Total</span>
           <span className="text-[#1faca6] tabular-nums">
-            PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            PKR {order.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
 
-      <div className="hidden sm:block rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <tbody className="divide-y">
+      <div className="hidden sm:block overflow-hidden">
+        <table className="w-full text-[13px]">
+          <tbody className="divide-y divide-black/[0.05]">
             {rows.map((row) => (
-              <tr key={row.label} className="bg-[hsl(var(--muted))]/30">
-                <td className={`px-4 py-3 text-right font-medium ${row.className || ""}`}>{row.label}</td>
-                <td className={`px-4 py-3 text-right font-medium w-48 tabular-nums ${row.className || ""}`}>{row.value}</td>
+              <tr key={row.label}>
+                <td className={`px-0 py-1.5 text-right font-medium ${row.className || ""}`}>{row.label}</td>
+                <td className={`pl-3 py-1.5 text-right font-medium w-44 tabular-nums ${row.className || ""}`}>{row.value}</td>
               </tr>
             ))}
-            <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
-              <td className="px-4 py-4 text-right text-base">Total</td>
-              <td className="px-4 py-4 text-right text-base text-[#1faca6] tabular-nums">
-                PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <tr className="font-bold border-t border-black/[0.08]">
+              <td className="px-0 py-2 text-right text-[15px]">Total</td>
+              <td className="pl-3 py-2 text-right text-[15px] text-[#1faca6] tabular-nums">
+                PKR {order.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </td>
             </tr>
           </tbody>

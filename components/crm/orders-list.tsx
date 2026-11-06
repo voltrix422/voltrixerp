@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -135,15 +135,6 @@ function ToggleChip({
     >
       {label}
     </button>
-  )
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 text-xs">
-      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
-      <span className="tabular-nums font-medium shrink-0">{value}</span>
-    </div>
   )
 }
 
@@ -508,10 +499,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     : totalReceived
 
   return (
-    <div className="space-y-2.5">
-      <div className="sticky top-[2.85rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-0.5 pb-2 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
-          <section className="relative z-20 rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible shadow-sm">
-            <div className="flex items-center gap-2 px-3 sm:px-3.5 py-2.5 min-h-[58px]">
+    <div className="space-y-1.5">
+      <div className="sticky top-[2.35rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-1 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
+          <section className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+            <div className="flex items-center gap-2 px-3 sm:px-3.5 py-2 min-h-[48px]">
               <button
                 type="button"
                 onClick={() => !loading && filtered.length > 0 && setSummaryOpen((v) => !v)}
@@ -522,10 +513,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 disabled={loading || filtered.length === 0}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                     Order summary
                   </p>
-                  <p className="text-[12px] text-[#86868b] mt-0.5 tabular-nums truncate">
+                  <p className="text-[11px] text-[#86868b] tabular-nums truncate">
                     {loading
                       ? "Loading…"
                       : `${filtered.length} orders · ${formatOrderPkr(totalOrderValue)}`}
@@ -578,98 +569,67 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             </div>
 
             {summaryOpen && !loading && filtered.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_16px_48px_rgba(0,0,0,0.14)] px-3.5 pb-3.5 pt-3 space-y-3 max-h-[min(55vh,28rem)] overflow-y-auto overscroll-contain">
-                <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
-                    <p className="text-[18px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              <div className="border-t border-black/[0.05] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 px-3 py-2.5 space-y-2">
+                <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">Money received</p>
+                    <p className="text-[20px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
                       {formatOrderPkr(headlineTotal)}
                     </p>
-                  </div>
-                  {includeOutstandingInTotal && (
-                    <p className="text-[11px] text-[#aeaeb2] tabular-nums">
-                      Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
-                    </p>
-                  )}
-                  <div className="grid grid-cols-3 gap-px rounded-[10px] border border-black/[0.05] overflow-hidden bg-black/[0.04] dark:bg-[hsl(var(--border))]">
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Received</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Outstanding</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">In view</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{filtered.length}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-1 pt-0.5">
-                    <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
-                    <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
-                    {otherPaymentsReceived > 0.004 && (
-                      <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
+                    {includeOutstandingInTotal && (
+                      <p className="text-[10px] text-[#aeaeb2] tabular-nums mt-0.5">
+                        Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
+                      </p>
                     )}
-                    {creditPaymentsReceived > 0.004 && (
-                      <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
-                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] tabular-nums">
+                    <span><span className="text-[#86868b]">Received</span> <span className="font-semibold">{formatOrderPkr(totalReceived)}</span></span>
+                    <span><span className="text-[#86868b]">Outstanding</span> <span className="font-semibold">{formatOrderPkr(totalOutstanding)}</span></span>
+                    <span><span className="text-[#86868b]">In view</span> <span className="font-semibold">{filtered.length}</span></span>
                   </div>
                 </div>
 
-                <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] overflow-hidden">
-                  <div className="grid grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))] border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                      <p className="text-[10px] text-[#86868b]">Orders</p>
-                      <p className="text-[15px] font-semibold tabular-nums">{filtered.length}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                      <p className="text-[10px] text-[#86868b]">Qty</p>
-                      <p className="text-[15px] font-semibold tabular-nums">{totalOrderQty}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                      <p className="text-[10px] text-[#86868b]">Value</p>
-                      <p className="text-[13px] font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
-                    </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
+                    <p className="text-[9px] text-[#86868b]">Orders</p>
+                    <p className="text-[13px] font-semibold tabular-nums">{filtered.length}</p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))]">
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Delivered paid ({deliveredFullyPaid.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">On credit ({creditOrders.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Returned ({returnedOrders.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">Cashback ({cashbackOrders.length})</p>
-                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
-                    </div>
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
+                    <p className="text-[9px] text-[#86868b]">Qty</p>
+                    <p className="text-[13px] font-semibold tabular-nums">{totalOrderQty}</p>
                   </div>
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5 col-span-1 sm:col-span-1">
+                    <p className="text-[9px] text-[#86868b]">Value</p>
+                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(totalOrderValue)}</p>
+                  </div>
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
+                    <p className="text-[9px] text-[#86868b]">Delivered ({deliveredFullyPaid.length})</p>
+                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+                  </div>
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
+                    <p className="text-[9px] text-[#86868b]">Credit ({creditOrders.length})</p>
+                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(onCreditAmount)}</p>
+                  </div>
+                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
+                    <p className="text-[9px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
+                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(partialPaymentAmount)}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums">
+                  {otherPaymentsReceived > 0.004 && (
+                    <span><span className="text-[#86868b]">Confirmed</span> <span className="font-semibold">{formatOrderPkr(otherPaymentsReceived)}</span></span>
+                  )}
+                  {creditPaymentsReceived > 0.004 && (
+                    <span><span className="text-[#86868b]">Credit installs</span> <span className="font-semibold">{formatOrderPkr(creditPaymentsReceived)}</span></span>
+                  )}
+                  <span><span className="text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</span> <span className="font-semibold">{formatOrderPkr(approvedUnpaidAmount)}</span></span>
+                  <span><span className="text-[#86868b]">Returned ({returnedOrders.length})</span> <span className="font-semibold">{formatOrderPkr(returnedRefundAmount)}</span></span>
+                  <span><span className="text-[#86868b]">Cashback ({cashbackOrders.length})</span> <span className="font-semibold">{formatOrderPkr(cashbackAmount)}</span></span>
                 </div>
               </div>
             )}
           </section>
-          {summaryOpen && (
-            <button
-              type="button"
-              aria-label="Close summary"
-              className="fixed inset-0 z-10 cursor-default"
-              onClick={() => setSummaryOpen(false)}
-            />
-          )}
       </div>
 
       {showFilters &&
@@ -1979,19 +1939,19 @@ function OrderDetail({
       />
     )}
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3" onClick={onClose}>
-      <div className="w-full sm:w-[min(1320px,calc(100vw-1.25rem))] sm:h-[min(94vh,960px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[96vh]" onClick={e => e.stopPropagation()}>
-        <div className="shrink-0 px-5 pt-4 pb-2 sm:px-7 sm:pt-5">
+      <div className="w-full sm:w-[min(1320px,calc(100vw-1.25rem))] sm:max-h-[min(94vh,920px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[96vh]" onClick={e => e.stopPropagation()}>
+        <div className="shrink-0 px-5 pt-3.5 pb-1.5 sm:px-7 sm:pt-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <p className="text-[22px] sm:text-[26px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                <p className="text-[22px] sm:text-[26px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
                   {detailOrder.orderNumber}
                 </p>
                 <p className="text-[15px] font-medium tracking-tight text-[#6e6e73] truncate">
                   {detailOrder.clientName}
                 </p>
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <OrderStatusBadge status={detailOrder.status} />
                 <span className="text-[12px] text-[#aeaeb2]">
                   <OrderSourceLabel order={detailOrder} />
@@ -2020,7 +1980,7 @@ function OrderDetail({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-3 space-y-2">
 
           {detailOrder.status === "delivered" && (
             <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 py-3">
@@ -2217,20 +2177,19 @@ function OrderDetail({
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-2">Order items</p>
-            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 text-[13px]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
+          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3 min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-1.5">Order items</p>
+            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_.p-3]:p-0 [&_.p-4]:p-0 text-[13px]">
               <CrmLineItemsDisplay items={detailOrder.items} size="sm" />
             </div>
-            <div className="mt-2 [&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_table]:text-[13px]">
+            <div className="mt-1.5 [&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_.p-3]:p-0 [&_.p-4]:p-0 [&_table]:text-[13px]">
               <CrmOrderSummaryDisplay order={detailOrder} />
             </div>
           </div>
 
-          <div className="space-y-3 min-w-0">
-          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 min-w-0">
-            <div className="flex items-center justify-between mb-2.5 gap-2 flex-wrap">
+          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3 min-w-0">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">Payment</p>
                 {hasOutstandingCredit(detailOrder) && (
@@ -2268,7 +2227,7 @@ function OrderDetail({
                 )}
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-[13px] text-[#86868b]">Total</p>
                 <p className="text-[17px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
@@ -2290,9 +2249,10 @@ function OrderDetail({
                 </div>
               )}
               {detailOrder.payments && detailOrder.payments.length > 0 ? (
-                <div className="pt-1 space-y-1.5 border-t border-black/[0.05]">
+                <div className="pt-1.5 space-y-1.5 border-t border-black/[0.05]">
                   {detailOrder.payments.map((p, i) => {
                     const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
+                    const proofUrls = getOrderPaymentProofUrls(p)
                     return (
                     <div key={p.id} className="flex items-start justify-between gap-2 text-[13px]">
                       <div className="min-w-0">
@@ -2305,39 +2265,10 @@ function OrderDetail({
                           {pStatus === "pending_approval" && " · Pending finance"}
                           {pStatus === "approved" && " · Approved"}
                         </p>
+                        {p.notes && <p className="text-[#aeaeb2] text-[11px] mt-0.5">{p.notes}</p>}
                       </div>
-                    </div>
-                  )})}
-                </div>
-              ) : (
-                <p className="text-[13px] text-[#86868b] pt-1">
-                  {canManagePayments ? "No payments yet" : "No payments received"}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {detailOrder.payments && detailOrder.payments.length > 0 && (
-            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-2">Payments received</p>
-              <div className="space-y-2">
-                {getBalanceSubmittedPayments(detailOrder.payments, detailOrder.status).map(p => {
-                  const proofUrls = getOrderPaymentProofUrls(p)
-                  const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
-                  return (
-                  <div key={p.id} className="flex items-center justify-between text-[13px] border-b border-black/[0.05] dark:border-[hsl(var(--border))] pb-2 last:border-0 gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold tracking-tight tabular-nums">PKR {p.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      <p className="text-[12px] text-[#86868b]">
-                        {p.method} · {new Date(p.date).toLocaleDateString()}
-                        {pStatus === "draft" && " · Draft"}
-                        {pStatus === "pending_approval" && " · Pending finance"}
-                        {pStatus === "approved" && " · Approved"}
-                      </p>
-                      {p.notes && <p className="text-[#aeaeb2] text-[11px] mt-0.5">{p.notes}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
-                      {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
+                      <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                        {proofUrls.map((proofUrl, proofIndex) => (
                           <a
                             key={`${p.id}-${proofIndex}`}
                             href={proofUrl}
@@ -2348,82 +2279,50 @@ function OrderDetail({
                             {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
                           </a>
                         ))}
-                      {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
-                        <button
-                          type="button"
-                          onClick={() => setDeletePaymentId(p.id)}
-                          className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-                          title="Delete payment"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                        {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletePaymentId(p.id)}
+                            className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                            title="Delete payment"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  )
-                })}
-                {getProofOnlyPayments(detailOrder.payments, detailOrder.status).length > 0 && (
-                  <>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] pt-2">Delivery proofs (not in balance)</p>
-                    {getProofOnlyPayments(detailOrder.payments, detailOrder.status).map(p => {
-                      const proofUrls = getOrderPaymentProofUrls(p)
-                      return (
-                        <div key={p.id} className="flex items-center justify-between text-[13px] border-b border-black/[0.05] dark:border-[hsl(var(--border))] pb-2 last:border-0 gap-2">
-                          <div className="min-w-0">
-                            <p className="font-semibold tracking-tight">Proof attachment</p>
-                            <p className="text-[12px] text-[#86868b]">
-                              {new Date(p.date).toLocaleDateString()}
-                            </p>
-                            {p.notes && <p className="text-[#aeaeb2] text-[11px] mt-0.5">{p.notes}</p>}
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
-                            {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
-                                <a
-                                  key={`${p.id}-${proofIndex}`}
-                                  href={proofUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[12px] font-semibold text-[#0071e3] hover:underline"
-                                >
-                                  {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
-                                </a>
-                              ))}
-                            {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
-                              <button
-                                type="button"
-                                onClick={() => setDeletePaymentId(p.id)}
-                                className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-                                title="Delete proof"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
+                  )})}
+                  {getProofOnlyPayments(detailOrder.payments, detailOrder.status).map(p => {
+                    const proofUrls = getOrderPaymentProofUrls(p)
+                    return (
+                      <div key={p.id} className="flex items-start justify-between gap-2 text-[13px]">
+                        <div className="min-w-0">
+                          <p className="font-semibold tracking-tight">Delivery proof</p>
+                          <p className="text-[12px] text-[#86868b]">{new Date(p.date).toLocaleDateString()}</p>
                         </div>
-                      )
-                    })}
-                  </>
-                )}
-                {(() => {
-                  const submittedTotal = getOrderAmountPaid(detailOrder)
-                  return (
-                    <>
-                <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-green-200 dark:border-green-800">
-                  <span className="text-green-900 dark:text-green-100">Total Paid (submitted)</span>
-                  <span className="text-green-900 dark:text-green-100">PKR {submittedTotal.toLocaleString()}</span>
+                        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                          {proofUrls.map((proofUrl, proofIndex) => (
+                            <a
+                              key={`${p.id}-${proofIndex}`}
+                              href={proofUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[12px] font-semibold text-[#0071e3] hover:underline"
+                            >
+                              {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                {submittedTotal < detailOrder.total && (
-                  <div className="flex items-center justify-between text-xs font-bold text-orange-700 dark:text-orange-300">
-                    <span>Remaining</span>
-                    <span>PKR {creditBalance.toLocaleString()}</span>
-                  </div>
-                )}
-                    </>
-                  )
-                })()}
-              </div>
+              ) : (
+                <p className="text-[13px] text-[#86868b] pt-1">
+                  {canManagePayments ? "No payments yet" : "No payments received"}
+                </p>
+              )}
             </div>
-          )}
           </div>
           </div>
 
@@ -2511,7 +2410,7 @@ function OrderDetail({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 px-5 sm:px-7 py-3 shrink-0 border-t border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-wrap items-center gap-1.5 px-5 sm:px-7 py-2.5 shrink-0 border-t border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl pb-[max(0.65rem,env(safe-area-inset-bottom))]">
           {canEditOrder && (
             <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowEdit(true)}>
               <Edit className="h-3.5 w-3.5" /> Edit

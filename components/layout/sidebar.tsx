@@ -54,9 +54,9 @@ function CollapsedTip({
 
 const SIDEBAR_COLLAPSED_KEY = "voltrix-sidebar-collapsed"
 
-/** SF Symbols–like weight: slightly thinner stroke, Apple sidebar feel. */
-const NAV_ICON_CLASS = "h-[17px] w-[17px] shrink-0"
-const NAV_ICON_STROKE = 1.6
+/** SF Symbols–like weight: slightly heavier for readability. */
+const NAV_ICON_CLASS = "h-[19px] w-[19px] shrink-0"
+const NAV_ICON_STROKE = 2
 
 const NAV_ORDER: Array<{
   key: string
@@ -121,7 +121,7 @@ function NavContent({
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center rounded-md text-[13px] font-semibold tracking-[-0.01em] transition-colors",
+      "flex items-center rounded-md text-[14px] font-bold tracking-[-0.01em] transition-colors",
       collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-2 py-2",
       active
         ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
@@ -130,7 +130,7 @@ function NavContent({
 
   const subLinkClass = (active: boolean) =>
     cn(
-      "flex items-center rounded-md px-2 py-1.5 text-[12px] font-semibold tracking-[-0.01em] transition-colors",
+      "flex items-center rounded-md px-2 py-1.5 text-[13px] font-bold tracking-[-0.01em] transition-colors",
       active
         ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
         : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
