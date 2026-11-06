@@ -38,13 +38,17 @@ export default function SalesAgentsPage() {
           isAgent
             ? "Sales portal"
             : user.role === "sales_manager"
-              ? "CRM · My team"
-              : "CRM · Sales agents"
+              ? "My team"
+              : "Sales agents"
         }
       />
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className={`p-3 sm:p-6 w-full min-w-0 max-w-full ${isAgent ? "max-w-3xl mx-auto" : "max-w-6xl"} space-y-6`}>
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+        <div
+          className={`mx-auto flex w-full flex-1 min-h-0 flex-col px-4 pt-5 sm:px-6 sm:pt-6 pb-5 sm:pb-6 overflow-auto scrollbar-none ${
+            isAgent ? "max-w-3xl" : "max-w-[1180px]"
+          }`}
+        >
           {isAdminView && <SalesAgentsHub user={user} />}
           {isAgent && <SalesAgentPortal user={user} />}
         </div>
