@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, Shield, PlayCircle, SlidersHorizontal } from "lucide-react"
+import { Plus, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, Shield, PlayCircle, SlidersHorizontal, ChevronDown } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
@@ -123,18 +123,16 @@ function ToggleChip({
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors shrink-0 ${
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-tight transition-colors shrink-0 cursor-pointer ${
         on
-          ? "border-[hsl(var(--foreground))]/40 bg-[hsl(var(--muted))]/30 text-[hsl(var(--foreground))]"
-          : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]"
+          ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+          : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
       }`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full border ${
-          on ? "bg-[hsl(var(--foreground))] border-[hsl(var(--foreground))]" : "border-[hsl(var(--muted-foreground))]"
-        }`}
-      />
       {label}
     </button>
   )
@@ -233,6 +231,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [exportingPdf, setExportingPdf] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
@@ -683,107 +682,117 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       ) : (
         <>
           <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
-            <div className="flex flex-wrap items-start justify-between gap-2 px-3.5 pt-3 pb-2">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            <button
+              type="button"
+              onClick={() => setSummaryOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
+              aria-expanded={summaryOpen}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                   Order summary
                 </p>
-                <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
+                <p className="text-[12px] text-[#86868b] mt-0.5 tabular-nums">
                   {filtered.length} orders · {formatOrderPkr(totalOrderValue)}
                 </p>
               </div>
-              <ToggleChip
-                on={includeOutstandingInTotal}
-                label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
-                onClick={() => setIncludeOutstandingInTotal((v) => !v)}
-              />
-            </div>
-
-            <div className="px-3.5 pb-3.5 space-y-3">
-              <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
-                  <p className="text-[18px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                    {formatOrderPkr(headlineTotal)}
-                  </p>
-                </div>
-                {includeOutstandingInTotal && (
-                  <p className="text-[11px] text-[#aeaeb2] tabular-nums">
-                    Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
-                  </p>
-                )}
-                <div className="grid grid-cols-3 gap-px rounded-[10px] border border-black/[0.05] overflow-hidden bg-black/[0.04] dark:bg-[hsl(var(--border))]">
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Received</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Outstanding</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">In view</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{filtered.length}</p>
-                  </div>
-                </div>
-                <div className="space-y-1 pt-0.5">
-                  <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
-                  <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
-                  {otherPaymentsReceived > 0.004 && (
-                    <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
-                  )}
-                  {creditPaymentsReceived > 0.004 && (
-                    <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
-                  )}
-                </div>
-                <p className="text-[10px] text-[#aeaeb2]">
-                  Gross collections · refunds/cashback are money out in Finance.
-                </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <ToggleChip
+                  on={includeOutstandingInTotal}
+                  label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
+                  onClick={() => setIncludeOutstandingInTotal((v) => !v)}
+                />
+                <ChevronDown
+                  className={`h-4 w-4 text-[#86868b] transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}
+                  strokeWidth={2}
+                />
               </div>
+            </button>
 
-              <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] overflow-hidden">
-                <div className="grid grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))] border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                    <p className="text-[10px] text-[#86868b]">Orders</p>
-                    <p className="text-[15px] font-semibold tabular-nums">{filtered.length}</p>
+            {summaryOpen && (
+              <div className="px-3.5 pb-3.5 space-y-3 border-t border-black/[0.05] dark:border-[hsl(var(--border))] pt-3">
+                <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
+                    <p className="text-[18px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {formatOrderPkr(headlineTotal)}
+                    </p>
                   </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                    <p className="text-[10px] text-[#86868b]">Qty</p>
-                    <p className="text-[15px] font-semibold tabular-nums">{totalOrderQty}</p>
+                  {includeOutstandingInTotal && (
+                    <p className="text-[11px] text-[#aeaeb2] tabular-nums">
+                      Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-3 gap-px rounded-[10px] border border-black/[0.05] overflow-hidden bg-black/[0.04] dark:bg-[hsl(var(--border))]">
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Received</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Outstanding</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">In view</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{filtered.length}</p>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
-                    <p className="text-[10px] text-[#86868b]">Value</p>
-                    <p className="text-[13px] font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
+                  <div className="space-y-1 pt-0.5">
+                    <SummaryRow label={`Delivered paid (${deliveredFullyPaid.length})`} value={formatOrderPkr(deliveredFullyPaidReceived)} />
+                    <SummaryRow label={`Partial (${partiallyPaidOrders.length})`} value={formatOrderPkr(partialPaymentAmount)} />
+                    {otherPaymentsReceived > 0.004 && (
+                      <SummaryRow label="Confirmed / in progress" value={formatOrderPkr(otherPaymentsReceived)} />
+                    )}
+                    {creditPaymentsReceived > 0.004 && (
+                      <SummaryRow label="Credit installments" value={formatOrderPkr(creditPaymentsReceived)} />
+                    )}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))]">
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Delivered paid ({deliveredFullyPaid.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+
+                <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] overflow-hidden">
+                  <div className="grid grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))] border-b border-black/[0.05] dark:border-[hsl(var(--border))]">
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                      <p className="text-[10px] text-[#86868b]">Orders</p>
+                      <p className="text-[15px] font-semibold tabular-nums">{filtered.length}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                      <p className="text-[10px] text-[#86868b]">Qty</p>
+                      <p className="text-[15px] font-semibold tabular-nums">{totalOrderQty}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2.5">
+                      <p className="text-[10px] text-[#86868b]">Value</p>
+                      <p className="text-[13px] font-semibold tabular-nums">{formatOrderPkr(totalOrderValue)}</p>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">On credit ({creditOrders.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Returned ({returnedOrders.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
-                  </div>
-                  <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
-                    <p className="text-[10px] text-[#86868b]">Cashback ({cashbackOrders.length})</p>
-                    <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.04] dark:bg-[hsl(var(--border))]">
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Delivered paid ({deliveredFullyPaid.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">On credit ({creditOrders.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(partialPaymentAmount)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Returned ({returnedOrders.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">Cashback ({cashbackOrders.length})</p>
+                      <p className="text-[13px] font-semibold tabular-nums mt-0.5">{formatOrderPkr(cashbackAmount)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </section>
 
           <CrmOrdersListCards
@@ -1218,131 +1227,118 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
       )}
-      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
-        <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[85vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
-            <p className="text-lg font-bold">{isEdit ? `Edit ${existing?.orderNumber}` : "Create New Order"}</p>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
-              <X className="h-5 w-5" />
-            </Button>
+      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
+        <div className="w-full sm:w-[min(920px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-4 pb-3 shrink-0">
+            <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {isEdit ? existing?.orderNumber : "New order"}
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={2.25} />
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-8 space-y-5 sm:space-y-6">
-            <div className="space-y-2 relative">
-            <label className="text-sm font-semibold">Select Client *</label>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-6 pb-4 space-y-3">
+            <div className="space-y-1.5 relative">
+            <label className="text-[11px] font-medium text-[#86868b]">Client</label>
             <button
               type="button"
               onClick={() => setShowClientDropdown(!showClientDropdown)}
-              className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm text-left focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between cursor-pointer"
+              className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] text-left focus:outline-none focus:ring-2 focus:ring-[#007aff]/35 flex items-center justify-between cursor-pointer"
             >
-              <span className={clientId ? "capitalize" : "text-[hsl(var(--muted-foreground))]"}>
-                {clientId ? clients.find(c => c.id === clientId)?.name : "Choose a client..."}
+              <span className={clientId ? "capitalize text-[#1d1d1f] dark:text-[hsl(var(--foreground))]" : "text-[#aeaeb2]"}>
+                {clientId ? clients.find(c => c.id === clientId)?.name : "Select client"}
               </span>
-              <svg className="h-5 w-5 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown className="h-4 w-4 text-[#86868b]" strokeWidth={2} />
             </button>
             {showClientDropdown && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowClientDropdown(false)} />
-                <div className="absolute z-20 w-full mt-1 max-h-80 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
-                  <div className="p-3 border-b">
+                <div className="absolute z-20 w-full mt-1 max-h-72 overflow-auto rounded-[14px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] shadow-[0_16px_48px_rgba(0,0,0,0.16)]">
+                  <div className="p-2 border-b border-black/[0.05]">
                     <input
                       type="text"
                       value={clientSearch}
                       onChange={e => setClientSearch(e.target.value)}
-                      placeholder="Search client..."
-                      className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                      placeholder="Search"
+                      className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
-                  </div>
-                  <div
-                    onClick={() => {
-                      setClientId("")
-                      setShowClientDropdown(false)
-                    }}
-                    className="px-3.5 py-2.5 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 text-[hsl(var(--muted-foreground))]"
-                  >
-                    Choose a client...
                   </div>
                   {clients.filter(c => 
                     c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
                     (c.company && c.company.toLowerCase().includes(clientSearch.toLowerCase()))
                   ).map(c => (
-                    <div
+                    <button
+                      type="button"
                       key={c.id}
                       onClick={() => {
                         setClientId(c.id)
                         setShowClientDropdown(false)
                         setClientSearch("")
                       }}
-                      className="px-3.5 py-2.5 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 border-t capitalize"
+                      className="w-full px-3.5 py-2.5 text-[13px] text-left cursor-pointer hover:bg-black/[0.04] border-t border-black/[0.04] capitalize"
                     >
                       {c.name}
-                      {c.company && <span className="text-[hsl(var(--muted-foreground))] ml-2 text-xs">({c.company})</span>}
-                    </div>
+                      {c.company && <span className="text-[#86868b] ml-2 text-[11px]">{c.company}</span>}
+                    </button>
                   ))}
                 </div>
               </>
             )}
           </div>
 
-          {/* Delivery Information */}
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Delivery Information</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery Address</label>
-                <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
-                  placeholder="Enter delivery address"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery Date</label>
-                <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-[#86868b]">Address</label>
+              <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
+                placeholder="Optional"
+                className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-[#86868b]">Delivery date</label>
+              <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
+                className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-[#86868b]">Referrer</label>
+              <input
+                value={referrerName}
+                onChange={e => setReferrerName(e.target.value)}
+                placeholder="Optional"
+                className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-[#86868b]">Notes</label>
+              <input value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder="Optional"
+                className="w-full h-10 rounded-[10px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35" />
             </div>
           </div>
 
-          {/* Additional Information */}
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Additional Information</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Referrer name</label>
-                <input
-                  value={referrerName}
-                  onChange={e => setReferrerName(e.target.value)}
-                  placeholder="Who referred this order"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                />
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Internal only. Not printed on invoices.</p>
+          <div className="space-y-2.5">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Items</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} />
+                <button
+                  type="button"
+                  onClick={() => setShowInventory(true)}
+                  className="h-8 px-3.5 rounded-full bg-[#007aff] text-[12px] font-semibold text-white hover:bg-[#0066d6] cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Inventory
+                </button>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
-                <input value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Add any special instructions or notes"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-3">
-              <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
-              <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} className="sm:max-w-xs" />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end mb-3">
-              <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowInventory(true)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Add from inventory
-              </Button>
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center bg-[hsl(var(--muted))]/10">
-                <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-3" />
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from warehouse inventory</p>
+              <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-8 text-center">
+                <p className="text-[13px] text-[#86868b]">No items yet</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1355,29 +1351,23 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   gstPercent={taxPercent}
                 />
                 {subtotal > 0 && (
-                  <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3.5 py-3 grid grid-cols-3 gap-2">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                        Subtotal (excl. GST)
-                      </p>
-                      <p className="font-semibold tabular-nums mt-1">
-                        PKR {subtotalGstBreakdown.base.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <p className="text-[10px] text-[#86868b]">Base</p>
+                      <p className="text-[12px] font-semibold tabular-nums mt-0.5">
+                        {subtotalGstBreakdown.base.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                        Included GST ({taxPercent}%)
-                      </p>
-                      <p className="font-semibold tabular-nums mt-1 text-[#1faca6]">
-                        PKR {subtotalGstBreakdown.gst.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <p className="text-[10px] text-[#86868b]">GST {taxPercent}%</p>
+                      <p className="text-[12px] font-semibold tabular-nums mt-0.5 text-[#007aff]">
+                        {subtotalGstBreakdown.gst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                        Subtotal (incl. GST)
-                      </p>
-                      <p className="font-semibold tabular-nums mt-1">
-                        PKR {subtotalGstBreakdown.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <p className="text-[10px] text-[#86868b]">Incl. GST</p>
+                      <p className="text-[12px] font-semibold tabular-nums mt-0.5">
+                        {subtotalGstBreakdown.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                   </div>
@@ -1387,231 +1377,171 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           </div>
 
           {items.length > 0 && (
-            <>
-              {/* Discount */}
-              <div className="pt-4 border-t">
-                <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Discount</p>
-                <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Discount Percentage</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="100"
-                        value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
-                        onChange={e => {
-                          const value = Number(e.target.value)
-                          if (discountIsPercentage) {
-                            setDiscount(value)
-                          } else {
-                            setDiscount(value)
-                            setDiscountIsPercentage(true)
-                          }
-                        }}
-                        placeholder="10"
-                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                      />
-                    </div>
+            <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] p-3.5 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Discount %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
+                    onChange={e => {
+                      const value = Number(e.target.value)
+                      setDiscount(value)
+                      setDiscountIsPercentage(true)
+                    }}
+                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Discount PKR</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={discountIsPercentage ? discountAmount : discount}
+                    onChange={e => {
+                      setDiscount(Number(e.target.value))
+                      setDiscountIsPercentage(false)
+                    }}
+                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">GST</label>
+                  <div className="h-9 flex items-center px-3 rounded-[10px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[13px] font-medium tabular-nums">
+                    {taxPercent}% · {taxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Discount Amount on Base (PKR)</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        min="0" 
-                        value={discountIsPercentage ? discountAmount : discount}
-                        onChange={e => {
-                          const value = Number(e.target.value)
-                          setDiscount(value)
-                          if (discountIsPercentage) setDiscountIsPercentage(false)
-                        }}
-                        placeholder="1000"
-                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Calculated Discount</label>
-                    <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
-                      - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Discount applies on base amount (excl. GST). Included GST stays fixed.
-                    </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Applied</label>
+                  <div className="h-9 flex items-center px-3 rounded-[10px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[13px] font-semibold tabular-nums text-[#34c759]">
+                    −{discountAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
                 </div>
               </div>
 
-              {/* Tax and Expenses */}
-              <div className="pt-4 border-t">
-                <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Tax & Expenses</p>
-                
-                {/* Tax */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Tax Percentage</label>
-                    <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
-                      {taxPercent}% (Fixed GST)
-                    </div>
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      GST stays fixed from item prices and is <span className="font-semibold">not reduced</span> by discount.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Included GST Amount</label>
-                    <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
-                      PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Expense</label>
+                  <input
+                    value={transportLabel}
+                    onChange={e => setTransportLabel(e.target.value)}
+                    placeholder="Transport"
+                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                  />
                 </div>
-
-                {/* Transport Cost */}
-                <div className="grid grid-cols-12 gap-4 mb-4">
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Expense Label</label>
-                    <input 
-                      value={transportLabel} 
-                      onChange={e => setTransportLabel(e.target.value)}
-                      placeholder="Transport"
-                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                    />
-                  </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Amount</label>
-                    <input 
-                      type="number" 
-                      min="0" 
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Amount</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
                       step={transportIsPercentage ? "0.01" : "1"}
-                      value={transportCost} 
+                      value={transportCost}
                       onChange={e => setTransportCost(Number(e.target.value))}
-                      placeholder={transportIsPercentage ? "18" : "1000"}
-                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                      className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
-                  </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Type</label>
-                    <div className="flex items-center gap-3 h-10">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={transportIsPercentage}
-                          onChange={e => setTransportIsPercentage(e.target.checked)}
-                          className="w-4 h-4 rounded border"
-                        />
-                        <span className="text-sm">Percentage (%)</span>
-                      </label>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTransportIsPercentage((v) => !v)}
+                      className={`h-9 px-2.5 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
+                        transportIsPercentage
+                          ? "bg-[#1d1d1f] text-white"
+                          : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
+                      }`}
+                    >
+                      %
+                    </button>
                   </div>
                 </div>
-                {transportCost > 0 && (
-                  <div className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-                    {transportLabel}: PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    {transportIsPercentage && ` (${transportCost}% of subtotal)`}
-                  </div>
-                )}
-
-                {/* Other Cost */}
-                <div className="grid grid-cols-12 gap-4 mb-4">
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Expense Label</label>
-                    <input 
-                      value={otherCostLabel} 
-                      onChange={e => setOtherCostLabel(e.target.value)}
-                      placeholder="Other"
-                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                    />
-                  </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Amount</label>
-                    <input 
-                      type="number" 
-                      min="0" 
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Other</label>
+                  <input
+                    value={otherCostLabel}
+                    onChange={e => setOtherCostLabel(e.target.value)}
+                    placeholder="Other"
+                    className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-[#86868b]">Amount</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
                       step={otherCostIsPercentage ? "0.01" : "1"}
-                      value={otherCost} 
+                      value={otherCost}
                       onChange={e => setOtherCost(Number(e.target.value))}
-                      placeholder={otherCostIsPercentage ? "5" : "500"}
-                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                      className="w-full h-9 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] dark:border-[hsl(var(--border))] px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#007aff]/35"
                     />
-                  </div>
-                  <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Type</label>
-                    <div className="flex items-center gap-3 h-10">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={otherCostIsPercentage}
-                          onChange={e => setOtherCostIsPercentage(e.target.checked)}
-                          className="w-4 h-4 rounded border"
-                        />
-                        <span className="text-sm">Percentage (%)</span>
-                      </label>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOtherCostIsPercentage((v) => !v)}
+                      className={`h-9 px-2.5 rounded-[10px] text-[11px] font-semibold shrink-0 cursor-pointer ${
+                        otherCostIsPercentage
+                          ? "bg-[#1d1d1f] text-white"
+                          : "bg-black/[0.06] text-[#1d1d1f] dark:bg-white/10 dark:text-white"
+                      }`}
+                    >
+                      %
+                    </button>
                   </div>
                 </div>
-                {otherCost > 0 && (
-                  <div className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
-                    {otherCostLabel}: PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    {otherCostIsPercentage && ` (${otherCost}% of subtotal)`}
-                  </div>
-                )}
               </div>
-            </>
+            </div>
           )}
 
-          {/* Order Summary */}
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Order Summary</p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-                <tbody className="divide-y">
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">Base (excl. GST)</td>
-                    <td className="px-4 py-3 text-right font-medium w-48">PKR {subtotalBeforeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                  {discountAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
-                      <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
-                  {discountAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/20">
-                      <td className="px-4 py-3 text-right font-medium">Base After Discount</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {discountedBase.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">Included GST ({taxPercent}%)</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                  {transportAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium">{transportLabel}{transportIsPercentage && ` (${transportCost}%)`}</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
-                  {otherAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium">{otherCostLabel}{otherCostIsPercentage && ` (${otherCost}%)`}</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
-                  <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
-                    <td className="px-4 py-4 text-right text-base">Total</td>
-                    <td className="px-4 py-4 text-right text-base">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3.5 py-3 space-y-1.5">
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="text-[#86868b]">Base</span>
+              <span className="tabular-nums font-medium">PKR {subtotalBeforeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-[#34c759]">Discount{discountIsPercentage ? ` (${discount}%)` : ""}</span>
+                <span className="tabular-nums font-medium text-[#34c759]">− PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="text-[#86868b]">GST ({taxPercent}%)</span>
+              <span className="tabular-nums font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            {transportAmount > 0 && (
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-[#86868b]">{transportLabel}{transportIsPercentage ? ` (${transportCost}%)` : ""}</span>
+                <span className="tabular-nums font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {otherAmount > 0 && (
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-[#86868b]">{otherCostLabel}{otherCostIsPercentage ? ` (${otherCost}%)` : ""}</span>
+                <span className="tabular-nums font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between pt-1.5 border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+              <span className="text-[15px] font-semibold tracking-tight">Total</span>
+              <span className="text-[17px] font-semibold tracking-tight tabular-nums">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto" onClick={onClose}>Cancel</Button>
-          <Button size="sm" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving || !clientId || items.length === 0}>
-            {saving ? "Saving..." : isEdit ? "Save changes" : workspace?.mode === "sales_agent" ? "Submit for approval" : "Create Order"}
-          </Button>
+        <div className="flex items-center gap-2 px-5 sm:px-6 py-3.5 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 flex-1 sm:flex-none sm:px-5 rounded-full text-[13px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving || !clientId || items.length === 0}
+            className="h-10 flex-1 sm:flex-none sm:px-6 rounded-full text-[13px] font-semibold bg-[#007aff] text-white hover:bg-[#0066d6] disabled:opacity-40 cursor-pointer"
+          >
+            {saving ? "Saving…" : isEdit ? "Save" : workspace?.mode === "sales_agent" ? "Submit" : "Create"}
+          </button>
         </div>
       </div>
       </div>
