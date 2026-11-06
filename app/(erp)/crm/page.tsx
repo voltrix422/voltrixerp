@@ -11,6 +11,7 @@ import { CrmProductPricesManager } from "@/components/crm/crm-product-prices-man
 import { useAuth } from "@/components/auth-provider"
 import { isSalesAgentUser, crmWorkspaceForUser } from "@/lib/crm-workspace"
 import { isErpAdmin } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
 type CrmTab = "orders" | "quotations" | "clients" | "leads" | "prices"
 
@@ -43,40 +44,48 @@ export default function CRMPage() {
     }
   }, [searchParams, isAdmin])
 
-  const tabs: { id: CrmTab; label: string; adminOnly?: boolean }[] = [
-    { id: "orders", label: "Orders" },
-    { id: "quotations", label: "Quotations" },
-    { id: "clients", label: "Clients" },
-    { id: "leads", label: "Leads" },
-    { id: "prices", label: "Product Prices", adminOnly: true },
+  const tabs: { id: CrmTab; label: string; shortLabel: string; adminOnly?: boolean }[] = [
+    { id: "orders", label: "Orders", shortLabel: "Orders" },
+    { id: "quotations", label: "Quotations", shortLabel: "Quotes" },
+    { id: "clients", label: "Clients", shortLabel: "Clients" },
+    { id: "leads", label: "Leads", shortLabel: "Leads" },
+    { id: "prices", label: "Product Prices", shortLabel: "Prices", adminOnly: true },
   ]
+
+  const visibleTabs = tabs.filter((t) => !t.adminOnly || isAdmin)
 
   return (
     <ModuleGuard module="crm">
       <Topbar title="Customer relationship management" />
 
       <div className="flex-1 overflow-auto">
-        <div className="p-3 sm:p-6 w-full min-w-0 max-w-6xl">
-          <div className="flex items-center gap-1 border-b mb-4 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none">
-            {tabs
-              .filter((t) => !t.adminOnly || isAdmin)
-              .map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
-                    tab === t.id
-                      ? "text-[hsl(var(--foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                  }`}
-                >
-                  {t.label}
-                  {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
-                </button>
-              ))}
+        <div className="sticky top-0 z-30 bg-[hsl(var(--background))]/92 backdrop-blur-xl border-b border-black/[0.04] dark:border-[hsl(var(--border))]">
+          <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-3 w-full min-w-0 max-w-6xl">
+            <div className="inline-flex max-w-full items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px] overflow-x-auto scrollbar-none">
+              {visibleTabs.map((t) => {
+                const selected = tab === t.id
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={cn(
+                      "shrink-0 px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer",
+                      selected
+                        ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                        : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
+                    )}
+                  >
+                    <span className="sm:hidden">{t.shortLabel}</span>
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
+        </div>
 
+        <div className="p-3 sm:p-6 pt-3 w-full min-w-0 max-w-6xl">
           {tab === "orders" && (
             <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
           )}

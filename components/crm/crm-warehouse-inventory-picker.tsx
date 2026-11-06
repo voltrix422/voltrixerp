@@ -43,7 +43,7 @@ export function CrmWarehouseInventoryPicker({
   function renderProductList(list: CrmWarehouseProduct[], emptyText: string) {
     if (list.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <div className="flex flex-col items-center justify-center py-14 px-4 text-center col-span-full">
           <p className="text-[13px] text-[#86868b]">{emptyText}</p>
         </div>
       )
@@ -54,15 +54,15 @@ export function CrmWarehouseInventoryPicker({
         key={product.id}
         type="button"
         onClick={() => onSelect(product)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-black/[0.04] active:bg-black/[0.06] dark:hover:bg-white/[0.05] transition-colors border-b border-black/[0.04] dark:border-[hsl(var(--border))] last:border-b-0 cursor-pointer"
+        className="flex items-start justify-between gap-3 rounded-[14px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] px-3.5 py-3 text-left hover:bg-black/[0.03] dark:hover:bg-white/[0.04] active:scale-[0.99] transition-colors cursor-pointer"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] break-words">
+          <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug">
             {product.displayName}
           </p>
-          <p className="text-[11px] text-[#aeaeb2] mt-0.5 truncate">{product.model}</p>
+          <p className="text-[11px] text-[#aeaeb2] mt-1 truncate">{product.model}</p>
         </div>
-        <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[#007aff]">
+        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[#007aff] pt-0.5">
           {product.qty}
         </span>
       </button>
@@ -75,10 +75,10 @@ export function CrmWarehouseInventoryPicker({
       onClick={onClose}
     >
       <div
-        className="w-full sm:w-[min(560px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[min(92dvh,100%)] sm:max-h-[85vh]"
+        className="w-full sm:w-[min(1120px,calc(100vw-1.5rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[min(94dvh,100%)] sm:max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2 shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-4 pb-2 shrink-0">
           <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
             Inventory
           </p>
@@ -92,7 +92,7 @@ export function CrmWarehouseInventoryPicker({
           </button>
         </div>
 
-        <div className="px-5 pb-3 shrink-0 space-y-2.5">
+        <div className="px-5 sm:px-6 pb-3 shrink-0 space-y-2.5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#aeaeb2]" strokeWidth={2} />
             <input
@@ -129,8 +129,8 @@ export function CrmWarehouseInventoryPicker({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 mx-5 mb-5 rounded-[16px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] overflow-hidden">
-          <div className="h-[min(52vh,420px)] overflow-y-auto overscroll-contain">
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 pb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
             {filtered.length === 0
               ? renderProductList([], products.length === 0 ? "No stock available" : "No matches")
               : renderProductList(

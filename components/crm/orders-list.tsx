@@ -471,6 +471,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   return (
     <div className="space-y-3">
+      <div className="sticky top-[3.35rem] sm:top-[3.6rem] z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 pt-1 pb-2 bg-[hsl(var(--background))]/92 backdrop-blur-xl space-y-2.5">
       <div className="flex items-center justify-end gap-2">
         {!workspace?.readOnly && (
           <Button
@@ -656,31 +657,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
-        </div>
-      ) : (
-        <>
-          {ledgerClients.length > 0 && (
-            <ClientLedgerSummary clients={ledgerClients} orders={filtered} currentUser={currentUser} />
-          )}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {orders.length === 0
-              ? "No orders found"
-              : ledgerClients.length
-                ? `No orders for ${ledgerLabel}`
-              : hasActiveFilters
-                ? "No orders match your filters"
-                : "No orders found"}
-          </p>
-        </div>
-      ) : (
-        <>
-          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
+      {!loading && filtered.length > 0 && (
+          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
             <button
               type="button"
               onClick={() => setSummaryOpen((v) => !v)}
@@ -709,7 +687,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             </button>
 
             {summaryOpen && (
-              <div className="px-3.5 pb-3.5 space-y-3 border-t border-black/[0.05] dark:border-[hsl(var(--border))] pt-3">
+              <div className="px-3.5 pb-3.5 space-y-3 border-t border-black/[0.05] dark:border-[hsl(var(--border))] pt-3 max-h-[min(55vh,28rem)] overflow-y-auto overscroll-contain">
                 <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
@@ -793,7 +771,33 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               </div>
             )}
           </section>
+      )}
+      </div>
 
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
+        </div>
+      ) : (
+        <>
+          {ledgerClients.length > 0 && (
+            <ClientLedgerSummary clients={ledgerClients} orders={filtered} currentUser={currentUser} />
+          )}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {orders.length === 0
+              ? "No orders found"
+              : ledgerClients.length
+                ? `No orders for ${ledgerLabel}`
+              : hasActiveFilters
+                ? "No orders match your filters"
+                : "No orders found"}
+          </p>
+        </div>
+      ) : (
+        <>
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
