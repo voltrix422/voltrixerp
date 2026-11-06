@@ -926,13 +926,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   <td className="px-2.5 py-2.5 text-[#6e6e73] tabular-nums align-top">
                     {returned ? "0" : formatCrmItemsQtyLabel(order.items)}
                   </td>
-                  <td className="px-2.5 py-2.5 font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] align-top">
+                  <td className="px-2.5 py-2.5 font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] align-top truncate">
                     {money(netTotal)}
                   </td>
-                  <td className="px-2.5 py-2.5 tabular-nums text-[#6e6e73] align-top">
+                  <td className="px-2.5 py-2.5 tabular-nums text-[#6e6e73] align-top truncate">
                     {money(paid)}
                   </td>
-                  <td className="px-2.5 py-2.5 align-top">
+                  <td className="px-2.5 py-2.5 align-top truncate">
                     {due <= 0.004 ? (
                       <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
                         Paid
@@ -943,10 +943,12 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                       </span>
                     )}
                   </td>
-                  <td className="px-2.5 py-2.5 align-top">
-                    <OrderStatusBadge status={order.status} />
+                  <td className="px-2 py-2.5 align-top overflow-hidden">
+                    <div className="truncate">
+                      <OrderStatusBadge status={order.status} />
+                    </div>
                   </td>
-                  <td className="px-2.5 py-2.5 text-[11px] text-[#aeaeb2] tabular-nums align-top">
+                  <td className="px-2 py-2.5 text-[11px] text-[#aeaeb2] tabular-nums align-top truncate">
                     {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-1.5 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
@@ -2215,7 +2217,7 @@ function OrderDetail({
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
           <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-2">Order items</p>
             <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 text-[13px]">
@@ -2362,17 +2364,17 @@ function OrderDetail({
                 })}
                 {getProofOnlyPayments(detailOrder.payments, detailOrder.status).length > 0 && (
                   <>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-green-800 dark:text-green-200 pt-2">Delivery proofs (not in balance)</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] pt-2">Delivery proofs (not in balance)</p>
                     {getProofOnlyPayments(detailOrder.payments, detailOrder.status).map(p => {
                       const proofUrls = getOrderPaymentProofUrls(p)
                       return (
-                        <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0 gap-2">
-                          <div>
-                            <p className="font-medium text-green-900 dark:text-green-100">Proof attachment</p>
-                            <p className="text-green-700 dark:text-green-300">
+                        <div key={p.id} className="flex items-center justify-between text-[13px] border-b border-black/[0.05] dark:border-[hsl(var(--border))] pb-2 last:border-0 gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold tracking-tight">Proof attachment</p>
+                            <p className="text-[12px] text-[#86868b]">
                               {new Date(p.date).toLocaleDateString()}
                             </p>
-                            {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
+                            {p.notes && <p className="text-[#aeaeb2] text-[11px] mt-0.5">{p.notes}</p>}
                           </div>
                           <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
                             {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
@@ -2381,9 +2383,9 @@ function OrderDetail({
                                   href={proofUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-green-700 dark:text-green-300 underline text-[10px]"
+                                  className="text-[12px] font-semibold text-[#0071e3] hover:underline"
                                 >
-                                  {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
+                                  {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
                                 </a>
                               ))}
                             {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (

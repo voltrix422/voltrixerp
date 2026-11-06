@@ -96,24 +96,24 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 overflow-x-hidden min-h-[min(70vh,720px)]">
             {visited.has("orders") && (
-              <div className={tab === "orders" ? "block" : "hidden"}>
+              <div className={tab === "orders" ? "relative block" : "hidden"} aria-hidden={tab !== "orders"}>
                 <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
               </div>
             )}
             {visited.has("quotations") && (
-              <div className={tab === "quotations" ? "block" : "hidden"}>
+              <div className={tab === "quotations" ? "relative block" : "hidden"} aria-hidden={tab !== "quotations"}>
                 <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
               </div>
             )}
             {visited.has("clients") && (
-              <div className={tab === "clients" ? "block" : "hidden"}>
+              <div className={tab === "clients" ? "relative block" : "hidden"} aria-hidden={tab !== "clients"}>
                 <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
               </div>
             )}
             {visited.has("leads") && (
-              <div className={tab === "leads" ? "block" : "hidden"}>
+              <div className={tab === "leads" ? "relative block" : "hidden"} aria-hidden={tab !== "leads"}>
                 <LeadsManager
                   currentUser={user?.name || user?.email || "Staff"}
                   currentUserId={user?.id}
@@ -123,7 +123,7 @@ export default function CRMPage() {
               </div>
             )}
             {isAdmin && visited.has("prices") && (
-              <div className={tab === "prices" ? "block" : "hidden"}>
+              <div className={tab === "prices" ? "relative block" : "hidden"} aria-hidden={tab !== "prices"}>
                 <CrmProductPricesManager
                   currentUser={user?.name || user?.email || "Staff"}
                   currentUserId={user?.id}
