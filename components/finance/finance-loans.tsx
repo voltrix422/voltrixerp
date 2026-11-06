@@ -28,6 +28,17 @@ export interface LoanRecord {
   loan_person?: string
   loan_direction?: string
   loan_parent_id?: string
+  has_proof?: boolean
+}
+
+async function fetchLoanProof(id: string): Promise<LoanRecord | null> {
+  try {
+    const res = await fetch(`/api/finance/records?id=${encodeURIComponent(id)}`)
+    if (!res.ok) return null
+    return (await res.json()) as LoanRecord
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -543,10 +554,25 @@ function LoanProfileDialog({
   onOpenForm: (mode: LoanFormMode, person: string) => void
 }) {
   const [proofRecord, setProofRecord] = useState<LoanRecord | null>(null)
+  const [proofLoading, setProofLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [exporting, setExporting] = useState(false)
+
+  async function openProof(r: LoanRecord) {
+    if (r.proof_url) {
+      setProofRecord(r)
+      return
+    }
+    if (!r.has_proof) return
+    setProofLoading(true)
+    setProofRecord({ ...r, proof_url: "" })
+    const full = await fetchLoanProof(r.id)
+    setProofLoading(false)
+    if (full?.proof_url) setProofRecord({ ...r, ...full })
+    else setProofRecord(null)
+  }
 
   const weOwe = profile.received - profile.repaid
   const theyOwe = profile.given - profile.recovered
@@ -866,10 +892,10 @@ function LoanProfileDialog({
                         </p>
                       ) : null}
                       <div className="flex items-center gap-1 justify-end">
-                        {r.proof_url && (
+                        {(r.proof_url || r.has_proof) && (
                           <button
                             type="button"
-                            onClick={() => setProofRecord(r)}
+                            onClick={() => void openProof(r)}
                             className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#007aff] hover:bg-[#007aff]/10 cursor-pointer"
                             title="Proof"
                           >
@@ -916,7 +942,9 @@ function LoanProfileDialog({
                   </button>
                 </div>
                 <div className="px-5 pb-5">
-                  {proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
+                  {proofLoading || !proofRecord.proof_url ? (
+                    <p className="text-[13px] text-[#86868b] py-8 text-center">Loading proof…</p>
+                  ) : proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
                     <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-[14px] object-contain max-h-[60vh]" />
                   ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
                     <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-[14px]" title="proof" />

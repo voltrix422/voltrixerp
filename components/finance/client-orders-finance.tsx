@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import {
   getOrders,
+  getOrderById,
   saveOrder,
   getOrderPaymentProofUrls,
   getPaymentSubmissionStatus,
@@ -127,14 +128,31 @@ export function ClientOrdersFinance({
   const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     const load = () =>
-      getOrders().then((o) => {
+      getOrders({ erpOnly: true }).then((o) => {
+        if (cancelled) return
         setCrmOrdersAll(o.filter(isCrmErpOrderForPaymentStats))
       })
-    load().then(() => setLoading(false))
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
+    load().finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return
+      void load()
+    }, 60000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
+
+  async function openOrder(order: Order) {
+    setSelectedOrder(order)
+    // Refresh full order in background so sheet has latest payments/proofs without blocking list.
+    const fresh = await getOrderById(order.id)
+    if (fresh) setSelectedOrder((prev) => (prev?.id === order.id ? fresh : prev))
+  }
 
   function placeFilterPanel() {
     const btn = filterBtnRef.current
@@ -412,7 +430,7 @@ export function ClientOrdersFinance({
                 <button
                   key={order.id}
                   type="button"
-                  onClick={() => setSelectedOrder(order)}
+                  onClick={() => void openOrder(order)}
                   className="w-full text-left p-3.5 space-y-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -482,7 +500,7 @@ export function ClientOrdersFinance({
                 return (
                   <tr
                     key={order.id}
-                    onClick={() => setSelectedOrder(order)}
+                    onClick={() => void openOrder(order)}
                     className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 whitespace-nowrap">

@@ -34,12 +34,20 @@ import { postBranchPosOrderToFbr } from "@/lib/fbr-pos-order"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
+  const id = searchParams.get("id")
+  if (id) {
+    const order = await prisma.erpOrder.findUnique({ where: { id } })
+    if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(order)
+  }
+
   const status = searchParams.get("status")
   const statusGroup = searchParams.get("statusGroup")
   const branchId = searchParams.get("branchId")
   const source = searchParams.get("source")
+  const erpOnly = searchParams.get("erpOnly") === "1"
 
-  let where: Record<string, unknown> | undefined
+  let where: Prisma.ErpOrderWhereInput | undefined
   if (status) {
     where = { status }
   } else if (statusGroup === "pending") {
@@ -52,6 +60,15 @@ export async function GET(req: NextRequest) {
   }
   if (source) {
     where = { ...(where || {}), source }
+  }
+  if (erpOnly) {
+    where = {
+      ...(where || {}),
+      AND: [
+        { NOT: { source: "branch_pos" } },
+        { NOT: { notes: { contains: "Branch POS ·" } } },
+      ],
+    }
   }
 
   const orders = await prisma.erpOrder.findMany({

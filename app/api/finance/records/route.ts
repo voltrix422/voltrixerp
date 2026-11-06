@@ -1,9 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-export async function GET() {
-  const records = await prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: 'desc' } })
-  return NextResponse.json(records)
+export async function GET(req: NextRequest) {
+  const id = new URL(req.url).searchParams.get('id')
+  if (id) {
+    const record = await prisma.erpFinanceRecord.findUnique({ where: { id } })
+    if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(record)
+  }
+
+  // List without proof_url blobs (~4MB of data: URIs on prod) — fetch proof via ?id= when needed.
+  const rows = await prisma.$queryRawUnsafe<
+    Array<Record<string, unknown> & { id: string; has_proof: boolean; created_at: Date }>
+  >(
+    `SELECT
+      id, title, amount, currency, purpose, category, tag,
+      supplier_name, receipt_person_name,
+      petty_cash_allocation_id, petty_cash_receipt_id, petty_cash_label,
+      proof_name, notes, created_by, created_at,
+      loan_person, loan_direction, loan_parent_id,
+      (proof_url IS NOT NULL AND LENGTH(proof_url) > 0) AS has_proof
+    FROM erp_finance_records
+    ORDER BY created_at DESC`,
+  )
+
+  return NextResponse.json(
+    rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      amount: Number(r.amount),
+      currency: r.currency,
+      purpose: r.purpose,
+      category: r.category,
+      tag: r.tag,
+      supplier_name: r.supplier_name ?? '',
+      receipt_person_name: r.receipt_person_name ?? '',
+      petty_cash_allocation_id: r.petty_cash_allocation_id ?? '',
+      petty_cash_receipt_id: r.petty_cash_receipt_id ?? '',
+      petty_cash_label: r.petty_cash_label ?? '',
+      proof_url: '',
+      proof_name: r.proof_name ?? '',
+      notes: r.notes ?? '',
+      created_by: r.created_by,
+      createdAt: r.created_at,
+      loan_person: r.loan_person ?? '',
+      loan_direction: r.loan_direction ?? '',
+      loan_parent_id: r.loan_parent_id ?? '',
+      has_proof: Boolean(r.has_proof),
+    })),
+  )
 }
 
 export async function POST(req: NextRequest) {

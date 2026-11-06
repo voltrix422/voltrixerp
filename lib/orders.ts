@@ -987,18 +987,32 @@ export async function getOrders(options?: {
   statusGroup?: "pending" | "approved"
   branchId?: string
   source?: string
+  /** Exclude Branch POS orders (CRM / Finance Client Orders). */
+  erpOnly?: boolean
 }): Promise<Order[]> {
   try {
     const params = new URLSearchParams()
     if (options?.statusGroup) params.set("statusGroup", options.statusGroup)
     if (options?.branchId) params.set("branchId", options.branchId)
     if (options?.source) params.set("source", options.source)
+    if (options?.erpOnly) params.set("erpOnly", "1")
     const qs = params.toString()
     const res = await fetch(`/api/db/orders${qs ? `?${qs}` : ""}`)
     if (!res.ok) return []
     const data = await res.json()
     return (data ?? []).map((row: Record<string, unknown>) => healReturnedOrderMerchandise(rowToOrder(row)))
   } catch { return [] }
+}
+
+export async function getOrderById(id: string): Promise<Order | null> {
+  try {
+    const res = await fetch(`/api/db/orders?id=${encodeURIComponent(id)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return healReturnedOrderMerchandise(rowToOrder(data))
+  } catch {
+    return null
+  }
 }
 
 export type CrmApprovalOrdersPayload = {

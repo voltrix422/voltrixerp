@@ -28,6 +28,7 @@ interface FinanceRecord {
   loan_person?: string
   loan_direction?: string
   loan_parent_id?: string
+  has_proof?: boolean
 }
 
 const CATEGORIES = ["Payment", "Expense", "Invoice", "Salary", "Tax", "Refund", "Loan", "Other"]
@@ -74,6 +75,24 @@ export function FinanceManager({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
   const [viewRecord, setViewRecord] = useState<FinanceRecord | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+
+  async function openRecord(r: FinanceRecord) {
+    setViewRecord(r)
+    if (r.proof_url || !r.has_proof) return
+    setViewLoading(true)
+    try {
+      const res = await fetch(`/api/finance/records?id=${encodeURIComponent(r.id)}`)
+      if (res.ok) {
+        const full = (await res.json()) as FinanceRecord
+        setViewRecord((prev) => (prev?.id === r.id ? { ...prev, ...full } : prev))
+      }
+    } catch (error) {
+      console.error("Failed to load record proof:", error)
+    } finally {
+      setViewLoading(false)
+    }
+  }
 
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -522,7 +541,7 @@ export function FinanceManager({
                   {nonLoanFiltered.map((r) => (
                     <tr
                       key={r.id}
-                      onClick={() => setViewRecord(r)}
+                      onClick={() => void openRecord(r)}
                       className="group hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3">
@@ -809,18 +828,20 @@ export function FinanceManager({
                   </div>
                 </div>
 
-                {viewRecord.proof_url && (
+                {(viewLoading || viewRecord.has_proof || viewRecord.proof_url) && (
                   <div>
-                    {viewRecord.proof_url.startsWith("data:image/") || viewRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
+                    {viewLoading && !viewRecord.proof_url ? (
+                      <p className="text-[13px] text-[#86868b] py-6 text-center">Loading proof…</p>
+                    ) : viewRecord.proof_url.startsWith("data:image/") || viewRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
                       <img src={viewRecord.proof_url} alt="proof" className="w-full rounded-[14px] object-contain max-h-48" />
                     ) : viewRecord.proof_url.startsWith("data:application/pdf") ? (
                       <iframe src={viewRecord.proof_url} className="w-full h-48 rounded-[14px]" title="proof" />
-                    ) : (
+                    ) : viewRecord.proof_url ? (
                       <a href={viewRecord.proof_url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 text-[13px] text-[#007aff] hover:underline">
                         <FileText className="h-4 w-4" /> View {viewRecord.proof_name || "document"}
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 )}
 
