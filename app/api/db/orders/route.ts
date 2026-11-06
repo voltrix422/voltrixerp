@@ -62,24 +62,14 @@ export async function GET(req: NextRequest) {
     where = { ...(where || {}), source }
   }
   if (erpOnly) {
-    // NULL/empty source must stay included — SQL NOT excludes nulls.
+    // NULL source must stay included — SQL NOT excludes nulls.
     where = {
       ...(where || {}),
       AND: [
         {
-          OR: [
-            { source: null },
-            { source: "" },
-            { source: { not: "branch_pos" } },
-          ],
+          OR: [{ source: null }, { source: { not: "branch_pos" } }],
         },
-        {
-          OR: [
-            { notes: null },
-            { notes: "" },
-            { NOT: { notes: { contains: "Branch POS ·" } } },
-          ],
-        },
+        { NOT: { notes: { contains: "Branch POS ·" } } },
       ],
     }
   }
