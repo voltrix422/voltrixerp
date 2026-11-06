@@ -105,26 +105,18 @@ export function ReplacementApprovalsTab() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold">Replacement return approvals</p>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-            When a replace is submitted, the returned unit waits here. Approve after you receive it — then stock goes to Main or Faulty.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Pending <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{rows.length}</span>
-          </span>
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => void load()}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </Button>
-        </div>
+        <p className="text-[11px] text-[#86868b]">
+          Pending <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{rows.length}</span>
+        </p>
+        <Button type="button" size="sm" variant="outline" className="h-8 rounded-full text-[11px] px-3.5 gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]" onClick={() => void load()}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] py-10 text-center border rounded-lg">
-          No pending replacement returns. New replaces will appear here for inventory approval.
+        <p className="text-[13px] text-[#86868b] py-10 text-center rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
+          No pending replacement returns.
         </p>
       ) : (
         <div className="space-y-2">

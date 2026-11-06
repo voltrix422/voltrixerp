@@ -148,27 +148,26 @@ export function FaultyInventoryTab() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-          Faulty / damaged · excluded from sellable stock ·{" "}
-          <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{totalQty}</span>{" "}
-          {totalQty === 1 ? "unit" : "units"}
+        <p className="text-[11px] text-[#86868b]">
+          <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{totalQty}</span>{" "}
+          {totalQty === 1 ? "unit" : "units"} excluded from sellable stock
         </p>
       </div>
 
       <div className="relative max-w-sm">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search model, name, or serial..."
-          className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
+          placeholder="Search model, name, or serial…"
+          className="w-full h-9 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] pl-9 pr-3 text-[13px] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] py-8">No faulty or damaged items recorded yet.</p>
+        <p className="text-[13px] text-[#86868b] py-10 text-center rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">No faulty or damaged items recorded yet.</p>
       ) : (
-        <div className="border border-[hsl(var(--border))]">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           {filtered.map((group) => {
             const open = openKeys[group.modelKey] === true
             return (

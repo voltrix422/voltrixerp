@@ -204,25 +204,23 @@ export function InventoryMovementOverview() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold">Inventory report</h3>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-2xl">
-            Daily or date-range report — what came in, what went out, to which order and client.
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-[11px] text-[#86868b]">
+          Stock in / out by date, order, and client
+        </p>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <CrmExcelExportButton
             onExport={handleExportExcel}
             exporting={exportingExcel}
             disabled={filtered.length === 0}
+            className="h-8 rounded-full px-3.5 text-[11px] border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
           />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5 cursor-pointer"
+            className="h-8 rounded-full text-[11px] px-3.5 gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] cursor-pointer"
             disabled={filtered.length === 0 || exportingPdf}
             onClick={() => void handleExportPdf()}
           >

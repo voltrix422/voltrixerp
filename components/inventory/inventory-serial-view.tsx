@@ -494,15 +494,15 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   return (
     <div className={`flex flex-col gap-3 min-h-0 ${embedded ? "" : "sm:h-[calc(100vh-11rem)]"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
-          <span>Boxes <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{totalBoxes}</span></span>
-          <span>Models <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{modelCount}</span></span>
-          <span>In stock <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{inStockCount}</span></span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#86868b]">
+          <span>Boxes <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{totalBoxes}</span></span>
+          <span>Models <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{modelCount}</span></span>
+          <span>In stock <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{inStockCount}</span></span>
         </div>
         <div className="flex items-center gap-1.5">
           <Button
             variant="outline"
-            className="h-7 px-2.5 text-[11px] gap-1"
+            className="h-8 rounded-full px-3 text-[11px] gap-1 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
             onClick={() => {
               setTrackModelKey("")
               setTrackOpen(true)
@@ -516,11 +516,11 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             onExport={exportExcel}
             exporting={exportingExcel}
             disabled={modelCount === 0 || loading}
-            className="h-7 px-2.5 text-[11px] gap-1"
+            className="h-8 rounded-full px-3 text-[11px] gap-1 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
           />
           <Button
             variant="outline"
-            className="h-7 px-2.5 text-[11px] gap-1"
+            className="h-8 rounded-full px-3 text-[11px] gap-1 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
             onClick={() => setShowQrModal(true)}
           >
             <QrCode className="h-3 w-3" />

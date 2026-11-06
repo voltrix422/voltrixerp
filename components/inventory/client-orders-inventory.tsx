@@ -474,12 +474,22 @@ export function ClientOrdersInventory() {
       ledgerClientIds.length > 0,
   )
 
+  const chipClass = (active: boolean) =>
+    `h-7 px-2.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer border ${
+      active
+        ? "bg-[#1d1d1f] text-white border-[#1d1d1f] dark:bg-white dark:text-[#1d1d1f] dark:border-white"
+        : "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] border-black/[0.08] dark:border-[hsl(var(--border))] hover:bg-black/[0.04]"
+    }`
+
+  const fieldClass =
+    "h-8 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+
   return (
     <div className="space-y-3">
       {showFilters && !loading && (
-        <div className="space-y-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
+        <div className="space-y-3 p-3.5 rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Activity
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -488,11 +498,7 @@ export function ClientOrdersInventory() {
                   key={opt.value}
                   type="button"
                   onClick={() => setActivityFilter(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    activityFilter === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
+                  className={chipClass(activityFilter === opt.value)}
                 >
                   {opt.label}
                 </button>
@@ -501,7 +507,7 @@ export function ClientOrdersInventory() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Status
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -510,11 +516,7 @@ export function ClientOrdersInventory() {
                   key={opt.value}
                   type="button"
                   onClick={() => setStatusFilter(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    statusFilter === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
+                  className={chipClass(statusFilter === opt.value)}
                 >
                   {opt.label}
                 </button>
@@ -523,7 +525,7 @@ export function ClientOrdersInventory() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Payment
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -532,11 +534,7 @@ export function ClientOrdersInventory() {
                   key={opt.value}
                   type="button"
                   onClick={() => setPaymentFilter(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    paymentFilter === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
+                  className={chipClass(paymentFilter === opt.value)}
                 >
                   {opt.label}
                 </button>
@@ -555,18 +553,14 @@ export function ClientOrdersInventory() {
           />
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Referrer
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setReferrerFilter("")}
-                className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                  !referrerFilter
-                    ? "bg-[#1faca6] text-white border-[#1faca6]"
-                    : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                }`}
+                className={chipClass(!referrerFilter)}
               >
                 All
               </button>
@@ -575,17 +569,13 @@ export function ClientOrdersInventory() {
                   key={name}
                   type="button"
                   onClick={() => setReferrerFilter(name)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    referrerFilter === name
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
+                  className={chipClass(referrerFilter === name)}
                 >
                   {name}
                 </button>
               ))}
               {referrerOptions.length === 0 && (
-                <span className="h-7 px-2.5 text-xs text-[hsl(var(--muted-foreground))] inline-flex items-center">
+                <span className="h-7 px-2.5 text-[11px] text-[#86868b] inline-flex items-center">
                   No referrers yet
                 </span>
               )}
@@ -593,7 +583,7 @@ export function ClientOrdersInventory() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Date range
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -602,11 +592,7 @@ export function ClientOrdersInventory() {
                   key={opt.value}
                   type="button"
                   onClick={() => applyDatePreset(opt.value)}
-                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
-                    datePreset === opt.value
-                      ? "bg-[#1faca6] text-white border-[#1faca6]"
-                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
+                  className={chipClass(datePreset === opt.value)}
                 >
                   {opt.label}
                 </button>
@@ -615,7 +601,7 @@ export function ClientOrdersInventory() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
               Product
             </p>
             <div className="flex flex-wrap gap-2 items-center">
@@ -623,7 +609,7 @@ export function ClientOrdersInventory() {
                 value={selectedProductModel}
                 onChange={(e) => handleProductDropdownChange(e.target.value)}
                 disabled={loadingProducts}
-                className="h-8 min-w-[160px] rounded border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+                className={`${fieldClass} min-w-[160px] cursor-pointer`}
               >
                 <option value="">
                   {loadingProducts ? "Loading inventory…" : "All products"}
@@ -635,12 +621,12 @@ export function ClientOrdersInventory() {
                 ))}
               </select>
               <div className="relative flex-1 min-w-[160px] max-w-sm">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
                 <input
                   value={productSearch}
                   onChange={(e) => handleProductSearchChange(e.target.value)}
-                  placeholder="Product / model name..."
-                  className="w-full h-8 border rounded bg-[hsl(var(--background))] pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  placeholder="Product / model name…"
+                  className={`w-full ${fieldClass} pl-8`}
                 />
               </div>
             </div>
@@ -654,7 +640,7 @@ export function ClientOrdersInventory() {
                 setFromDate(e.target.value)
                 setDatePreset("")
               }}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              className={fieldClass}
             />
             <input
               type="date"
@@ -663,12 +649,12 @@ export function ClientOrdersInventory() {
                 setToDate(e.target.value)
                 setDatePreset("")
               }}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              className={fieldClass}
             />
             <select
               value={referrerFilter}
               onChange={(e) => setReferrerFilter(e.target.value)}
-              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] min-w-[10rem]"
+              className={`${fieldClass} min-w-[10rem]`}
             >
               <option value="">All referrers</option>
               {referrerOptions.map((name) => (
@@ -681,12 +667,12 @@ export function ClientOrdersInventory() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search orders, client, or referrer..."
-                className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                placeholder="Search orders, client, or referrer…"
+                className={`w-full ${fieldClass}`}
               />
             </div>
             {filterActive && (
-              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={clearFilters}>
+              <Button size="sm" variant="outline" className="h-8 rounded-full text-[11px] px-3 border-black/[0.08] cursor-pointer" onClick={clearFilters}>
                 Clear
               </Button>
             )}
@@ -694,7 +680,7 @@ export function ClientOrdersInventory() {
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+              className="h-8 rounded-full text-[11px] px-3 gap-1.5 border-black/[0.08] cursor-pointer shrink-0"
               disabled={loading || filteredOrders.length === 0 || exportingPdf}
               onClick={() => void exportListPdf()}
             >
@@ -717,13 +703,13 @@ export function ClientOrdersInventory() {
             onExport={exportDispatchExcel}
             exporting={exportingExcel}
             disabled={loading || filteredOrders.length === 0 || exportingPdf}
-            className="h-8 px-2.5 text-xs gap-1.5"
+            className="h-8 rounded-full px-3.5 text-[11px] gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
           />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+            className="h-8 rounded-full text-[11px] px-3.5 gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] cursor-pointer shrink-0"
             disabled={loading || filteredOrders.length === 0 || exportingPdf}
             onClick={() => void exportListPdf()}
           >
@@ -733,7 +719,11 @@ export function ClientOrdersInventory() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs cursor-pointer"
+            className={`h-8 rounded-full text-[11px] px-3.5 cursor-pointer border-black/[0.08] ${
+              showFilters
+                ? "bg-[#1d1d1f] text-white border-[#1d1d1f] dark:bg-white dark:text-[#1d1d1f]"
+                : "bg-white dark:bg-[hsl(var(--card))]"
+            }`}
             onClick={() => setShowFilters((o) => !o)}
           >
             {showFilters ? "Hide Filters" : "Filters"}
@@ -742,7 +732,7 @@ export function ClientOrdersInventory() {
         </div>
       </div>
 
-      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+      <p className="text-[11px] text-[#86868b]">
         {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
         {isProductFiltered ? " with this product" : ledgerClients.length ? " for selected client(s)" : " for dispatch"}
         {filterActive ? " · filters on" : ""}
@@ -753,33 +743,33 @@ export function ClientOrdersInventory() {
       )}
 
       {productSummary && (
-        <div className="border border-[hsl(var(--border))] px-3 py-2 space-y-2">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-xs font-semibold">{productSummary.label}</p>
+            <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{productSummary.label}</p>
             <button
               type="button"
               onClick={clearProductFilter}
-              className="text-[11px] text-[hsl(var(--muted-foreground))] cursor-pointer"
+              className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
             >
               Clear product
             </button>
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-[#86868b]">
             <span>
               Delivered (net){" "}
-              <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">
+              <span className="tabular-nums font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                 {productSummary.deliveredQty} {productSummary.unit}
               </span>
             </span>
             <span>
               Returned{" "}
-              <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">
+              <span className="tabular-nums font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                 {productSummary.returnedQty} {productSummary.unit}
               </span>
             </span>
             <span>
               Replaced{" "}
-              <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">
+              <span className="tabular-nums font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                 {productSummary.replacedQty} {productSummary.unit}
               </span>
             </span>
@@ -819,35 +809,35 @@ export function ClientOrdersInventory() {
       )}
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
+          <Loader2 className="h-6 w-6 animate-spin text-[#86868b]" />
+          <p className="text-[13px] text-[#86868b]">Loading orders…</p>
         </div>
       )}
 
       {!loading && orders.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm font-medium">No orders for dispatch</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
+          <p className="text-[13px] font-semibold tracking-tight">No orders for dispatch</p>
+          <p className="text-[12px] text-[#86868b] mt-1">
             Confirmed orders from Finance will appear here.
           </p>
         </div>
       )}
 
       {!loading && filteredOrders.length === 0 && orders.length > 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-sm font-medium">No orders match your filters</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+        <div className="flex flex-col items-center justify-center py-16 text-center rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
+          <p className="text-[13px] font-semibold tracking-tight">No orders match your filters</p>
+          <p className="text-[12px] text-[#86868b] mt-1">
             Try adjusting your search or filter criteria.
           </p>
         </div>
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <div className="overflow-x-auto border border-[hsl(var(--border))]">
-          <table className="w-full min-w-[40rem] text-xs border-collapse">
+        <div className="overflow-x-auto scrollbar-none rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <table className="w-full min-w-[40rem] text-[13px]">
             <thead>
-              <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              <tr className="border-b border-black/[0.04] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 text-left">
                 {[
                   "Order #",
                   "Client",
@@ -857,13 +847,13 @@ export function ClientOrdersInventory() {
                   "Delivery Date",
                   "Status",
                 ].filter(Boolean).map((h) => (
-                  <th key={h as string} className="h-8 px-2 font-medium whitespace-nowrap">
+                  <th key={h as string} className="h-9 px-3 font-medium text-[11px] text-[#86868b] whitespace-nowrap">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
               {filteredOrders.map((order) => {
                 const productDesc = isProductFiltered
                   ? matchingProductDescription(order, productFilter)
@@ -904,40 +894,40 @@ export function ClientOrdersInventory() {
                   <tr
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="border-b border-[hsl(var(--border))] last:border-0 cursor-pointer hover:bg-[hsl(var(--muted))]/20"
+                    className="cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
                   >
-                    <td className="px-2 py-1.5 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                       {order.orderNumber}
                       {hasOutstandingCredit(order) ? (
-                        <span className="text-[hsl(var(--muted-foreground))]"> · Credit</span>
+                        <span className="text-[#86868b] font-normal"> · Credit</span>
                       ) : null}
                       {returnQty > 0 ? (
-                        <span className="text-[hsl(var(--muted-foreground))]"> · Returned</span>
+                        <span className="text-[#86868b] font-normal"> · Returned</span>
                       ) : null}
                       {replaceQty > 0 ? (
-                        <span className="text-[hsl(var(--muted-foreground))]"> · Replaced</span>
+                        <span className="text-[#86868b] font-normal"> · Replaced</span>
                       ) : null}
                     </td>
-                    <td className="px-2 py-1.5">{order.clientName}</td>
+                    <td className="px-3 py-2.5">{order.clientName}</td>
                     {isProductFiltered && (
-                      <td className="px-2 py-1.5 max-w-[200px]">
+                      <td className="px-3 py-2.5 max-w-[200px]">
                         <span className="line-clamp-2">{displayProduct}</span>
                       </td>
                     )}
-                    <td className="px-2 py-1.5">
+                    <td className="px-3 py-2.5 text-[#86868b]">
                       {isProductFiltered
                         ? displayQty
                         : formatCrmItemsQtyLabel(order.items)}
                     </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap tabular-nums">
+                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums font-medium">
                       {isProductFiltered
                         ? `PKR ${matchingProductValue(order, productFilter).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                         : `PKR ${order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                     </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[#86868b]">
                       {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-2 py-1.5 capitalize">
+                    <td className="px-3 py-2.5 capitalize text-[12px]">
                       {STATUS_LABELS[order.status] || order.status}
                     </td>
                   </tr>

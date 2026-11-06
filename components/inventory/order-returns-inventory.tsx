@@ -97,28 +97,28 @@ export function OrderReturnsInventory() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
-          <span>Orders <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{filtered.length}</span></span>
-          <span>Qty returned <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{totalQty}</span></span>
-          <span>Refunded <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{formatPkr(totalRefunded)}</span></span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#86868b]">
+          <span>Orders <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{filtered.length}</span></span>
+          <span>Qty returned <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{totalQty}</span></span>
+          <span>Refunded <span className="tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{formatPkr(totalRefunded)}</span></span>
         </div>
         <div className="relative w-full sm:w-72">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search order, client, model..."
-            className="w-full h-7 pl-7 pr-2 border border-[hsl(var(--border))] bg-transparent text-[11px] focus:outline-none"
+            placeholder="Search order, client, model…"
+            className="w-full h-9 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] pl-9 pr-3 text-[13px] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
           />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] py-8">
+        <p className="text-[13px] text-[#86868b] py-10 text-center rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
           {orders.length === 0 ? "No order returns yet." : "No returns match your search."}
         </p>
       ) : (
-        <div className="border border-[hsl(var(--border))]">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           {filtered.map((order) => {
             const lines = order.items.filter((item) => !item.isCustom && getItemReturnedQty(order, item.id) > 0)
             const open = openIds[order.id] === true
