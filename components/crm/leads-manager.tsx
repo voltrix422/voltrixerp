@@ -1076,6 +1076,8 @@ function LeadCard({
   )
 }
 
+const LEADS_PAGE_SIZE = 60
+
 function LeadsListView({
   leads,
   onOpenDetail,
@@ -1101,87 +1103,108 @@ function LeadsListView({
   readOnly?: boolean
   highlightFavorite?: boolean
 }) {
+  const [visibleCount, setVisibleCount] = useState(LEADS_PAGE_SIZE)
+  const [isDesktop, setIsDesktop] = useState(true)
+
+  useEffect(() => {
+    setVisibleCount(LEADS_PAGE_SIZE)
+  }, [leads])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const mq = window.matchMedia("(min-width: 768px)")
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
+
+  const visible = leads.length <= visibleCount ? leads : leads.slice(0, visibleCount)
+  const hasMore = leads.length > visibleCount
+
   return (
     <>
-      <div className="md:hidden space-y-2 p-2">
-        {leads.map((lead) => (
-          <LeadCard
-            key={lead.id}
-            lead={lead}
-            onOpenDetail={onOpenDetail}
-            onStatusChange={onStatusChange}
-            onLog={onLog}
-            onFollowUp={onFollowUp}
-            onLinkUser={onLinkUser}
-            onDelete={onDelete}
-            onToggleFavorite={onToggleFavorite}
-            canAssign={canAssign}
-            readOnly={readOnly}
-            highlightFavorite={highlightFavorite}
-          />
-        ))}
-      </div>
-      <div className="hidden md:block overflow-x-auto scrollbar-none">
-        <table className="w-full min-w-[1240px] text-[13px]">
-          <thead>
-            <tr className="border-b border-black/[0.04] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30">
-              <th className="h-9 px-2 text-center text-[11px] font-medium text-[#86868b] w-10">
-                ★
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Lead
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Company
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                City
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Phone
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Assigned to
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Status
-              </th>
-              <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">
-                Logs
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Last outreach
-              </th>
-              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
-                Follow up
-              </th>
-              {!readOnly && (
-              <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">
-                Actions
-              </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
-            {leads.map((lead) => (
-              <LeadTableRow
-                key={lead.id}
-                lead={lead}
-                onOpenDetail={onOpenDetail}
-                onStatusChange={onStatusChange}
-                onLog={onLog}
-                onFollowUp={onFollowUp}
-                onLinkUser={onLinkUser}
-                onDelete={onDelete}
-                onToggleFavorite={onToggleFavorite}
-                canAssign={canAssign}
-                readOnly={readOnly}
-                highlightFavorite={highlightFavorite}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {!isDesktop ? (
+        <div className="space-y-2 p-2">
+          {visible.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onOpenDetail={onOpenDetail}
+              onStatusChange={onStatusChange}
+              onLog={onLog}
+              onFollowUp={onFollowUp}
+              onLinkUser={onLinkUser}
+              onDelete={onDelete}
+              onToggleFavorite={onToggleFavorite}
+              canAssign={canAssign}
+              readOnly={readOnly}
+              highlightFavorite={highlightFavorite}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto scrollbar-none">
+          <table className="w-full min-w-[1240px] text-[13px]">
+            <thead>
+              <tr className="border-b border-black/[0.04] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30">
+                <th className="h-9 px-2 text-center text-[11px] font-medium text-[#86868b] w-10">★</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Lead</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Company</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">City</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Phone</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Assigned to</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Status</th>
+                <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">Logs</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Last outreach</th>
+                <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">Follow up</th>
+                {!readOnly && (
+                  <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">Actions</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
+              {visible.map((lead) => (
+                <LeadTableRow
+                  key={lead.id}
+                  lead={lead}
+                  onOpenDetail={onOpenDetail}
+                  onStatusChange={onStatusChange}
+                  onLog={onLog}
+                  onFollowUp={onFollowUp}
+                  onLinkUser={onLinkUser}
+                  onDelete={onDelete}
+                  onToggleFavorite={onToggleFavorite}
+                  canAssign={canAssign}
+                  readOnly={readOnly}
+                  highlightFavorite={highlightFavorite}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {hasMore && (
+        <div className="flex items-center justify-center gap-3 py-3 border-t border-black/[0.04] dark:border-[hsl(var(--border))]">
+          <p className="text-[11px] text-[#86868b]">
+            Showing {visible.length} of {leads.length}
+          </p>
+          <button
+            type="button"
+            className="h-8 rounded-full px-3.5 text-[11px] font-semibold bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/40 text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.06] cursor-pointer"
+            onClick={() => setVisibleCount((n) => n + LEADS_PAGE_SIZE)}
+          >
+            Show more
+          </button>
+          <button
+            type="button"
+            className="h-8 rounded-full px-3.5 text-[11px] font-semibold text-[#0071e3] hover:bg-[#0071e3]/08 cursor-pointer"
+            onClick={() => setVisibleCount(leads.length)}
+          >
+            Show all
+          </button>
+        </div>
+      )}
     </>
   )
 }
@@ -1376,8 +1399,6 @@ export function LeadsManager({
   const csvInputRef = useRef<HTMLInputElement>(null)
   const facebookCsvInputRef = useRef<HTMLInputElement>(null)
   const pendingCsvImportRef = useRef<{ importBatchId: string; importUploaderName: string } | null>(null)
-  const autoSyncPhonesDone = useRef(false)
-
   const refresh = useCallback(async () => {
     const list = await fetchLeads()
     setLeads(list)
@@ -1402,16 +1423,28 @@ export function LeadsManager({
     }
   }, [])
 
-  const openLeadDetail = useCallback((id: string) => {
-    setDetailId(id)
-    if (typeof sessionStorage !== "undefined") {
-      sessionStorage.setItem(CRM_LEAD_DETAIL_KEY, id)
-    }
-  }, [])
+  const openLeadDetail = useCallback(
+    (id: string) => {
+      const row = leads.find((l) => l.id === id)
+      setDetailId(id)
+      if (row) {
+        setDetail({ ...row, contacts: [] })
+        setDetailLoading(false)
+      } else {
+        setDetail(null)
+        setDetailLoading(true)
+      }
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem(CRM_LEAD_DETAIL_KEY, id)
+      }
+    },
+    [leads],
+  )
 
   const closeLeadDetail = useCallback(() => {
     setDetailId(null)
     setDetail(null)
+    setDetailLoading(false)
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.removeItem(CRM_LEAD_DETAIL_KEY)
     }
@@ -1473,44 +1506,32 @@ export function LeadsManager({
   }, [showLeadFiltersPopover])
 
   useEffect(() => {
-    if (loading || autoSyncPhonesDone.current) return
-    const missingPhones = leads.some((l) => !l.phone?.trim())
-    if (!missingPhones) return
-    autoSyncPhonesDone.current = true
-    syncInstallersPhonesFromBrowser()
-      .then(async (r) => {
-        if (r.updated > 0) {
-          toast({
-            type: "success",
-            title: "Phones synced",
-            message: `Filled ${r.updated} phone number(s) from installers CSV.`,
-          })
-          await refresh()
-        } else if ((r.lookupSize ?? 0) > 0 && r.notMatched > 0) {
-          toast({
-            type: "error",
-            title: "Could not match phones",
-            message: `${r.notMatched} lead(s) had no matching row in the CSV. Try re-importing the Facebook file.`,
+    if (!detailId) return
+    let cancelled = false
+    ;(async () => {
+      setDetailLoading(true)
+      try {
+        const [detailRes, contacts] = await Promise.all([
+          fetchLeadDetail(detailId),
+          fetchLeadContacts(detailId),
+        ])
+        if (cancelled) return
+        if (detailRes?.lead) {
+          const lead = detailRes.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] }
+          setDetail({
+            ...lead,
+            contacts: contacts.length > 0 ? contacts : lead.contacts || [],
+            contactCount: contacts.length > 0 ? contacts.length : lead.contactCount,
           })
         }
-      })
-      .catch((err) => {
-        autoSyncPhonesDone.current = false
-        toast({
-          type: "error",
-          title: "Phone sync failed",
-          message: err instanceof Error ? err.message : "Could not load installers CSV.",
-        })
-      })
-  }, [loading, leads, refresh, toast])
-
-  useEffect(() => {
-    if (!detailId) {
-      setDetail(null)
-      return
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-    reloadLeadDetail(detailId)
-  }, [detailId, reloadLeadDetail])
+  }, [detailId])
 
   const localLeads = useMemo(() => leads.filter((l) => isLocalIndustrialLead(l)), [leads])
 
@@ -1607,25 +1628,38 @@ export function LeadsManager({
   }
 
   const importBatchGroups = useMemo(() => {
-    const map = new Map<string, CrmLeadRow[]>()
+    const map = new Map<
+      string,
+      { importUploaderName: string; importedAt: string; importedAtMs: number; leads: CrmLeadRow[] }
+    >()
     for (const l of sectionLeads) {
       if (!l.importBatchId) continue
-      const arr = map.get(l.importBatchId) ?? []
-      arr.push(l)
-      map.set(l.importBatchId, arr)
-    }
-    const groups = [...map.entries()].map(([importBatchId, list]) => {
-      const sorted = [...list].sort(
-        (a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime()
-      )
-      return {
-        importBatchId,
-        importUploaderName: sorted[0]?.importUploaderName?.trim() || "Unknown",
-        importedAt: sorted[0]?.importedAt ?? "",
-        leads: sorted,
+      const existing = map.get(l.importBatchId)
+      const importedAtMs = Date.parse(l.importedAt) || 0
+      if (!existing) {
+        map.set(l.importBatchId, {
+          importUploaderName: l.importUploaderName?.trim() || "Unknown",
+          importedAt: l.importedAt,
+          importedAtMs,
+          leads: [l],
+        })
+        continue
       }
-    })
-    return groups.sort((a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime())
+      existing.leads.push(l)
+      if (importedAtMs >= existing.importedAtMs) {
+        existing.importedAtMs = importedAtMs
+        existing.importedAt = l.importedAt
+        existing.importUploaderName = l.importUploaderName?.trim() || existing.importUploaderName
+      }
+    }
+    return [...map.entries()]
+      .map(([importBatchId, g]) => ({
+        importBatchId,
+        importUploaderName: g.importUploaderName,
+        importedAt: g.importedAt,
+        leads: g.leads,
+      }))
+      .sort((a, b) => (Date.parse(b.importedAt) || 0) - (Date.parse(a.importedAt) || 0))
   }, [sectionLeads])
 
   const tableLeads = useMemo(() => sectionLeads.filter((l) => !l.importBatchId), [sectionLeads])
@@ -3449,117 +3483,133 @@ function LeadDetailDrawer({
   onRefreshHistory: () => void
 }) {
   const fu = lead ? followUpDisplay(lead) : null
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+  const sheet = (
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
+      onClick={onClose}
+    >
       <div
-        className={`h-full w-full sm:max-w-md sm:border-l shadow-xl flex flex-col ${
+        className={`w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] dark:border-[hsl(var(--border))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] flex flex-col overflow-hidden ${
           lead?.isFavorite
-            ? "bg-gradient-to-b from-amber-50/90 to-[hsl(var(--background))] dark:from-amber-950/30 dark:to-[hsl(var(--background))]"
-            : "bg-[hsl(var(--background))]"
+            ? "bg-gradient-to-b from-amber-50/95 to-white dark:from-amber-950/40 dark:to-[hsl(var(--card))]"
+            : "bg-white/95 dark:bg-[hsl(var(--card))]/95"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`p-3 sm:p-4 border-b flex justify-between items-center gap-2 ${lead?.isFavorite ? "border-amber-200/60 bg-gradient-to-r from-amber-100/50 to-orange-100/30 dark:from-amber-950/40 dark:to-orange-950/20" : ""}`}>
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            {lead?.isFavorite && <Star className="h-4 w-4 text-amber-500 fill-amber-400" />}
-            Lead detail
-          </h3>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-3.5 pb-3 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-[#86868b]">Lead</p>
+            <h3 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate flex items-center gap-1.5">
+              {lead?.isFavorite && <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" />}
+              {lead?.name || "Loading…"}
+            </h3>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
             {!readOnly && lead && (
               <FavoriteStarButton isFavorite={lead.isFavorite} onToggle={onToggleFavorite} size="md" />
             )}
-            <button type="button" onClick={onClose} className="p-2 -mr-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] hover:bg-black/[0.1] cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2.25} />
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto scrollbar-none p-3 sm:p-4 space-y-4">
-          {loading || !lead ? (
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none px-4 sm:px-5 py-4 space-y-4">
+          {!lead ? (
             <div className="flex justify-center py-12">
-              <div className="h-7 w-7 rounded-full border-2 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
+              <div className="h-7 w-7 rounded-full border-2 border-[#0071e3] border-t-transparent animate-spin" />
             </div>
           ) : (
             <>
-              <div>
-                <p className="text-lg font-semibold">{lead.name}</p>
-                {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
-                <div className="mt-3 space-y-2">
-                  {lead.city?.trim() && <p className="text-xs">City: {lead.city}</p>}
-                  {lead.address?.trim() && <p className="text-xs">Address: {lead.address}</p>}
-                  {lead.phone?.trim() && (
-                    <LeadPhoneLinks phone={lead.phone} leadName={lead.name} layout="card" />
-                  )}
-                  {lead.email && <p className="text-xs break-all">Email: {lead.email}</p>}
-                  {lead.notes && (
-                    <div className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line text-xs space-y-1">
-                      <p className="font-medium text-[hsl(var(--foreground))]">CSV fields</p>
-                      <p>{lead.notes}</p>
-                    </div>
-                  )}
-                  {lead.importUploaderName && (
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] pt-2 border-t border-[hsl(var(--border))] mt-2">
-                      CSV import: <span className="font-medium text-[hsl(var(--foreground))]">{lead.importUploaderName}</span>
-                      {" · "}
-                      {new Date(lead.importedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
-                    </p>
-                  )}
-                  <div className="pt-2 border-t border-[hsl(var(--border))] mt-2 space-y-1">
-                    <p className="text-xs font-medium flex items-center gap-1.5">
-                      <Link2 className="h-3.5 w-3.5" />
-                      ERP assignment
-                    </p>
-                    {lead.assignedToUserId ? (
-                      <>
-                        <p className="text-xs">{lead.assignedToName || "Assigned user"}</p>
-                        <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] break-all">
-                          {lead.assignedToUserId}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Not linked to an ERP user</p>
-                    )}
-                  </div>
-                  <div className="pt-2 border-t border-[hsl(var(--border))] mt-2 space-y-1">
-                    <p className="text-xs font-medium flex items-center gap-1.5">
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      Follow up
-                    </p>
-                    {fu ? (
-                      <>
-                        <p className={`text-xs ${fu.overdue ? "text-red-600 font-medium" : "text-[hsl(var(--foreground))]"}`}>
-                          {fu.text}
-                          {fu.overdue ? " (overdue)" : ""}
-                        </p>
-                        {fu.notes && <p className="text-xs text-[hsl(var(--muted-foreground))]">{fu.notes}</p>}
-                      </>
-                    ) : (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">No follow-up scheduled</p>
-                    )}
-                  </div>
-                </div>
-                {!readOnly && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onLog}>
-                    Log outreach
-                  </Button>
-                  <Button size="sm" variant="secondary" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onFollowUp}>
-                    Set follow-up
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onLink}>
-                    <Link2 className="h-3.5 w-3.5 mr-1" />
-                    {canAssign ? "Link user" : "View link"}
-                  </Button>
-                </div>
+              <div className="space-y-2.5">
+                {lead.company && (
+                  <p className="text-[13px] text-[#86868b]">{lead.company}</p>
                 )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+                  {lead.city?.trim() && (
+                    <p>
+                      <span className="text-[#86868b]">City · </span>
+                      {lead.city}
+                    </p>
+                  )}
+                  {lead.address?.trim() && (
+                    <p className="sm:col-span-2">
+                      <span className="text-[#86868b]">Address · </span>
+                      {lead.address}
+                    </p>
+                  )}
+                  {lead.email && (
+                    <p className="sm:col-span-2 break-all">
+                      <span className="text-[#86868b]">Email · </span>
+                      {lead.email}
+                    </p>
+                  )}
+                </div>
+                {lead.phone?.trim() && (
+                  <LeadPhoneLinks phone={lead.phone} leadName={lead.name} layout="card" />
+                )}
+                {lead.notes && (
+                  <div className="rounded-[12px] bg-[#f5f5f7] dark:bg-[hsl(var(--muted))]/25 px-3 py-2.5 text-[12px] whitespace-pre-line text-[#6e6e73]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">
+                      CSV fields
+                    </p>
+                    {lead.notes}
+                  </div>
+                )}
+                {lead.importUploaderName && (
+                  <p className="text-[11px] text-[#86868b]">
+                    Import ·{" "}
+                    <span className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {lead.importUploaderName}
+                    </span>
+                    {" · "}
+                    {new Date(lead.importedAt).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </p>
+                )}
+                <div className="rounded-[12px] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] flex items-center gap-1">
+                    <Link2 className="h-3 w-3" /> Assigned
+                  </p>
+                  {lead.assignedToUserId ? (
+                    <p className="text-[13px] font-medium">{lead.assignedToName || "Assigned user"}</p>
+                  ) : (
+                    <p className="text-[12px] text-[#86868b]">Unassigned</p>
+                  )}
+                </div>
+                <div className="rounded-[12px] border border-black/[0.06] dark:border-[hsl(var(--border))] px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] flex items-center gap-1">
+                    <CalendarClock className="h-3 w-3" /> Follow up
+                  </p>
+                  {fu ? (
+                    <>
+                      <p className={`text-[13px] ${fu.overdue ? "text-red-600 font-semibold" : "font-medium"}`}>
+                        {fu.text}
+                        {fu.overdue ? " · overdue" : ""}
+                      </p>
+                      {fu.notes && <p className="text-[12px] text-[#86868b]">{fu.notes}</p>}
+                    </>
+                  ) : (
+                    <p className="text-[12px] text-[#86868b]">None scheduled</p>
+                  )}
+                </div>
               </div>
+
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-xs font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                    Outreach history ({lead.contactCount})
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">
+                    Outreach ({lead.contactCount})
+                    {loading ? " · updating…" : ""}
                   </p>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 text-[10px] text-[hsl(var(--primary))] hover:underline cursor-pointer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0071e3] cursor-pointer"
                     onClick={onRefreshHistory}
                   >
                     <RefreshCw className="h-3 w-3" />
@@ -3567,12 +3617,17 @@ function LeadDetailDrawer({
                   </button>
                 </div>
                 {lead.contacts.length === 0 ? (
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">No logs yet.</p>
+                  <p className="text-[12px] text-[#86868b]">
+                    {loading ? "Loading history…" : "No logs yet."}
+                  </p>
                 ) : (
-                  <ul className="space-y-3">
+                  <ul className="space-y-2">
                     {lead.contacts.map((c) => (
-                      <li key={c.id} className="rounded border p-3 text-xs space-y-2">
-                        <div className="flex justify-between text-[hsl(var(--muted-foreground))]">
+                      <li
+                        key={c.id}
+                        className="rounded-[12px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/15 p-3 text-[12px] space-y-2"
+                      >
+                        <div className="flex justify-between text-[#86868b]">
                           <span>{c.contactedBy}</span>
                           <span>{new Date(c.contactedAt).toLocaleString()}</span>
                         </div>
@@ -3580,18 +3635,18 @@ function LeadDetailDrawer({
                           <div className="flex flex-wrap gap-1">
                             {c.screenshotUrls.map((url) => (
                               <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
-                                <img src={url} alt="" className="h-16 w-16 object-cover rounded border" />
+                                <img src={url} alt="" className="h-14 w-14 object-cover rounded-[8px] border border-black/[0.06]" />
                               </a>
                             ))}
                           </div>
                         )}
                         {c.leadResponse && (
                           <p>
-                            <span className="font-medium text-[hsl(var(--foreground))]">Response: </span>
+                            <span className="font-medium">Response · </span>
                             {c.leadResponse}
                           </p>
                         )}
-                        {c.notes && <p className="text-[hsl(var(--muted-foreground))]">Internal: {c.notes}</p>}
+                        {c.notes && <p className="text-[#86868b]">Internal · {c.notes}</p>}
                       </li>
                     ))}
                   </ul>
@@ -3600,7 +3655,23 @@ function LeadDetailDrawer({
             </>
           )}
         </div>
+        {!readOnly && lead && (
+          <div className="shrink-0 flex flex-wrap gap-2 px-4 sm:px-5 py-3 border-t border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <Button size="sm" className="h-9 rounded-full text-[12px] px-4 cursor-pointer bg-[#1d1d1f] hover:bg-black text-white" onClick={onLog}>
+              Log outreach
+            </Button>
+            <Button size="sm" variant="outline" className="h-9 rounded-full text-[12px] px-3.5 cursor-pointer" onClick={onFollowUp}>
+              Follow-up
+            </Button>
+            <Button size="sm" variant="outline" className="h-9 rounded-full text-[12px] px-3.5 cursor-pointer" onClick={onLink}>
+              <Link2 className="h-3.5 w-3.5 mr-1" />
+              {canAssign ? "Link" : "Assignment"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(sheet, document.body) : null
 }

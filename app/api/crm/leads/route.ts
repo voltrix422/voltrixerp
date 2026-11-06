@@ -6,16 +6,47 @@ export async function GET(req: NextRequest) {
   try {
     const assignedToUserId = req.nextUrl.searchParams.get("assignedToUserId")?.trim() || ""
 
+    // List payload: omit heavy `notes` (CSV dump); slim last-contact join.
     const leads = await prisma.crmLead.findMany({
       where: assignedToUserId ? { assignedToUserId } : undefined,
       orderBy: { importedAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        city: true,
+        address: true,
+        email: true,
+        phone: true,
+        source: true,
+        status: true,
+        followUpAt: true,
+        followUpNotes: true,
+        assignedToUserId: true,
+        assignedToName: true,
+        importedAt: true,
+        createdBy: true,
+        createdById: true,
+        importBatchId: true,
+        importUploaderName: true,
+        isFavorite: true,
         _count: { select: { contacts: true } },
-        contacts: { orderBy: { contactedAt: "desc" }, take: 1 },
+        contacts: {
+          orderBy: { contactedAt: "desc" },
+          take: 1,
+          select: { contactedAt: true, leadResponse: true },
+        },
       },
     })
 
-    return NextResponse.json(leads.map(mapLeadRow))
+    return NextResponse.json(
+      leads.map((l) =>
+        mapLeadRow({
+          ...l,
+          notes: "",
+        }),
+      ),
+    )
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Failed to list leads" }, { status: 500 })

@@ -278,40 +278,36 @@ export function ClientAuditPanel() {
   // ——— Client picker ———
   if (!clientId) {
     return (
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold">Client audit</h2>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Stock given · sold · left · credit · signed visits
-          </p>
-        </div>
-        <div className="relative max-w-sm">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+      <div className="rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4 space-y-3">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b] pointer-events-none" />
           <input
-            className="w-full h-8 rounded-md border bg-transparent pl-8 pr-3 text-xs"
+            className="w-full h-9 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] pl-9 pr-3 text-[13px] tracking-tight shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
             placeholder="Search client…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
         {loadingClients ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-5 w-5 animate-spin text-[#86868b]" />
           </div>
         ) : (
-          <div className="rounded-md border divide-y max-h-[70vh] overflow-auto">
+          <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)] max-h-[min(70vh,40rem)] overflow-y-auto scrollbar-none divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
             {filteredClients.length === 0 ? (
-              <p className="text-xs text-center py-8 text-muted-foreground">No clients found.</p>
+              <p className="text-[13px] text-center py-12 text-[#86868b]">No clients found.</p>
             ) : (
               filteredClients.map((c) => (
                 <button
                   key={c.id}
                   type="button"
-                  className="w-full text-left px-3 py-2 hover:bg-muted/40 transition-colors"
+                  className="w-full text-left px-4 py-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   onClick={() => void loadClient(c.id)}
                 >
-                  <p className="text-xs font-medium">{c.name}</p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {c.name}
+                  </p>
+                  <p className="text-[11px] text-[#86868b] mt-0.5">
                     {[c.company, c.phone, c.city].filter(Boolean).join(" · ") || "—"}
                   </p>
                 </button>
@@ -596,7 +592,7 @@ export function ClientAuditPanel() {
   ]
 
   return (
-    <div className="space-y-3">
+    <div className="rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <HeaderBar
           title={snapshot.clientName}
@@ -608,8 +604,13 @@ export function ClientAuditPanel() {
           backLabel="Clients"
           inline
         />
-        <Button type="button" size="sm" className="h-7 text-xs" onClick={startCreate}>
-          <Plus className="h-3 w-3 mr-1" />
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 rounded-full text-[11px] px-3.5 cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]"
+          onClick={startCreate}
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" />
           New audit
         </Button>
       </div>
@@ -631,33 +632,22 @@ export function ClientAuditPanel() {
         ]}
       />
 
-      {snapshot.previousAudit ? (
-        <p className="text-[10px] text-muted-foreground">
-          Last audit {fmtDate(snapshot.previousAudit.auditDate)} · left{" "}
-          {fmtQty(snapshot.previousAudit.stockLeftQty)} · {fmtPkr(snapshot.previousAudit.leftAmount)}
-        </p>
-      ) : (
-        <p className="text-[10px] text-muted-foreground">
-          No prior audit — first visit sets baseline from all stock given.
-        </p>
-      )}
-
-      <div className="flex border-b gap-0.5">
+      <div className="inline-flex items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors",
+              "px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-all cursor-pointer",
               tab === t.id
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                : "text-[#6e6e73] hover:text-[#1d1d1f] dark:text-[hsl(var(--muted-foreground))]",
             )}
           >
             {t.label}
             {t.count != null ? (
-              <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">{t.count}</span>
+              <span className="ml-1 tabular-nums text-[10px] opacity-70">{t.count}</span>
             ) : null}
           </button>
         ))}
@@ -666,9 +656,9 @@ export function ClientAuditPanel() {
       {tab === "stock" ? <CompactLinesTable lines={snapshot.lines} /> : null}
 
       {tab === "orders" ? (
-        <div className="rounded-md border divide-y">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)] divide-y divide-black/[0.04]">
           {snapshot.orders.length === 0 ? (
-            <p className="text-xs text-center py-8 text-muted-foreground">No orders with stock.</p>
+            <p className="text-[13px] text-center py-10 text-[#86868b]">No orders with stock.</p>
           ) : (
             snapshot.orders.map((o) => {
               const open = expandedOrder === o.id
@@ -676,7 +666,7 @@ export function ClientAuditPanel() {
                 <div key={o.id}>
                   <button
                     type="button"
-                    className="w-full flex items-start gap-2 px-2.5 py-2 text-left hover:bg-muted/30"
+                    className="w-full flex items-start gap-2 px-3.5 py-2.5 text-left hover:bg-black/[0.02] cursor-pointer"
                     onClick={() => setExpandedOrder(open ? null : o.id)}
                   >
                     {open ? (
@@ -750,32 +740,32 @@ export function ClientAuditPanel() {
       ) : null}
 
       {tab === "history" ? (
-        <div className="rounded-md border divide-y">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)] divide-y divide-black/[0.04]">
           {history.length === 0 ? (
-            <p className="text-xs text-center py-8 text-muted-foreground">No audits yet.</p>
+            <p className="text-[13px] text-center py-10 text-[#86868b]">No audits yet.</p>
           ) : (
             history.map((a) => (
               <button
                 key={a.id}
                 type="button"
-                className="w-full text-left px-2.5 py-2 hover:bg-muted/30 flex items-center justify-between gap-2"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-black/[0.02] flex items-center justify-between gap-2 cursor-pointer"
                 onClick={() => {
                   setViewAudit(a)
                   setMode("view")
                 }}
               >
                 <div className="min-w-0">
-                  <p className="text-xs font-medium">
+                  <p className="text-[13px] font-semibold tracking-tight">
                     {fmtDate(a.auditDate)}{" "}
-                    <span className="font-normal text-muted-foreground">· {a.status}</span>
+                    <span className="font-normal text-[#86868b]">· {a.status}</span>
                   </p>
-                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                  <p className="text-[11px] text-[#86868b] tabular-nums">
                     Sold {fmtQty(a.stockSoldQty)} · left {fmtQty(a.stockLeftQty)}
                   </p>
                 </div>
-                <div className="text-right text-[10px] tabular-nums shrink-0">
-                  <p>{fmtPkr(a.soldAmount)}</p>
-                  <p className="text-muted-foreground">left {fmtPkr(a.leftAmount)}</p>
+                <div className="text-right text-[11px] tabular-nums shrink-0">
+                  <p className="font-medium">{fmtPkr(a.soldAmount)}</p>
+                  <p className="text-[#86868b]">left {fmtPkr(a.leftAmount)}</p>
                 </div>
               </button>
             ))
@@ -791,7 +781,6 @@ function HeaderBar({
   subtitle,
   onBack,
   backLabel,
-  inline,
 }: {
   title: string
   subtitle: string
@@ -800,14 +789,22 @@ function HeaderBar({
   inline?: boolean
 }) {
   return (
-    <div className={cn("flex items-center gap-2 min-w-0", inline ? "" : "")}>
-      <Button type="button" size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onBack}>
-        <ArrowLeft className="h-3 w-3 mr-1" />
+    <div className="flex items-center gap-2.5 min-w-0">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 rounded-full text-[11px] px-3 shrink-0 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] cursor-pointer"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-3.5 w-3.5 mr-1" />
         {backLabel}
       </Button>
       <div className="min-w-0">
-        <p className="text-sm font-semibold truncate leading-tight">{title}</p>
-        <p className="text-[10px] text-muted-foreground truncate">{subtitle}</p>
+        <p className="text-[15px] font-semibold tracking-tight truncate leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          {title}
+        </p>
+        <p className="text-[11px] text-[#86868b] truncate">{subtitle}</p>
       </div>
     </div>
   )
@@ -819,14 +816,17 @@ function StatRow({
   items: { label: string; value: string; sub?: string }[]
 }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-md border overflow-hidden bg-border">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {items.map((it) => (
-        <div key={it.label} className="bg-background px-2.5 py-2">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{it.label}</p>
-          <p className="text-sm font-semibold tabular-nums leading-tight mt-0.5">{it.value}</p>
-          {it.sub ? (
-            <p className="text-[10px] text-muted-foreground tabular-nums">{it.sub}</p>
-          ) : null}
+        <div
+          key={it.label}
+          className="rounded-[14px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[#86868b]">{it.label}</p>
+          <p className="text-[15px] font-semibold tabular-nums leading-tight mt-0.5 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            {it.value}
+          </p>
+          {it.sub ? <p className="text-[11px] text-[#86868b] tabular-nums mt-0.5">{it.sub}</p> : null}
         </div>
       ))}
     </div>
@@ -842,42 +842,48 @@ function CompactLinesTable({
 }) {
   if (!lines.length) {
     return (
-      <p className="text-xs text-center py-8 text-muted-foreground border rounded-md">No stock lines.</p>
+      <p className="text-[13px] text-center py-10 text-[#86868b] rounded-[16px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))]">
+        No stock lines.
+      </p>
     )
   }
   return (
-    <div className="rounded-md border overflow-auto">
-      <table className="w-full text-[11px]">
+    <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-x-auto scrollbar-none shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <table className="w-full text-[12px]">
         <thead>
-          <tr className="text-left border-b bg-muted/20">
-            <th className="px-2 py-1.5 font-medium">Item</th>
-            <th className="px-2 py-1.5 font-medium text-right">Open</th>
-            <th className="px-2 py-1.5 font-medium text-right">Given</th>
-            {showSold ? <th className="px-2 py-1.5 font-medium text-right">Sold</th> : null}
-            <th className="px-2 py-1.5 font-medium text-right">Left</th>
-            <th className="px-2 py-1.5 font-medium text-right">Amount</th>
+          <tr className="text-left border-b border-black/[0.04] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30">
+            <th className="px-3 py-2 font-medium text-[11px] text-[#86868b]">Item</th>
+            <th className="px-3 py-2 font-medium text-[11px] text-[#86868b] text-right">Open</th>
+            <th className="px-3 py-2 font-medium text-[11px] text-[#86868b] text-right">Given</th>
+            {showSold ? (
+              <th className="px-3 py-2 font-medium text-[11px] text-[#86868b] text-right">Sold</th>
+            ) : null}
+            <th className="px-3 py-2 font-medium text-[11px] text-[#86868b] text-right">Left</th>
+            <th className="px-3 py-2 font-medium text-[11px] text-[#86868b] text-right">Amount</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-black/[0.04]">
           {lines.map((l) => (
-            <tr key={l.itemKey} className="border-b last:border-0">
-              <td className="px-2 py-1.5">
-                <span className="font-medium">{shortLabel(l.itemLabel)}</span>
+            <tr key={l.itemKey}>
+              <td className="px-3 py-2">
+                <span className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  {shortLabel(l.itemLabel)}
+                </span>
                 {showSold && (l.soldRates || []).length > 0 ? (
-                  <span className="block text-[10px] text-muted-foreground">
+                  <span className="block text-[10px] text-[#86868b]">
                     {(l.soldRates || [])
                       .map((r) => `${fmtQty(r.qty)} @ ${fmtPkr(r.unitPrice)}`)
                       .join(" · ")}
                   </span>
                 ) : null}
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtQty(l.openingQty)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtQty(l.givenQty)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-[#86868b]">{fmtQty(l.openingQty)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-[#86868b]">{fmtQty(l.givenQty)}</td>
               {showSold ? (
-                <td className="px-2 py-1.5 text-right tabular-nums">{fmtQty(l.soldQty)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtQty(l.soldQty)}</td>
               ) : null}
-              <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtQty(l.leftQty)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtPkr(l.leftAmount)}</td>
+              <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQty(l.leftQty)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmtPkr(l.leftAmount)}</td>
             </tr>
           ))}
         </tbody>

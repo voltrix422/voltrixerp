@@ -8,12 +8,13 @@ import { LeadsManager } from "@/components/crm/leads-manager"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { CrmProductPricesManager } from "@/components/crm/crm-product-prices-manager"
+import { ClientAuditPanel } from "@/components/client-audit/client-audit-panel"
 import { useAuth } from "@/components/auth-provider"
 import { isSalesAgentUser, crmWorkspaceForUser } from "@/lib/crm-workspace"
 import { isErpAdmin } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
-type CrmTab = "orders" | "quotations" | "clients" | "leads" | "prices"
+type CrmTab = "orders" | "quotations" | "clients" | "leads" | "audit" | "prices"
 
 export default function CRMPage() {
   const router = useRouter()
@@ -36,7 +37,14 @@ export default function CRMPage() {
       return
     }
     const t = searchParams?.get("tab")
-    if (t === "orders" || t === "quotations" || t === "clients" || t === "leads" || t === "prices") {
+    if (
+      t === "orders" ||
+      t === "quotations" ||
+      t === "clients" ||
+      t === "leads" ||
+      t === "audit" ||
+      t === "prices"
+    ) {
       if (t === "prices" && !isAdmin) {
         selectTab("orders")
         return
@@ -61,6 +69,7 @@ export default function CRMPage() {
     { id: "quotations", label: "Quotations", shortLabel: "Quotes" },
     { id: "clients", label: "Clients", shortLabel: "Clients" },
     { id: "leads", label: "Leads", shortLabel: "Leads" },
+    { id: "audit", label: "Client Audit", shortLabel: "Audit" },
     { id: "prices", label: "Product Prices", shortLabel: "Prices", adminOnly: true },
   ]
 
@@ -128,6 +137,11 @@ export default function CRMPage() {
                   userRole={user?.role}
                   readOnly={!!workspace?.readOnly}
                 />
+              </div>
+            )}
+            {visited.has("audit") && (
+              <div className={tab === "audit" ? "relative block" : "hidden"} aria-hidden={tab !== "audit"}>
+                <ClientAuditPanel />
               </div>
             )}
             {isAdmin && visited.has("prices") && (

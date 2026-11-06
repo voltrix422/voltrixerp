@@ -30,7 +30,7 @@ export function mapLeadRow(l: {
   address: string
   email: string
   phone: string
-  notes: string
+  notes?: string | null
   source: string
   status: string
   followUpAt: Date | null
@@ -44,7 +44,7 @@ export function mapLeadRow(l: {
   importUploaderName: string | null
   isFavorite: boolean
   _count: { contacts: number }
-  contacts: { contactedAt: Date; leadResponse: string }[]
+  contacts: { contactedAt: Date; leadResponse?: string | null }[]
 }) {
   return {
     id: l.id,
@@ -54,7 +54,7 @@ export function mapLeadRow(l: {
     address: l.address,
     email: l.email,
     phone: l.phone,
-    notes: l.notes,
+    notes: l.notes ?? "",
     source: l.source,
     status: l.status,
     followUpAt: l.followUpAt?.toISOString() ?? null,

@@ -193,7 +193,6 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 sm:gap-2.5">
           {filtered.map(client => {
             const sales = salesMap.get(client.id)
-            const isTopClient = sales?.salesRank != null && sales.salesRank > 0 && sales.salesRank <= 3
             return (
             <div
               key={client.id}
@@ -209,33 +208,18 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                 <Download className="h-3 w-3 text-[#86868b]" />
               </button>
 
-              {isTopClient && (
-                <div className="flex items-center gap-0.5 text-[9px] font-semibold tracking-tight text-amber-700/85 dark:text-amber-400/90">
-                  <Crown className="h-2.5 w-2.5 fill-amber-500/70 text-amber-600/80 shrink-0" />
-                  <span className="tabular-nums">#{sales!.salesRank}</span>
-                </div>
-              )}
-
-              {/* Avatar */}
               {client.imageUrl ? (
                 <img 
                   src={client.imageUrl} 
                   alt={client.name} 
-                  className={`h-14 w-14 rounded-full object-cover ring-1 ring-black/[0.06] ${
-                    isTopClient ? "ring-amber-300/50" : ""
-                  }`}
+                  className="h-14 w-14 rounded-full object-cover ring-1 ring-black/[0.06]"
                 />
               ) : (
-                <div
-                  className={`h-14 w-14 rounded-full flex items-center justify-center ring-1 ring-black/[0.06] ${
-                    isTopClient ? "bg-amber-50 dark:bg-amber-950/25 ring-amber-200/50" : "bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  <User className={`h-7 w-7 ${isTopClient ? "text-amber-700/80" : "text-[#86868b]"}`} />
+                <div className="h-14 w-14 rounded-full flex items-center justify-center ring-1 ring-black/[0.06] bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/40">
+                  <User className="h-7 w-7 text-[#86868b]" />
                 </div>
               )}
               
-              {/* Name */}
               <p className="text-[13px] font-semibold tracking-tight truncate w-full px-0.5 text-[#1d1d1f] dark:text-[hsl(var(--foreground))] capitalize leading-tight mt-0.5">
                 {client.name}
               </p>
@@ -245,14 +229,6 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                   {formatCurrency(sales!.totalSales)}
                 </p>
               )}
-
-              <ClientNtnInput
-                client={client}
-                readOnly={!!workspace?.readOnly}
-                onSaved={(updated) => {
-                  setClients(prev => prev.map(x => x.id === updated.id ? updated : x))
-                }}
-              />
 
               <div className="flex flex-col items-center gap-0.5 w-full px-0.5 pt-0.5">
                 {client.ownerUserId && (
@@ -537,61 +513,6 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   )
 
   return typeof document !== "undefined" ? createPortal(modal, document.body) : null
-}
-
-function ClientNtnInput({
-  client,
-  readOnly,
-  onSaved,
-}: {
-  client: Client
-  readOnly: boolean
-  onSaved: (client: Client) => void
-}) {
-  const [value, setValue] = useState(client.ntn || "")
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setValue(client.ntn || "")
-  }, [client.id, client.ntn])
-
-  async function commit() {
-    const trimmed = value.trim()
-    if (trimmed === (client.ntn || "").trim()) return
-    setSaving(true)
-    const updated = { ...client, ntn: trimmed }
-    await saveClient(updated)
-    onSaved(updated)
-    setSaving(false)
-  }
-
-  if (readOnly) {
-    if (!client.ntn?.trim()) return null
-    return (
-      <p className="text-[9px] text-[#aeaeb2] dark:text-[hsl(var(--muted-foreground))]/80 tabular-nums truncate w-full px-0.5">
-        NTN {client.ntn}
-      </p>
-    )
-  }
-
-  return (
-    <input
-      type="text"
-      value={value}
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => void commit()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault()
-          e.currentTarget.blur()
-        }
-      }}
-      placeholder="NTN"
-      disabled={saving}
-      className="w-full max-w-[110px] h-6 px-2 rounded-full border border-black/[0.06] bg-white/80 dark:bg-[hsl(var(--background))] text-[9px] text-center text-[#aeaeb2] placeholder:text-[#aeaeb2]/80 focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 disabled:opacity-60"
-    />
-  )
 }
 
 function orderDeliveredAt(order: Order): Date | null {
