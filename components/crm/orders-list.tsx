@@ -515,7 +515,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         createPortal(
           <div
             ref={filtersRef}
-            className="fixed z-[95] w-[min(19.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,34rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            className="fixed z-[95] w-[min(19.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,34rem)] overflow-y-auto scrollbar-none overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
             style={{ top: filterPos.top, left: filterPos.left }}
           >
             <div className="flex items-center justify-between gap-2">
@@ -707,7 +707,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           </p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="min-h-0 flex-1 overflow-auto scrollbar-none rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
@@ -1137,7 +1137,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </button>
           </div>
 
-          <div className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-7 pb-3 space-y-3">
+          <div className="min-h-0 overflow-y-auto overflow-x-hidden scrollbar-none overscroll-contain px-5 sm:px-7 pb-3 space-y-3">
             <div className="space-y-1.5 relative">
             <label className="text-[11px] font-medium text-[#86868b]">Client</label>
             {(() => {
@@ -1852,7 +1852,7 @@ function OrderDetail({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-3 space-y-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-none px-5 sm:px-7 pb-3 space-y-2">
 
           {detailOrder.status === "delivered" && (
             <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 py-3">

@@ -339,7 +339,7 @@ export function QuotationsList({
             ))}
           </div>
 
-          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="hidden md:block overflow-auto scrollbar-none rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
             <table className="w-full text-[13px]">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
@@ -640,7 +640,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           </div>
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}><X className="h-4 w-4"/></Button>
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Client */}
           <div className="space-y-1.5 relative">
             <label className="text-xs font-semibold">Select Client *</label>
@@ -860,7 +860,7 @@ function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, on
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none px-5 sm:px-7 pb-4 space-y-3">
           {/* Info Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">

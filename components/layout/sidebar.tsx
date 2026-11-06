@@ -138,7 +138,7 @@ function NavContent({
 
   return (
     <>
-      <nav className={cn("flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden", collapsed ? "px-1.5" : "px-2")}>
+      <nav className={cn("flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden scrollbar-none", collapsed ? "px-1.5" : "px-2")}>
         {NAV_ORDER.filter(canShowNavItem).map((item) => {
           if (item.kind === "crm") {
             if (collapsed) {

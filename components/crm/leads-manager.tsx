@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useRef } from "react"
+import { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -59,7 +59,6 @@ import {
   CalendarClock,
   Link2,
   Star,
-  Sparkles,
   MapPin,
 } from "lucide-react"
 
@@ -317,6 +316,16 @@ function LeadFiltersActiveChips({
 }
 
 function LeadFiltersPopoverContent({
+  activeSection,
+  setActiveSection,
+  allSectionCount,
+  favoriteCount,
+  localCount,
+  statsDate,
+  setStatsDate,
+  myTodayCount,
+  stats,
+  showOutreachByMember,
   statusFilter,
   contactFilter,
   contactFrom,
@@ -332,6 +341,16 @@ function LeadFiltersPopoverContent({
   onContactTo,
   onAssignedFilter,
 }: {
+  activeSection: LeadSection
+  setActiveSection: (v: LeadSection) => void
+  allSectionCount: number
+  favoriteCount: number
+  localCount: number
+  statsDate: string
+  setStatsDate: (v: string) => void
+  myTodayCount: number
+  stats: { total: number; byMember: { name: string; userId: string | null; count: number }[] }
+  showOutreachByMember: boolean
   statusFilter: LeadStatusFilter
   contactFilter: ContactDateFilter
   contactFrom: string
@@ -347,8 +366,111 @@ function LeadFiltersPopoverContent({
   onContactTo: (v: string) => void
   onAssignedFilter: (v: string) => void
 }) {
+  const sectionTabs: { id: LeadSection; label: string; count: number | null; icon?: ReactNode }[] = [
+    { id: "all", label: "All", count: allSectionCount },
+    {
+      id: "favorites",
+      label: "Favorites",
+      count: favoriteCount,
+      icon: <Star className="h-3 w-3 shrink-0 opacity-80" />,
+    },
+    { id: "local", label: "Local", count: localCount, icon: <MapPin className="h-3 w-3 shrink-0 opacity-80" /> },
+  ]
+
   return (
     <div className="space-y-3">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mb-1.5">
+          View
+        </p>
+        <div
+          className="flex rounded-[11px] bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/35 p-0.5 gap-0.5"
+          role="tablist"
+          aria-label="Lead list view"
+        >
+          {sectionTabs.map((tab) => {
+            const selected = activeSection === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setActiveSection(tab.id)}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-1.5 text-[11px] font-semibold tracking-tight transition-all cursor-pointer ${
+                  selected
+                    ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                    : "text-[#86868b] hover:text-[#1d1d1f] dark:text-[hsl(var(--muted-foreground))] dark:hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                {tab.icon}
+                <span className="truncate">{tab.label}</span>
+                {tab.count != null && tab.count > 0 && (
+                  <span
+                    className={`tabular-nums rounded-full px-1.5 py-px text-[10px] font-semibold ${
+                      selected ? "bg-black/[0.06] dark:bg-white/10" : "bg-black/[0.04] dark:bg-white/5"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[12px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/15 p-2.5 space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+          Outreach stats (UTC day)
+        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar className="h-3.5 w-3.5 shrink-0 text-[#86868b]" />
+          <input
+            type="date"
+            value={statsDate}
+            onChange={(e) => setStatsDate(e.target.value)}
+            className={`${leadFilterControlClass} min-w-0 flex-1`}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              Your contacts
+            </p>
+            <p className="text-lg font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {myTodayCount}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              Team total
+            </p>
+            <p className="text-lg font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {stats.total}
+            </p>
+          </div>
+        </div>
+        {showOutreachByMember && (
+          <div className="pt-2 border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mb-1.5">
+              By team member
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {stats.byMember.map((m) => (
+                <span
+                  key={`${m.name}-${m.userId ?? "x"}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-black/[0.08] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] px-2 py-0.5 text-[10px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]"
+                >
+                  <User className="h-3 w-3 opacity-60 shrink-0" />
+                  {m.name}: <strong className="tabular-nums">{m.count}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className={`grid grid-cols-1 ${showAssignedFilter ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
@@ -524,30 +646,30 @@ function ImportBatchFiltersPanel({
     CONTACT_DATE_FILTER_OPTIONS.find((o) => o.value === filters.contactFilter)?.label ?? "Any outreach date"
 
   return (
-    <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15 px-3 py-3 space-y-3">
+    <div className="border-b border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/20 px-3 sm:px-4 py-3 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
           Filter this import
         </p>
         {filtersActive && (
           <button
             type="button"
             onClick={onClear}
-            className="text-[10px] text-[hsl(var(--primary))] hover:underline cursor-pointer"
+            className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
           >
-            Clear import filters
+            Clear
           </button>
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
             Lead status
           </label>
           <select
             value={filters.statusFilter}
             onChange={(e) => onStatusFilter(e.target.value as LeadStatusFilter)}
-            className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+            className={leadFilterControlClass}
           >
             {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -557,7 +679,7 @@ function ImportBatchFiltersPanel({
           </select>
         </div>
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
             Outreach date
           </label>
           <select
@@ -574,7 +696,7 @@ function ImportBatchFiltersPanel({
                 onContactTo("")
               }
             }}
-            className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+            className={leadFilterControlClass}
           >
             {CONTACT_DATE_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -586,43 +708,43 @@ function ImportBatchFiltersPanel({
         {filters.contactFilter === "range" && (
           <>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
                 From
               </label>
               <input
                 type="date"
                 value={filters.contactFrom}
                 onChange={(e) => onContactFrom(e.target.value)}
-                className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+                className={leadFilterControlClass}
               />
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
                 To
               </label>
               <input
                 type="date"
                 value={filters.contactTo}
                 onChange={(e) => onContactTo(e.target.value)}
-                className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+                className={leadFilterControlClass}
               />
             </div>
           </>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
         <span>
-          Showing <strong className="text-[hsl(var(--foreground))]">{filteredCount}</strong> of {totalCount} in this
-          import
+          Showing <strong className="text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{filteredCount}</strong> of{" "}
+          {totalCount}
         </span>
         {filters.statusFilter !== "all" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] px-2 py-0.5 text-[10px]">
             <Filter className="h-3 w-3 opacity-60" />
             {statusLabel}
           </span>
         )}
         {filters.contactFilter !== "all" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] px-2 py-0.5 text-[10px]">
             <Calendar className="h-3 w-3 opacity-60" />
             {contactLabel}
             {filters.contactFilter === "range" && (filters.contactFrom || filters.contactTo) && (
@@ -827,62 +949,6 @@ function FavoriteStarButton({
   )
 }
 
-function LocalDataHero({ count, rwpCount, isbCount }: { count: number; rwpCount: number; isbCount: number }) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-[#1faca6]/40 bg-gradient-to-br from-[#1faca6]/90 via-teal-500 to-cyan-600 p-4 sm:p-5 text-white shadow-lg shadow-teal-500/25">
-      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
-      <div className="absolute -bottom-8 -left-4 h-24 w-24 rounded-full bg-cyan-200/20 blur-xl" />
-      <div className="relative flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30">
-          <MapPin className="h-5 w-5 text-cyan-50" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base sm:text-lg font-bold tracking-tight">Local industrial data</h3>
-          <p className="text-xs sm:text-sm text-white/90 mt-0.5">
-            Rawalpindi & Islamabad company lists — industry, address, phone, and solar priority in notes.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-semibold">
-              <MapPin className="h-3 w-3" />
-              {count} local lead{count === 1 ? "" : "s"}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[11px] font-medium">
-              RWP {rwpCount}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[11px] font-medium">
-              ISB {isbCount}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function FavoritesHero({ count }: { count: number }) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-amber-300/50 bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 p-4 sm:p-5 text-white shadow-lg shadow-amber-500/25">
-      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
-      <div className="absolute -bottom-8 -left-4 h-24 w-24 rounded-full bg-yellow-200/20 blur-xl" />
-      <div className="relative flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30">
-          <Sparkles className="h-5 w-5 text-yellow-100" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base sm:text-lg font-bold tracking-tight">Favorite leads</h3>
-          <p className="text-xs sm:text-sm text-white/90 mt-0.5">
-            Your top-priority leads — star any lead to add it here, or create a new favorite directly.
-          </p>
-          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-semibold">
-            <Star className="h-3 w-3 fill-current" />
-            {count} favorite{count === 1 ? "" : "s"}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function LeadCard({
   lead,
   onOpenDetail,
@@ -1055,48 +1121,48 @@ function LeadsListView({
           />
         ))}
       </div>
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[1240px]">
+      <div className="hidden md:block overflow-x-auto scrollbar-none">
+        <table className="w-full min-w-[1240px] text-[13px]">
           <thead>
-            <tr className="border-b bg-[hsl(var(--muted))]/40">
-              <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))] w-10">
+            <tr className="border-b border-black/[0.04] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30">
+              <th className="h-9 px-2 text-center text-[11px] font-medium text-[#86868b] w-10">
                 ★
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Lead
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Company
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 City
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Phone
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Assigned to
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Status
               </th>
-              <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">
                 Logs
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Last outreach
               </th>
-              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-left text-[11px] font-medium text-[#86868b]">
                 Follow up
               </th>
               {!readOnly && (
-              <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+              <th className="h-9 px-3 text-center text-[11px] font-medium text-[#86868b]">
                 Actions
               </th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
             {leads.map((lead) => (
               <LeadTableRow
                 key={lead.id}
@@ -1381,7 +1447,7 @@ export function LeadsManager({
       const btn = leadFilterBtnRef.current
       if (!btn) return
       const r = btn.getBoundingClientRect()
-      const panelW = Math.min(360, window.innerWidth - 24)
+      const panelW = Math.min(400, window.innerWidth - 24)
       const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
       const top = Math.min(r.bottom + 8, window.innerHeight - 24)
       setLeadFilterPos({ top, left })
@@ -1478,14 +1544,6 @@ export function LeadsManager({
   )
 
   const localCount = localLeads.length
-  const localRwpCount = useMemo(
-    () => localLeads.filter((l) => l.city.toLowerCase().includes("rawalpindi")).length,
-    [localLeads],
-  )
-  const localIsbCount = useMemo(
-    () => localLeads.filter((l) => l.city.toLowerCase().includes("islamabad")).length,
-    [localLeads],
-  )
 
   const favoriteCount = useMemo(
     () => leads.filter((l) => l.isFavorite && !isLocalIndustrialLead(l)).length,
@@ -1588,6 +1646,8 @@ export function LeadsManager({
     if (byId) return byId.count
     return stats.byMember.find((m) => m.name === currentUser)?.count ?? 0
   }, [stats, currentUserId, currentUser])
+
+  const allSectionCount = leads.length - localCount
 
   const requestDeleteLead = useCallback((id: string) => {
     setDeleteImportBatch(null)
@@ -1864,232 +1924,36 @@ export function LeadsManager({
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveSection("all")}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-            activeSection === "all"
-              ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-[hsl(var(--foreground))]"
-              : "bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:text-[hsl(var(--foreground))]"
-          }`}
-        >
-          All leads
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSection("favorites")}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
-            activeSection === "favorites"
-              ? "bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 text-white border-amber-300 shadow-lg shadow-amber-500/30"
-              : "bg-[hsl(var(--background))] text-amber-600 border-amber-300/50 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-          }`}
-        >
-          <Star className={`h-3.5 w-3.5${activeSection === "favorites" ? " fill-current" : ""}`} />
-          Favorites
-          {favoriteCount > 0 && (
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-                activeSection === "favorites" ? "bg-white/25" : "bg-amber-100 text-amber-700"
-              }`}
-            >
-              {favoriteCount}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSection("local")}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
-            activeSection === "local"
-              ? "bg-gradient-to-r from-[#1faca6] via-teal-500 to-cyan-600 text-white border-teal-300 shadow-lg shadow-teal-500/30"
-              : "bg-[hsl(var(--background))] text-teal-700 border-teal-300/50 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/20"
-          }`}
-        >
-          <MapPin className="h-3.5 w-3.5" />
-          Local data
-          {localCount > 0 && (
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-                activeSection === "local" ? "bg-white/25" : "bg-teal-100 text-teal-700"
-              }`}
-            >
-              {localCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {activeSection === "favorites" && <FavoritesHero count={favoriteCount} />}
-      {activeSection === "local" && (
-        <LocalDataHero count={localCount} rwpCount={localRwpCount} isbCount={localIsbCount} />
-      )}
-
-      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
-        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
-          <div className="min-w-0 sm:flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
-              Outreach stats (UTC day)
-            </p>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-              <input
-                type="date"
-                value={statsDate}
-                onChange={(e) => setStatsDate(e.target.value)}
-                className="h-9 sm:h-8 flex-1 min-w-0 rounded border bg-[hsl(var(--background))] px-2 text-xs"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-6 text-sm">
-            <div>
-              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Your contacts</p>
-              <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{myTodayCount}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Team total (named)</p>
-              <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{stats.total}</p>
-            </div>
-          </div>
-        </div>
-        {isErpAdmin(userRole) && stats.byMember.length > 0 && (
-          <div className="pt-2 border-t border-[hsl(var(--border))]">
-            <p className="text-xs font-semibold mb-2">Outreach by team member</p>
-            <div className="flex flex-wrap gap-2">
-              {stats.byMember.map((m) => (
-                <span
-                  key={`${m.name}-${m.userId ?? "x"}`}
-                  className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--background))] border px-2.5 py-1 text-[11px]"
-                >
-                  <User className="h-3 w-3 opacity-60" />
-                  {m.name}: <strong>{m.count}</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {showAssignedFilter && (assigneeSummary.assignees.length > 0 || assigneeSummary.unassigned > 0) && (
-          <div className="pt-2 border-t border-[hsl(var(--border))]">
-            <p className="text-xs font-semibold mb-2">Filter by assigned member</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setAssignedFilter("all")}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                  assignedFilter === "all"
-                    ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
-                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                }`}
-              >
-                All assignees
-              </button>
-              {assigneeSummary.unassigned > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAssignedFilter("unassigned")}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                    assignedFilter === "unassigned"
-                      ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
-                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  Unassigned: <strong>{assigneeSummary.unassigned}</strong>
-                </button>
-              )}
-              {assigneeSummary.assignees.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAssignedFilter(a.id)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                    assignedFilter === a.id
-                      ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
-                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  <Link2 className="h-3 w-3 opacity-60" />
-                  {a.name}: <strong>{a.count}</strong>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex flex-row gap-2 items-center min-w-0">
+    <div className="space-y-3 sm:space-y-4 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
+      <div className="flex flex-col gap-3 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search leads…"
-            className="h-9 flex-1 min-w-0 px-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+            className="h-9 w-full sm:flex-1 sm:min-w-0 px-3 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[13px] tracking-tight shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
           />
-          <button
-            ref={leadFilterBtnRef}
-            type="button"
-            onClick={() => setShowLeadFiltersPopover((v) => !v)}
-            className={`relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-              showLeadFiltersPopover
-                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
-            }`}
-            aria-label="Filter leads"
-            aria-expanded={showLeadFiltersPopover}
-            title="Filter leads"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-            {hasLeadFiltersActive && !showLeadFiltersPopover && (
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
-            )}
-          </button>
-          <div className="hidden sm:flex flex-1 min-w-0 justify-end items-center overflow-hidden">
-            <LeadFiltersActiveChips
-              statusFilter={statusFilter}
-              contactFilter={contactFilter}
-              contactFrom={contactFrom}
-              contactTo={contactTo}
-              assignedFilter={assignedFilter}
-              assigneeSummary={assigneeSummary}
-              showAssignedFilter={showAssignedFilter}
-            />
-          </div>
-        </div>
-
-        {showLeadFiltersPopover &&
-          leadFilterPos &&
-          typeof document !== "undefined" &&
-          createPortal(
-            <div
-              ref={leadFiltersRef}
-              className="fixed z-[95] w-[min(22.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,36rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
-              style={{ top: leadFilterPos.top, left: leadFilterPos.left }}
+          <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end">
+            <button
+              ref={leadFilterBtnRef}
+              type="button"
+              onClick={() => setShowLeadFiltersPopover((v) => !v)}
+              className={`relative h-9 w-9 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                showLeadFiltersPopover
+                  ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                  : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+              }`}
+              aria-label="Filter leads"
+              aria-expanded={showLeadFiltersPopover}
+              title="Filter leads"
             >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                  Filter leads
-                </p>
-                <div className="flex items-center gap-2">
-                  {hasLeadFiltersActive && (
-                    <button
-                      type="button"
-                      onClick={() => clearLeadFilters()}
-                      className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowLeadFiltersPopover(false)}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
-                    aria-label="Close filters"
-                  >
-                    <X className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  </button>
-                </div>
-              </div>
-              <LeadFiltersPopoverContent
+              <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {(hasLeadFiltersActive || activeSection !== "all") && !showLeadFiltersPopover && (
+                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+              )}
+            </button>
+            <div className="hidden lg:flex flex-1 min-w-0 justify-end items-center overflow-hidden sm:max-w-[min(28rem,50vw)]">
+              <LeadFiltersActiveChips
                 statusFilter={statusFilter}
                 contactFilter={contactFilter}
                 contactFrom={contactFrom}
@@ -2097,108 +1961,92 @@ export function LeadsManager({
                 assignedFilter={assignedFilter}
                 assigneeSummary={assigneeSummary}
                 showAssignedFilter={showAssignedFilter}
-                totalCount={sectionTotalCount}
-                filteredCount={sectionLeads.length}
-                onStatusFilter={setStatusFilter}
-                onContactFilter={(v) => {
-                  setContactFilter(v)
-                  if (v === "today") {
-                    const today = todayIsoDate()
-                    setContactFrom(today)
-                    setContactTo(today)
-                  } else if (v !== "range") {
-                    setContactFrom("")
-                    setContactTo("")
-                  }
-                }}
-                onContactFrom={setContactFrom}
-                onContactTo={setContactTo}
-                onAssignedFilter={setAssignedFilter}
               />
-            </div>,
-            document.body,
-          )}
+            </div>
+          </div>
+        </div>
 
-        <p className="hidden lg:block text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import CSV with <strong>FULL_NAME, PHONE, COMPANY_NAME, City, Address</strong> (or full Facebook export). Outreach logs are saved in the database — open a lead to view full history after refresh. Export leads as Excel anytime.
-        </p>
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 justify-end">
           {!readOnly && (
-          <>
-          <input
-            ref={csvInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={onCsvFile}
-          />
-          <input
-            ref={facebookCsvInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const name = pendingCsvImportRef.current?.importUploaderName || currentUser
-              onFacebookCsvFile(e, name)
-            }}
-          />
-          <Button
-            size="sm"
-            variant="default"
-            className="h-10 sm:h-8 text-xs col-span-2 sm:col-span-1"
-            disabled={importing}
-            onClick={() => setShowFacebookImportModal(true)}
-          >
-            <Upload className="h-3.5 w-3.5 mr-1" />
-            {importing ? "Importing…" : "Import Facebook leads"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-10 sm:h-8 text-xs"
-            disabled={loadingInstallersCsv || importing}
-            onClick={() => loadHardcodedInstallersCsv()}
-          >
-            {loadingInstallersCsv ? "Syncing…" : "Sync phones"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-10 sm:h-8 text-xs"
-            disabled={importing}
-            onClick={() => setShowCsvImportModal(true)}
-          >
-            <Upload className="h-3.5 w-3.5 mr-1" />
-            Import CSV
-          </Button>
-          <a
-            href={`data:text/csv;charset=utf-8,${encodeURIComponent(FACEBOOK_LEAD_ADS_SAMPLE_CSV)}`}
-            download="facebook-leads-sample.csv"
-            className="inline-flex items-center justify-center h-10 sm:h-8 text-xs text-[hsl(var(--primary))] underline underline-offset-2"
-          >
-            Sample CSV
-          </a>
-          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => openAddLead(activeSection === "favorites")}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            {activeSection === "favorites" ? "Add favorite lead" : "Add lead"}
-          </Button>
-          {activeSection === "all" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-10 sm:h-8 text-xs col-span-2 sm:col-span-1 border-amber-300/60 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
-              onClick={() => openAddLead(true)}
-            >
-              <Star className="h-3.5 w-3.5 mr-1 fill-amber-400 text-amber-400" />
-              Add to favorites
-            </Button>
+            <>
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={onCsvFile}
+              />
+              <input
+                ref={facebookCsvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const name = pendingCsvImportRef.current?.importUploaderName || currentUser
+                  onFacebookCsvFile(e, name)
+                }}
+              />
+              <Button
+                size="sm"
+                variant="default"
+                className="h-8 rounded-full text-[11px] px-3.5"
+                disabled={importing}
+                onClick={() => setShowFacebookImportModal(true)}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                {importing ? "Importing…" : "Import Facebook"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full text-[11px] px-3.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+                disabled={loadingInstallersCsv || importing}
+                onClick={() => loadHardcodedInstallersCsv()}
+              >
+                {loadingInstallersCsv ? "Syncing…" : "Sync phones"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full text-[11px] px-3.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+                disabled={importing}
+                onClick={() => setShowCsvImportModal(true)}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                Import CSV
+              </Button>
+              <a
+                href={`data:text/csv;charset=utf-8,${encodeURIComponent(FACEBOOK_LEAD_ADS_SAMPLE_CSV)}`}
+                download="facebook-leads-sample.csv"
+                className="inline-flex items-center justify-center h-8 rounded-full px-3 text-[11px] text-[#0071e3] hover:bg-black/[0.04] dark:hover:bg-white/10"
+              >
+                Sample CSV
+              </a>
+              <Button
+                size="sm"
+                className="h-8 rounded-full text-[11px] px-3.5 cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]"
+                onClick={() => openAddLead(activeSection === "favorites")}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {activeSection === "favorites" ? "Add favorite" : "Add lead"}
+              </Button>
+              {activeSection === "all" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-full text-[11px] px-3.5 border-amber-200/80 text-amber-800 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                  onClick={() => openAddLead(true)}
+                >
+                  <Star className="h-3.5 w-3.5 mr-1 fill-amber-400 text-amber-400" />
+                  Add to favorites
+                </Button>
+              )}
+            </>
           )}
-          </>
-          )}
           <Button
             size="sm"
             variant="outline"
-            className="h-10 sm:h-8 text-xs"
+            className="h-8 rounded-full text-[11px] px-3.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
             disabled={sectionLeads.length === 0}
             onClick={() => {
               downloadLeadsExcel(sectionLeads, { exportedBy: currentUser })
@@ -2214,6 +2062,79 @@ export function LeadsManager({
           </Button>
         </div>
       </div>
+
+      {showLeadFiltersPopover &&
+        leadFilterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={leadFiltersRef}
+              className="fixed z-[95] w-[min(25rem,calc(100vw-1.5rem))] max-h-[min(72vh,36rem)] overflow-y-auto scrollbar-none overscroll-contain rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: leadFilterPos.top, left: leadFilterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Filters & stats
+              </p>
+              <div className="flex items-center gap-2">
+                {hasLeadFiltersActive && (
+                  <button
+                    type="button"
+                    onClick={() => clearLeadFilters()}
+                    className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
+                  >
+                    Clear filters
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowLeadFiltersPopover(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
+            <LeadFiltersPopoverContent
+              activeSection={activeSection}
+              setActiveSection={setActiveSection}
+              allSectionCount={allSectionCount}
+              favoriteCount={favoriteCount}
+              localCount={localCount}
+              statsDate={statsDate}
+              setStatsDate={setStatsDate}
+              myTodayCount={myTodayCount}
+              stats={stats}
+              showOutreachByMember={isErpAdmin(userRole) && stats.byMember.length > 0}
+              statusFilter={statusFilter}
+              contactFilter={contactFilter}
+              contactFrom={contactFrom}
+              contactTo={contactTo}
+              assignedFilter={assignedFilter}
+              assigneeSummary={assigneeSummary}
+              showAssignedFilter={showAssignedFilter}
+              totalCount={sectionTotalCount}
+              filteredCount={sectionLeads.length}
+              onStatusFilter={setStatusFilter}
+              onContactFilter={(v) => {
+                setContactFilter(v)
+                if (v === "today") {
+                  const today = todayIsoDate()
+                  setContactFrom(today)
+                  setContactTo(today)
+                } else if (v !== "range") {
+                  setContactFrom("")
+                  setContactTo("")
+                }
+              }}
+              onContactFrom={setContactFrom}
+              onContactTo={setContactTo}
+              onAssignedFilter={setAssignedFilter}
+            />
+          </div>,
+          document.body,
+        )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -2259,13 +2180,13 @@ export function LeadsManager({
           )}
         </div>
       ) : (
-        <div className={`space-y-6 ${activeSection === "favorites" ? "rounded-xl border border-amber-200/60 bg-gradient-to-b from-amber-50/40 to-orange-50/20 dark:from-amber-950/20 dark:to-orange-950/10 p-3 sm:p-4" : activeSection === "local" ? "rounded-xl border border-teal-200/60 bg-gradient-to-b from-teal-50/40 to-cyan-50/20 dark:from-teal-950/20 dark:to-cyan-950/10 p-3 sm:p-4" : ""}`}>
+        <div className="space-y-6">
           {importBatchGroups.length > 0 && activeSection === "all" && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+            <div className="space-y-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))] px-0.5">
                 CSV imports
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {importBatchGroups.map((group) => {
                   const open = openBatchIds.has(group.importBatchId)
                   const bf = getBatchFilters(group.importBatchId)
@@ -2276,34 +2197,39 @@ export function LeadsManager({
                     timeStyle: "short",
                   })
                   return (
-                    <div key={group.importBatchId} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]/30">
+                    <div
+                      key={group.importBatchId}
+                      className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] overflow-hidden bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                    >
                       <div className="flex flex-col sm:flex-row sm:items-stretch">
                         <button
                           type="button"
                           onClick={() => toggleBatch(group.importBatchId)}
-                          className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                          className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-3 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                         >
                           {open ? (
-                            <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                            <ChevronDown className="h-4 w-4 shrink-0 text-[#86868b]" />
                           ) : (
-                            <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                            <ChevronRight className="h-4 w-4 shrink-0 text-[#86868b]" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <span className="font-semibold text-sm text-[hsl(var(--foreground))] block truncate">
+                            <span className="font-semibold text-[13px] tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] block truncate">
                               {group.importUploaderName}
                             </span>
-                            <span className="text-xs text-[hsl(var(--muted-foreground))]">{when}</span>
+                            <span className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+                              {when}
+                            </span>
                           </div>
-                          <span className="shrink-0 text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
+                          <span className="shrink-0 text-[11px] font-medium rounded-full bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/40 px-2.5 py-0.5 tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                             {batchFiltersActive ? `${batchLeads.length} of ` : ""}
                             {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
                           </span>
                         </button>
                         {!readOnly && (
-                        <div className="flex border-t sm:border-t-0 sm:border-l border-[hsl(var(--border))]">
+                        <div className="flex border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-[hsl(var(--border))]">
                           <button
                             type="button"
-                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[#86868b] hover:bg-black/[0.04] hover:text-[#1d1d1f] border-r border-black/[0.06] dark:border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
                             title="Rename this import"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -2313,11 +2239,11 @@ export function LeadsManager({
                               })
                             }}
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
-                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[#86868b] hover:bg-black/[0.04] hover:text-[#1d1d1f] border-r border-black/[0.06] dark:border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
                             title="Merge into another import"
                             disabled={importBatchGroups.length < 2}
                             onClick={(e) => {
@@ -2329,11 +2255,11 @@ export function LeadsManager({
                               })
                             }}
                           >
-                            <GitMerge className="h-4 w-4" />
+                            <GitMerge className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
-                            className="flex-1 sm:flex-initial shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/40 cursor-pointer text-[11px] font-medium disabled:opacity-50 min-h-[44px]"
+                            className="flex-1 sm:flex-initial shrink-0 px-3.5 py-2.5 sm:py-3 flex items-center justify-center text-[#0071e3] hover:bg-[#0071e3]/08 cursor-pointer text-[11px] font-semibold disabled:opacity-50 min-h-[44px]"
                             title="Fill missing phone numbers from the installers CSV on the server"
                             disabled={repairingPhonesBatchId === group.importBatchId}
                             onClick={(e) => {
@@ -2345,7 +2271,7 @@ export function LeadsManager({
                           </button>
                           <button
                             type="button"
-                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-black/[0.06] dark:border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
                             title="Delete this import and all leads in it"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -2357,13 +2283,13 @@ export function LeadsManager({
                               })
                             }}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                         )}
                       </div>
                       {open && (
-                        <div className="border-t border-[hsl(var(--border))]">
+                        <div className="border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
                           <ImportBatchFiltersPanel
                             filters={bf}
                             totalCount={group.leads.length}
@@ -2375,7 +2301,7 @@ export function LeadsManager({
                             onClear={() => clearBatchFilters(group.importBatchId)}
                           />
                           {batchLeads.length === 0 ? (
-                            <p className="px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                            <p className="px-4 py-8 text-center text-[13px] text-[#86868b]">
                               No leads in this import match the filters.
                             </p>
                           ) : (
@@ -2407,27 +2333,27 @@ export function LeadsManager({
             : (importBatchGroups.length === 0 ? sectionLeads : tableLeads).length > 0) && (
             <div>
               {importBatchGroups.length > 0 && activeSection === "all" && (
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
-                  Other leads (manual or older imports)
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mb-2 px-0.5">
+                  Other leads
                 </p>
               )}
               {activeSection === "favorites" && (
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-2">
-                  Your favorite leads
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600/90 mb-2 px-0.5">
+                  Favorites
                 </p>
               )}
               {activeSection === "local" && (
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-600 mb-2">
-                  RWP / ISB industrial leads
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-600/90 mb-2 px-0.5">
+                  Local industrial
                 </p>
               )}
               <div
-                className={`rounded-lg border overflow-hidden ${
+                className={`rounded-[16px] border overflow-hidden bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${
                   activeSection === "favorites"
-                    ? "border-amber-200/60"
+                    ? "border-amber-200/50"
                     : activeSection === "local"
-                      ? "border-teal-200/60"
-                      : ""
+                      ? "border-teal-200/50"
+                      : "border-black/[0.06] dark:border-[hsl(var(--border))]"
                 }`}
               >
                 <LeadsListView
@@ -3547,7 +3473,7 @@ function LeadDetailDrawer({
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto scrollbar-none p-3 sm:p-4 space-y-4">
           {loading || !lead ? (
             <div className="flex justify-center py-12">
               <div className="h-7 w-7 rounded-full border-2 border-[hsl(var(--primary))] border-t-transparent animate-spin" />

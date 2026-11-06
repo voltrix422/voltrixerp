@@ -131,40 +131,46 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
   }
 
   return (
-    <div className="space-y-6 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
-      <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-        <div className="relative w-full sm:w-52 min-w-0">
+    <div className="space-y-5 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 min-w-0">
+        <div className="relative w-full sm:max-w-xs min-w-0 sm:mr-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b] pointer-events-none" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="w-full h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-text"
+            className="w-full h-9 pl-9 pr-3 rounded-full border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[13px] tracking-tight shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 cursor-text"
           />
         </div>
-        <CrmExcelExportButton
-          onExport={exportListExcel}
-          exporting={exportingExcel}
-          disabled={loading || filtered.length === 0}
-          label="Export List"
-          className="h-8 rounded-full text-[12px] px-3"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 text-[12px] gap-1.5 cursor-pointer shrink-0 rounded-full border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
-          disabled={loading || filtered.length === 0 || exportingAllDetails}
-          onClick={exportAllDetailsExcel}
-        >
-          <Download className="h-3.5 w-3.5" />
-          {exportingAllDetails ? "Exporting…" : "Export All Details"}
-        </Button>
-        {!workspace?.readOnly && (
-        <Button size="sm" className="h-8 text-[12px] px-4 cursor-pointer rounded-full bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" onClick={() => setShowForm(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Clients
-        </Button>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+          <CrmExcelExportButton
+            onExport={exportListExcel}
+            exporting={exportingExcel}
+            disabled={loading || filtered.length === 0}
+            label="Export List"
+            className="h-8 rounded-full text-[11px] px-3.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-[11px] gap-1.5 cursor-pointer shrink-0 rounded-full border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+            disabled={loading || filtered.length === 0 || exportingAllDetails}
+            onClick={exportAllDetailsExcel}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exportingAllDetails ? "Exporting…" : "All Details"}
+          </Button>
+          {!workspace?.readOnly && (
+            <Button
+              size="sm"
+              className="h-8 text-[11px] px-3.5 cursor-pointer rounded-full bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]"
+              onClick={() => setShowForm(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add client
+            </Button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -184,7 +190,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 sm:gap-2.5">
           {filtered.map(client => {
             const sales = salesMap.get(client.id)
             const isTopClient = sales?.salesRank != null && sales.salesRank > 0 && sales.salesRank <= 3
@@ -192,21 +198,21 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
             <div
               key={client.id}
               onClick={() => setSelected(client)}
-              className="group relative flex flex-col items-center text-center space-y-2 cursor-pointer rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 shadow-sm hover:shadow-md transition-shadow"
+              className="group relative flex flex-col items-center text-center gap-1.5 cursor-pointer rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#fefefe] dark:bg-[hsl(var(--card))] p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:border-black/[0.1] hover:shadow-sm transition-all"
             >
               <button
                 type="button"
                 title={`Export ${client.name}`}
                 onClick={(e) => exportSingleClient(client, e)}
-                className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full border border-black/[0.06] bg-[#f5f5f7] dark:bg-[hsl(var(--muted))] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#ebebed] cursor-pointer"
+                className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--muted))]/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#f5f5f7] cursor-pointer"
               >
                 <Download className="h-3 w-3 text-[#86868b]" />
               </button>
 
               {isTopClient && (
-                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                  <Crown className="h-3 w-3 fill-amber-500 text-amber-500" />
-                  Top {sales!.salesRank}
+                <div className="flex items-center gap-0.5 text-[9px] font-semibold tracking-tight text-amber-700/85 dark:text-amber-400/90">
+                  <Crown className="h-2.5 w-2.5 fill-amber-500/70 text-amber-600/80 shrink-0" />
+                  <span className="tabular-nums">#{sales!.salesRank}</span>
                 </div>
               )}
 
@@ -215,29 +221,27 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                 <img 
                   src={client.imageUrl} 
                   alt={client.name} 
-                  className={`h-16 w-16 rounded-full object-cover shadow-md hover:shadow-lg transition-shadow ${
-                    isTopClient ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-[hsl(var(--background))]" : ""
+                  className={`h-14 w-14 rounded-full object-cover ring-1 ring-black/[0.06] ${
+                    isTopClient ? "ring-amber-300/50" : ""
                   }`}
                 />
               ) : (
-                <div className={`h-16 w-16 rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-shadow ${
-                  isTopClient
-                    ? "bg-gradient-to-br from-amber-200 via-amber-100 to-amber-50 ring-2 ring-amber-400 ring-offset-2 ring-offset-[hsl(var(--background))]"
-                    : "bg-gradient-to-br from-[hsl(var(--primary))]/30 via-[hsl(var(--primary))]/20 to-[hsl(var(--primary))]/10"
-                }`}>
-                  <User className={`h-8 w-8 ${isTopClient ? "text-amber-700" : "text-[hsl(var(--primary))]"}`} />
+                <div
+                  className={`h-14 w-14 rounded-full flex items-center justify-center ring-1 ring-black/[0.06] ${
+                    isTopClient ? "bg-amber-50 dark:bg-amber-950/25 ring-amber-200/50" : "bg-[#f2f2f7] dark:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  <User className={`h-7 w-7 ${isTopClient ? "text-amber-700/80" : "text-[#86868b]"}`} />
                 </div>
               )}
               
               {/* Name */}
-              <p className={`text-xs font-semibold truncate w-full px-1 capitalize ${
-                isTopClient ? "text-amber-700 dark:text-amber-300" : ""
-              }`}>
+              <p className="text-[13px] font-semibold tracking-tight truncate w-full px-0.5 text-[#1d1d1f] dark:text-[hsl(var(--foreground))] capitalize leading-tight mt-0.5">
                 {client.name}
               </p>
 
               {(sales?.totalSales ?? 0) > 0 && (
-                <p className="text-[10px] font-medium text-[#1faca6] tabular-nums">
+                <p className="text-[11px] font-medium tabular-nums text-[#86868b] dark:text-emerald-400/75">
                   {formatCurrency(sales!.totalSales)}
                 </p>
               )}
@@ -250,7 +254,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                 }}
               />
 
-              <div className="flex flex-col items-center gap-1 w-full px-1">
+              <div className="flex flex-col items-center gap-0.5 w-full px-0.5 pt-0.5">
                 {client.ownerUserId && (
                   <SalesAgentSourceBadge agentName={client.createdBy} kind="client" className="max-w-full" />
                 )}
@@ -564,8 +568,8 @@ function ClientNtnInput({
   if (readOnly) {
     if (!client.ntn?.trim()) return null
     return (
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums truncate w-full px-1">
-        NTN: {client.ntn}
+      <p className="text-[9px] text-[#aeaeb2] dark:text-[hsl(var(--muted-foreground))]/80 tabular-nums truncate w-full px-0.5">
+        NTN {client.ntn}
       </p>
     )
   }
@@ -583,9 +587,9 @@ function ClientNtnInput({
           e.currentTarget.blur()
         }
       }}
-      placeholder="NTN number"
+      placeholder="NTN"
       disabled={saving}
-      className="w-full max-w-[120px] h-7 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[10px] text-center focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 disabled:opacity-60"
+      className="w-full max-w-[110px] h-6 px-2 rounded-full border border-black/[0.06] bg-white/80 dark:bg-[hsl(var(--background))] text-[9px] text-center text-[#aeaeb2] placeholder:text-[#aeaeb2]/80 focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 disabled:opacity-60"
     />
   )
 }
@@ -786,7 +790,7 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
               </Button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none">
               {/* Contact strip */}
               <div className="px-4 sm:px-5 py-3 border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

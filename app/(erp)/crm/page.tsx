@@ -98,7 +98,7 @@ export default function CRMPage() {
 
           <div
             className={cn(
-              "dashboard-content-in relative min-h-0 flex-1 pb-5 sm:pb-6",
+              "dashboard-content-in relative min-h-0 flex-1 pb-5 sm:pb-6 scrollbar-none",
               tab === "orders" ? "flex flex-col overflow-hidden" : "overflow-auto",
             )}
           >

@@ -154,33 +154,34 @@ export function CrmProductPricesManager({
   }
 
   return (
-    <div className="space-y-4 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
-      <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-4 space-y-1.5 shadow-sm">
-        <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">CRM product prices</h2>
-        <p className="text-[12px] leading-relaxed text-[#86868b] dark:text-[hsl(var(--muted-foreground))] max-w-2xl">
-          Set retail, wholesale, and dealership prices per product model. Only administrators can
-          edit prices. Quotations and orders use the selected price list automatically — no manual
-          unit price entry.
-        </p>
-      </div>
-
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search model or name…"
-          className="w-full h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
-        />
-      </div>
-
+    <div className="rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
       {filtered.length === 0 ? (
-        <div className="rounded-[16px] border border-dashed border-black/[0.12] dark:border-[hsl(var(--border))] p-10 text-center text-[13px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] bg-white/60 dark:bg-[hsl(var(--card))]/40">
-          No products found. Add inventory stock first, then set prices here.
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-sm overflow-hidden">
+          <div className="relative border-b border-black/[0.06] dark:border-[hsl(var(--border))] px-3 py-2.5">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b] pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search model or name…"
+              className="w-full h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+            />
+          </div>
+          <div className="p-10 text-center text-[13px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+            No products found. Add inventory stock first, then set prices here.
+          </div>
         </div>
       ) : (
-        <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+        <div className="rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+          <div className="relative border-b border-black/[0.06] dark:border-[hsl(var(--border))] px-3 py-2.5">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b] pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search model or name…"
+              className="w-full max-w-md h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+            />
+          </div>
+          <div className="overflow-x-auto scrollbar-none">
             <table className="w-full text-[13px] min-w-[720px]">
               <thead>
                 <tr className="bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 border-b border-black/[0.04] dark:border-[hsl(var(--border))]">
@@ -222,15 +223,15 @@ export function CrmProductPricesManager({
                           type="button"
                           size="sm"
                           variant={row.dirty ? "default" : "outline"}
-                          className={`h-8 min-w-[4.25rem] px-3 justify-center text-[12px] font-semibold rounded-full ${row.dirty ? "bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" : "border-black/[0.1]"}`}
+                          className={`h-7 min-w-[3.75rem] px-2.5 justify-center text-[11px] font-semibold rounded-full ${row.dirty ? "bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" : "border-black/[0.1]"}`}
                           disabled={row.saving}
                           onClick={() => saveRow(row)}
                         >
                           {row.saving ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <>
-                              <Save className="h-3.5 w-3.5 mr-1" />
+                              <Save className="h-3 w-3 mr-0.5" />
                               Save
                             </>
                           )}
