@@ -471,12 +471,12 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-[3.35rem] sm:top-[3.6rem] z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 pt-1 pb-2 bg-[hsl(var(--background))]/92 backdrop-blur-xl space-y-2.5">
+      <div className="sticky top-[3.1rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-1 pb-2.5 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl space-y-2.5">
       <div className="flex items-center justify-end gap-2">
         {!workspace?.readOnly && (
           <Button
             size="sm"
-            className="h-8 text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+            className="h-8 text-xs px-3.5 rounded-full cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90"
             onClick={() => setShowForm(true)}
           >
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
@@ -486,10 +486,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <button
             type="button"
             onClick={() => setShowFilters((v) => !v)}
-            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
               showFilters
-                ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
-                : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
             }`}
             aria-label="Filters and exports"
             title="Filters · ledger · export"

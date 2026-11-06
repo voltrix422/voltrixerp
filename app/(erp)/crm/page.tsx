@@ -58,9 +58,9 @@ export default function CRMPage() {
     <ModuleGuard module="crm">
       <Topbar title="Customer relationship management" />
 
-      <div className="flex-1 overflow-auto">
-        <div className="sticky top-0 z-30 bg-[hsl(var(--background))]/92 backdrop-blur-xl border-b border-black/[0.04] dark:border-[hsl(var(--border))]">
-          <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-3 w-full min-w-0 max-w-6xl">
+      <div className="flex-1 overflow-auto bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+        <div className="mx-auto w-full max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6 space-y-4">
+          <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
             <div className="inline-flex max-w-full items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px] overflow-x-auto scrollbar-none">
               {visibleTabs.map((t) => {
                 const selected = tab === t.id
@@ -83,33 +83,33 @@ export default function CRMPage() {
               })}
             </div>
           </div>
-        </div>
 
-        <div className="p-3 sm:p-6 pt-3 w-full min-w-0 max-w-6xl">
-          {tab === "orders" && (
-            <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
-          )}
-          {tab === "quotations" && (
-            <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
-          )}
-          {tab === "clients" && (
-            <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
-          )}
-          {tab === "leads" && (
-            <LeadsManager
-              currentUser={user?.name || user?.email || "Staff"}
-              currentUserId={user?.id}
-              userRole={user?.role}
-              readOnly={!!workspace?.readOnly}
-            />
-          )}
-          {tab === "prices" && isAdmin && (
-            <CrmProductPricesManager
-              currentUser={user?.name || user?.email || "Staff"}
-              currentUserId={user?.id}
-              readOnly={!!workspace?.readOnly}
-            />
-          )}
+          <div key={tab} className="min-w-0">
+            {tab === "orders" && (
+              <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+            )}
+            {tab === "quotations" && (
+              <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+            )}
+            {tab === "clients" && (
+              <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+            )}
+            {tab === "leads" && (
+              <LeadsManager
+                currentUser={user?.name || user?.email || "Staff"}
+                currentUserId={user?.id}
+                userRole={user?.role}
+                readOnly={!!workspace?.readOnly}
+              />
+            )}
+            {tab === "prices" && isAdmin && (
+              <CrmProductPricesManager
+                currentUser={user?.name || user?.email || "Staff"}
+                currentUserId={user?.id}
+                readOnly={!!workspace?.readOnly}
+              />
+            )}
+          </div>
         </div>
       </div>
     </ModuleGuard>
