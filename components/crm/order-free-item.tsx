@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { Gift, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -129,9 +130,9 @@ export function OrderFreeItem({ order, currentUser, onClose, onSaved }: Props) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-      <div className="w-full sm:max-w-lg max-h-[92vh] rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:max-w-lg max-h-[92vh] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
           <div className="flex items-center gap-2">
             <Gift className="h-4 w-4 text-emerald-600" />
@@ -282,6 +283,7 @@ export function OrderFreeItem({ order, currentUser, onClose, onSaved }: Props) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

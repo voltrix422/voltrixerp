@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
@@ -246,7 +247,10 @@ function summarizeAssignees(leads: CrmLeadRow[]) {
   }
 }
 
-function LeadFiltersPanel({
+const leadFilterControlClass =
+  "mt-1 w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+
+function LeadFiltersActiveChips({
   statusFilter,
   contactFilter,
   contactFrom,
@@ -254,16 +258,6 @@ function LeadFiltersPanel({
   assignedFilter,
   assigneeSummary,
   showAssignedFilter,
-  open,
-  totalCount,
-  filteredCount,
-  onToggleOpen,
-  onStatusFilter,
-  onContactFilter,
-  onContactFrom,
-  onContactTo,
-  onAssignedFilter,
-  onClear,
 }: {
   statusFilter: LeadStatusFilter
   contactFilter: ContactDateFilter
@@ -272,16 +266,6 @@ function LeadFiltersPanel({
   assignedFilter: string
   assigneeSummary: ReturnType<typeof summarizeAssignees>
   showAssignedFilter: boolean
-  open: boolean
-  totalCount: number
-  filteredCount: number
-  onToggleOpen: () => void
-  onStatusFilter: (v: LeadStatusFilter) => void
-  onContactFilter: (v: ContactDateFilter) => void
-  onContactFrom: (v: string) => void
-  onContactTo: (v: string) => void
-  onAssignedFilter: (v: string) => void
-  onClear: () => void
 }) {
   const filtersActive = isLeadFiltersActive(
     statusFilter,
@@ -290,6 +274,7 @@ function LeadFiltersPanel({
     contactTo,
     assignedFilter,
   )
+  if (!filtersActive) return null
 
   const statusLabel =
     LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label ?? "All leads"
@@ -303,215 +288,212 @@ function LeadFiltersPanel({
         : assigneeSummary.assignees.find((a) => a.id === assignedFilter)?.name ?? "Assigned member"
 
   return (
-    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]/40 overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggleOpen}
-        className="w-full flex items-center gap-2 px-3 py-2.5 sm:py-2 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors min-h-[44px] sm:min-h-0"
-      >
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
-        <span className="text-xs font-semibold flex-1 min-w-0 truncate">Filter leads</span>
-        {filtersActive && (
-          <span className="shrink-0 text-[10px] rounded-full bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] px-2 py-0.5 font-medium">
-            Active
-          </span>
-        )}
-        <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
-          {filteredCount}/{totalCount}
+    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+      {statusFilter !== "all" && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.06] dark:bg-white/10 px-2 py-0.5 text-[10px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          <Filter className="h-3 w-3 opacity-60 shrink-0" />
+          {statusLabel}
         </span>
-        {open ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-        )}
-      </button>
+      )}
+      {contactFilter !== "all" && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.06] dark:bg-white/10 px-2 py-0.5 text-[10px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] max-w-full">
+          <Calendar className="h-3 w-3 opacity-60 shrink-0" />
+          <span className="truncate">{contactLabel}</span>
+          {contactFilter === "range" && (contactFrom || contactTo) && (
+            <span className="text-[#86868b] dark:text-[hsl(var(--muted-foreground))] shrink-0">
+              ({contactFrom || "…"} → {contactTo || "…"})
+            </span>
+          )}
+        </span>
+      )}
+      {assignedFilter !== "all" && showAssignedFilter && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.06] dark:bg-white/10 px-2 py-0.5 text-[10px] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] max-w-[12rem]">
+          <Link2 className="h-3 w-3 opacity-60 shrink-0" />
+          <span className="truncate">{assignedLabel}</span>
+        </span>
+      )}
+    </div>
+  )
+}
 
-      {!open && filtersActive && (
-        <div className="px-3 pb-2 flex flex-wrap gap-1.5 border-t border-[hsl(var(--border))] pt-2">
-          {statusFilter !== "all" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
-              <Filter className="h-3 w-3 opacity-60" />
-              {statusLabel}
-            </span>
-          )}
-          {contactFilter !== "all" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
-              <Calendar className="h-3 w-3 opacity-60" />
-              {contactLabel}
-              {contactFilter === "range" && (contactFrom || contactTo) && (
-                <span className="text-[hsl(var(--muted-foreground))]">
-                  ({contactFrom || "…"} → {contactTo || "…"})
-                </span>
-              )}
-            </span>
-          )}
-          {assignedFilter !== "all" && showAssignedFilter && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
-              <Link2 className="h-3 w-3 opacity-60" />
-              {assignedLabel}
-            </span>
+function LeadFiltersPopoverContent({
+  statusFilter,
+  contactFilter,
+  contactFrom,
+  contactTo,
+  assignedFilter,
+  assigneeSummary,
+  showAssignedFilter,
+  totalCount,
+  filteredCount,
+  onStatusFilter,
+  onContactFilter,
+  onContactFrom,
+  onContactTo,
+  onAssignedFilter,
+}: {
+  statusFilter: LeadStatusFilter
+  contactFilter: ContactDateFilter
+  contactFrom: string
+  contactTo: string
+  assignedFilter: string
+  assigneeSummary: ReturnType<typeof summarizeAssignees>
+  showAssignedFilter: boolean
+  totalCount: number
+  filteredCount: number
+  onStatusFilter: (v: LeadStatusFilter) => void
+  onContactFilter: (v: ContactDateFilter) => void
+  onContactFrom: (v: string) => void
+  onContactTo: (v: string) => void
+  onAssignedFilter: (v: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className={`grid grid-cols-1 ${showAssignedFilter ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+            Lead status
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilter(e.target.value as LeadStatusFilter)}
+            className={leadFilterControlClass}
+          >
+            {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint && (
+            <p className="mt-1 text-[10px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint}
+            </p>
           )}
         </div>
-      )}
-
-      {open && (
-        <div className="border-t border-[hsl(var(--border))] p-3 space-y-3 bg-[hsl(var(--background))]/50">
-          <div className={`grid grid-cols-1 ${showAssignedFilter ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                Lead status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => onStatusFilter(e.target.value as LeadStatusFilter)}
-                className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
-              >
-                {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint && (
-                <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                Outreach date
-              </label>
-              <select
-                value={contactFilter}
-                onChange={(e) => onContactFilter(e.target.value as ContactDateFilter)}
-                className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
-              >
-                {CONTACT_DATE_FILTER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showAssignedFilter && (
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  Assigned to
-                </label>
-                <select
-                  value={assignedFilter}
-                  onChange={(e) => onAssignedFilter(e.target.value)}
-                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
-                >
-                  <option value="all">All assignees</option>
-                  <option value="unassigned">Unassigned ({assigneeSummary.unassigned})</option>
-                  {assigneeSummary.assignees.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.count})
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  Filter leads linked to a team member via the Link button.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {showAssignedFilter && assigneeSummary.assignees.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
-                Quick filter by assignee
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => onAssignedFilter("all")}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                    assignedFilter === "all"
-                      ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
-                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  All
-                </button>
-                {assigneeSummary.unassigned > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => onAssignedFilter("unassigned")}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                      assignedFilter === "unassigned"
-                        ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
-                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                    }`}
-                  >
-                    Unassigned: <strong>{assigneeSummary.unassigned}</strong>
-                  </button>
-                )}
-                {assigneeSummary.assignees.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => onAssignedFilter(a.id)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
-                      assignedFilter === a.id
-                        ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
-                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                    }`}
-                  >
-                    <User className="h-3 w-3 opacity-60" />
-                    {a.name}: <strong>{a.count}</strong>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {contactFilter === "range" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  From
-                </label>
-                <input
-                  type="date"
-                  value={contactFrom}
-                  onChange={(e) => onContactFrom(e.target.value)}
-                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  To
-                </label>
-                <input
-                  type="date"
-                  value={contactTo}
-                  onChange={(e) => onContactTo(e.target.value)}
-                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-              Showing <strong className="text-[hsl(var(--foreground))]">{filteredCount}</strong> of{" "}
-              {totalCount} lead{totalCount === 1 ? "" : "s"}
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+            Outreach date
+          </label>
+          <select
+            value={contactFilter}
+            onChange={(e) => onContactFilter(e.target.value as ContactDateFilter)}
+            className={leadFilterControlClass}
+          >
+            {CONTACT_DATE_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {showAssignedFilter && (
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              Assigned to
+            </label>
+            <select
+              value={assignedFilter}
+              onChange={(e) => onAssignedFilter(e.target.value)}
+              className={leadFilterControlClass}
+            >
+              <option value="all">All assignees</option>
+              <option value="unassigned">Unassigned ({assigneeSummary.unassigned})</option>
+              {assigneeSummary.assignees.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.count})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              Filter leads linked to a team member via the Link button.
             </p>
-            {filtersActive && (
+          </div>
+        )}
+      </div>
+
+      {showAssignedFilter && assigneeSummary.assignees.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mb-2">
+            Quick filter by assignee
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => onAssignedFilter("all")}
+              className={`inline-flex items-center gap-1 rounded-full border border-black/[0.08] dark:border-[hsl(var(--border))] px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                assignedFilter === "all"
+                  ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                  : "bg-[#f2f2f7] dark:bg-[hsl(var(--background))] hover:bg-black/[0.06]"
+              }`}
+            >
+              All
+            </button>
+            {assigneeSummary.unassigned > 0 && (
               <button
                 type="button"
-                onClick={onClear}
-                className="text-[11px] text-[hsl(var(--primary))] hover:underline cursor-pointer min-h-[36px] px-2"
+                onClick={() => onAssignedFilter("unassigned")}
+                className={`inline-flex items-center gap-1 rounded-full border border-black/[0.08] dark:border-[hsl(var(--border))] px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                  assignedFilter === "unassigned"
+                    ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                    : "bg-[#f2f2f7] dark:bg-[hsl(var(--background))] hover:bg-black/[0.06]"
+                }`}
               >
-                Clear filters
+                Unassigned: <strong>{assigneeSummary.unassigned}</strong>
               </button>
             )}
+            {assigneeSummary.assignees.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => onAssignedFilter(a.id)}
+                className={`inline-flex items-center gap-1 rounded-full border border-black/[0.08] dark:border-[hsl(var(--border))] px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                  assignedFilter === a.id
+                    ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                    : "bg-[#f2f2f7] dark:bg-[hsl(var(--background))] hover:bg-black/[0.06]"
+                }`}
+              >
+                <User className="h-3 w-3 opacity-60" />
+                {a.name}: <strong>{a.count}</strong>
+              </button>
+            ))}
           </div>
         </div>
       )}
+
+      {contactFilter === "range" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              From
+            </label>
+            <input
+              type="date"
+              value={contactFrom}
+              onChange={(e) => onContactFrom(e.target.value)}
+              className={leadFilterControlClass}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+              To
+            </label>
+            <input
+              type="date"
+              value={contactTo}
+              onChange={(e) => onContactTo(e.target.value)}
+              className={leadFilterControlClass}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="pt-1 border-t border-black/[0.06] dark:border-[hsl(var(--border))]">
+        <p className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
+          Showing <strong className="text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{filteredCount}</strong> of{" "}
+          {totalCount} lead{totalCount === 1 ? "" : "s"}
+        </p>
+      </div>
     </div>
   )
 }
@@ -1285,7 +1267,10 @@ export function LeadsManager({
   const [contactFrom, setContactFrom] = useState("")
   const [contactTo, setContactTo] = useState("")
   const [assignedFilter, setAssignedFilter] = useState("all")
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [showLeadFiltersPopover, setShowLeadFiltersPopover] = useState(false)
+  const [leadFilterPos, setLeadFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const leadFilterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const leadFiltersRef = useRef<HTMLDivElement | null>(null)
   const [statsDate, setStatsDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [stats, setStats] = useState<{ total: number; byMember: { name: string; userId: string | null; count: number }[] }>({
     total: 0,
@@ -1386,6 +1371,40 @@ export function LeadsManager({
   useEffect(() => {
     refreshStats()
   }, [refreshStats])
+
+  useEffect(() => {
+    if (!showLeadFiltersPopover) {
+      setLeadFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = leadFilterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(360, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setLeadFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showLeadFiltersPopover])
+
+  useEffect(() => {
+    if (!showLeadFiltersPopover) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (leadFiltersRef.current?.contains(t) || leadFilterBtnRef.current?.contains(t)) return
+      setShowLeadFiltersPopover(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showLeadFiltersPopover])
 
   useEffect(() => {
     if (loading || autoSyncPhonesDone.current) return
@@ -1494,6 +1513,13 @@ export function LeadsManager({
 
   const assigneeSummary = useMemo(() => summarizeAssignees(leads), [leads])
   const showAssignedFilter = canAssignLeads || assigneeSummary.assignees.length > 0
+  const hasLeadFiltersActive = isLeadFiltersActive(
+    statusFilter,
+    contactFilter,
+    contactFrom,
+    contactTo,
+    assignedFilter,
+  )
 
   function clearLeadFilters() {
     setStatusFilter("all")
@@ -1992,44 +2018,106 @@ export function LeadsManager({
       </div>
 
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+        <div className="flex flex-row gap-2 items-center min-w-0">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search leads…"
-            className="h-10 sm:h-8 flex-1 min-w-0 px-3 rounded border bg-[hsl(var(--background))] text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            className="h-9 flex-1 min-w-0 px-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
           />
+          <button
+            ref={leadFilterBtnRef}
+            type="button"
+            onClick={() => setShowLeadFiltersPopover((v) => !v)}
+            className={`relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              showLeadFiltersPopover
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filter leads"
+            aria-expanded={showLeadFiltersPopover}
+            title="Filter leads"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {hasLeadFiltersActive && !showLeadFiltersPopover && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
+          </button>
+          <div className="hidden sm:flex flex-1 min-w-0 justify-end items-center overflow-hidden">
+            <LeadFiltersActiveChips
+              statusFilter={statusFilter}
+              contactFilter={contactFilter}
+              contactFrom={contactFrom}
+              contactTo={contactTo}
+              assignedFilter={assignedFilter}
+              assigneeSummary={assigneeSummary}
+              showAssignedFilter={showAssignedFilter}
+            />
+          </div>
         </div>
 
-        <LeadFiltersPanel
-          statusFilter={statusFilter}
-          contactFilter={contactFilter}
-          contactFrom={contactFrom}
-          contactTo={contactTo}
-          assignedFilter={assignedFilter}
-          assigneeSummary={assigneeSummary}
-          showAssignedFilter={showAssignedFilter}
-          open={filtersOpen}
-          totalCount={sectionTotalCount}
-          filteredCount={sectionLeads.length}
-          onToggleOpen={() => setFiltersOpen((v) => !v)}
-          onStatusFilter={setStatusFilter}
-          onContactFilter={(v) => {
-            setContactFilter(v)
-            if (v === "today") {
-              const today = todayIsoDate()
-              setContactFrom(today)
-              setContactTo(today)
-            } else if (v !== "range") {
-              setContactFrom("")
-              setContactTo("")
-            }
-          }}
-          onContactFrom={setContactFrom}
-          onContactTo={setContactTo}
-          onAssignedFilter={setAssignedFilter}
-          onClear={clearLeadFilters}
-        />
+        {showLeadFiltersPopover &&
+          leadFilterPos &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              ref={leadFiltersRef}
+              className="fixed z-[95] w-[min(22.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,36rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+              style={{ top: leadFilterPos.top, left: leadFilterPos.left }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  Filter leads
+                </p>
+                <div className="flex items-center gap-2">
+                  {hasLeadFiltersActive && (
+                    <button
+                      type="button"
+                      onClick={() => clearLeadFilters()}
+                      className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowLeadFiltersPopover(false)}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                    aria-label="Close filters"
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </button>
+                </div>
+              </div>
+              <LeadFiltersPopoverContent
+                statusFilter={statusFilter}
+                contactFilter={contactFilter}
+                contactFrom={contactFrom}
+                contactTo={contactTo}
+                assignedFilter={assignedFilter}
+                assigneeSummary={assigneeSummary}
+                showAssignedFilter={showAssignedFilter}
+                totalCount={sectionTotalCount}
+                filteredCount={sectionLeads.length}
+                onStatusFilter={setStatusFilter}
+                onContactFilter={(v) => {
+                  setContactFilter(v)
+                  if (v === "today") {
+                    const today = todayIsoDate()
+                    setContactFrom(today)
+                    setContactTo(today)
+                  } else if (v !== "range") {
+                    setContactFrom("")
+                    setContactTo("")
+                  }
+                }}
+                onContactFrom={setContactFrom}
+                onContactTo={setContactTo}
+                onAssignedFilter={setAssignedFilter}
+              />
+            </div>,
+            document.body,
+          )}
 
         <p className="hidden lg:block text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
           Import CSV with <strong>FULL_NAME, PHONE, COMPANY_NAME, City, Address</strong> (or full Facebook export). Outreach logs are saved in the database — open a lead to view full history after refresh. Export leads as Excel anytime.

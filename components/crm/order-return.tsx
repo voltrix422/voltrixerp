@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react"
+import { createPortal } from "react-dom"
 import {
   saveOrder,
   getOrderAmountPaid,
@@ -202,13 +203,13 @@ export function OrderReturn({
     e.target.value = ""
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-2xl rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b shrink-0">
@@ -462,7 +463,8 @@ export function OrderReturn({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -537,13 +539,13 @@ export function ReturnPaymentCapture({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
+        className="w-full max-w-md rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -632,6 +634,7 @@ export function ReturnPaymentCapture({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

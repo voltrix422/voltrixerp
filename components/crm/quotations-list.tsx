@@ -1,5 +1,6 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, buildOrderFromQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getClients, type Client } from "@/lib/crm"
@@ -187,8 +188,8 @@ export function QuotationsList({
   }
 
   return (
-    <div className="space-y-4 max-w-full">
-      <div className="flex items-center gap-1 border-b -mt-1">
+    <div className="space-y-3 max-w-full">
+      <div className="inline-flex max-w-full items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
         {(
           [
             { id: "q1" as const, label: "Q1" },
@@ -200,14 +201,13 @@ export function QuotationsList({
             key={tab.id}
             type="button"
             onClick={() => setQuoteKind(tab.id)}
-            className={`px-3 py-2 text-xs font-medium relative cursor-pointer ${
+            className={`shrink-0 px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer ${
               quoteKind === tab.id
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f]"
             }`}
           >
             {tab.label}
-            {quoteKind === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
           </button>
         ))}
       </div>
@@ -244,19 +244,24 @@ export function QuotationsList({
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search..."
-          className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full min-w-0 sm:w-40"
+          placeholder="Search…"
+          className="h-8 px-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 w-full min-w-0 sm:w-44"
         />
         <CrmExcelExportButton
           onExport={exportListExcel}
           exporting={exportingExcel}
           disabled={loading || filtered.length === 0}
+          className="h-8 text-[11px] rounded-full"
         />
         {!workspace?.readOnly && (
-          <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
+          <button
+            type="button"
+            className="h-8 px-3 rounded-full text-[12px] font-semibold cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] inline-flex items-center gap-1 w-full sm:w-auto justify-center"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
             Create Q1
-          </Button>
+          </button>
         )}
       </div>
 
@@ -334,57 +339,57 @@ export function QuotationsList({
             ))}
           </div>
 
-          <div className="hidden md:block rounded-lg border overflow-x-auto">
-            <table className="w-full min-w-[960px]">
-              <thead>
-                <tr className="border-b bg-[hsl(var(--muted))]/40">
-                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Quotation #</th>
-                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-                  <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] min-w-[7rem]">Qty</th>
-                  <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Total</th>
-                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Valid Until</th>
-                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Date</th>
-                  <th className="sticky right-0 z-10 h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-l border-[hsl(var(--border))] min-w-[7.5rem] shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)]">
+          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <table className="w-full text-[13px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
+                  <th className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]">Quotation #</th>
+                  <th className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]">Client</th>
+                  <th className="h-9 px-4 text-center text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]">Qty</th>
+                  <th className="h-9 px-4 text-right text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))] whitespace-nowrap">Total</th>
+                  <th className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]">Status</th>
+                  <th className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))] whitespace-nowrap">Valid Until</th>
+                  <th className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))] whitespace-nowrap">Date</th>
+                  <th className="h-9 px-3 text-center text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {filtered.map((q) => (
                   <tr
                     key={q.id}
-                    className="group hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                    className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                     onClick={() => setSelected(q)}
                   >
-                    <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">
+                    <td className="px-4 py-3 font-semibold tracking-tight text-[#0071e3]">
                       <div className="flex flex-col items-start gap-1">
                         {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} kind="quotation" />}
                         <span>{q.quotationNumber}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-medium max-w-[12rem] truncate" title={q.clientName}>
+                    <td className="px-4 py-3 font-medium tracking-tight max-w-[12rem] truncate" title={q.clientName}>
                       {q.clientName}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-center">
+                    <td className="px-4 py-3 text-center text-[#6e6e73]">
                       <CrmItemsQtyCell items={q.items} compact />
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-right font-semibold whitespace-nowrap">
-                      PKR {(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap tabular-nums">
+                      PKR {(q.total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </td>
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[q.status]}`}>
                         {STATUS_LABELS[q.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                    <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
                       {q.validUntil ? new Date(q.validUntil).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                    <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
                       {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}
                     </td>
                     <td
-                      className="sticky right-0 z-10 px-3 py-2.5 text-center bg-[hsl(var(--card))] group-hover:bg-[hsl(var(--muted))]/30 border-l border-[hsl(var(--border))] shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.12)]"
+                      className="px-3 py-3 text-center"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-center gap-1.5 flex-nowrap">
@@ -619,12 +624,12 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
 
   const selectedClient = clients.find(c => c.id === clientId)
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
-      <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:max-w-5xl rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
           <div className="min-w-0">
-          <p className="text-base font-bold">
+          <p className="text-[20px] font-semibold tracking-[-0.03em]">
             {duplicateFrom ? "Duplicate Quotation" : existing ? "Edit Quotation" : "Create Quotation"}
           </p>
           {duplicateFrom && (
@@ -815,7 +820,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
         onClose={() => setShowInventory(false)}
         onSelect={addFromInventory}
       />
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -837,36 +843,36 @@ function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, on
     onDelete(quotation.id)
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 sm:px-7 py-3.5 sm:py-4 border-b border-black/[0.06] shrink-0">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
               {quotation.ownerUserId && <SalesAgentSourceBadge agentName={quotation.createdBy} kind="quotation" />}
-              <p className="text-base font-bold text-[hsl(var(--primary))]">{quotation.quotationNumber}</p>
+              <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#0071e3]">{quotation.quotationNumber}</p>
+              <p className="text-[15px] font-medium tracking-tight text-[#6e6e73] truncate">{quotation.clientName}</p>
             </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{quotation.clientName}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[quotation.status]}`}>{STATUS_LABELS[quotation.status]}</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}><X className="h-4 w-4"/></Button>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[quotation.status]}`}>{STATUS_LABELS[quotation.status]}</span>
+            <button type="button" className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer" onClick={onClose} aria-label="Close"><X className="h-4 w-4" strokeWidth={2.25}/></button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
           {/* Info Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-              <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Created</p>
-              <p className="text-sm font-medium">{new Date(quotation.createdAt).toLocaleDateString()}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-[0.04em] mb-1">Created</p>
+              <p className="text-[13px] font-semibold tracking-tight tabular-nums">{new Date(quotation.createdAt).toLocaleDateString()}</p>
             </div>
-            <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-              <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Valid Until</p>
-              <p className="text-sm font-medium">{quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : "—"}</p>
+            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-[0.04em] mb-1">Valid Until</p>
+              <p className="text-[13px] font-semibold tracking-tight tabular-nums">{quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : "—"}</p>
             </div>
-            <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-              <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Created By</p>
+            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-[0.04em] mb-1">Created By</p>
               <p className="text-sm font-medium">{quotation.createdBy}</p>
             </div>
           </div>
@@ -929,10 +935,11 @@ function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, on
               <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer sm:ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
             </>
           )}
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => downloadQuotationPDF(quotation)}><FileText className="h-3.5 w-3.5 mr-1"/>Download PDF</Button>
-          <Button size="sm" variant="outline" className={`h-8 text-xs cursor-pointer ${readOnly ? "ml-auto" : ""}`} onClick={onClose}>Close</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer rounded-full" onClick={() => downloadQuotationPDF(quotation)}><FileText className="h-3.5 w-3.5 mr-1"/>Download PDF</Button>
+          <Button size="sm" variant="outline" className={`h-8 text-xs cursor-pointer rounded-full ${readOnly ? "ml-auto" : ""}`} onClick={onClose}>Close</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

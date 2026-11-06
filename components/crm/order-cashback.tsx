@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { X, Upload, Gift } from "lucide-react"
 import {
   getOrderCashbackRemainingFromOrder,
@@ -80,13 +81,13 @@ export function CashbackCapture({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
+        className="w-full max-w-md rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -216,6 +217,7 @@ export function CashbackCapture({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

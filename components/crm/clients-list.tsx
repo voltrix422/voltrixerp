@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, useMemo } from "react"
+import { createPortal } from "react-dom"
 import { getClients, saveClient, deleteClient, type Client, CLIENT_STATUS_COLORS, CLIENT_STATUS_LABELS } from "@/lib/crm"
 import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
@@ -130,14 +131,15 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end gap-3">
-        <div className="relative w-48">
+    <div className="space-y-6 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
+      <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <div className="relative w-full sm:w-52 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b] pointer-events-none" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="w-full h-9 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
+            className="w-full h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-text"
           />
         </div>
         <CrmExcelExportButton
@@ -145,12 +147,13 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
           exporting={exportingExcel}
           disabled={loading || filtered.length === 0}
           label="Export List"
+          className="h-8 rounded-full text-[12px] px-3"
         />
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+          className="h-8 text-[12px] gap-1.5 cursor-pointer shrink-0 rounded-full border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
           disabled={loading || filtered.length === 0 || exportingAllDetails}
           onClick={exportAllDetailsExcel}
         >
@@ -158,7 +161,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
           {exportingAllDetails ? "Exporting…" : "Export All Details"}
         </Button>
         {!workspace?.readOnly && (
-        <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
+        <Button size="sm" className="h-8 text-[12px] px-4 cursor-pointer rounded-full bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" onClick={() => setShowForm(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Clients
         </Button>
         )}
@@ -181,7 +184,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
           {filtered.map(client => {
             const sales = salesMap.get(client.id)
             const isTopClient = sales?.salesRank != null && sales.salesRank > 0 && sales.salesRank <= 3
@@ -189,15 +192,15 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
             <div
               key={client.id}
               onClick={() => setSelected(client)}
-              className="group relative flex flex-col items-center text-center space-y-2 cursor-pointer"
+              className="group relative flex flex-col items-center text-center space-y-2 cursor-pointer rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 shadow-sm hover:shadow-md transition-shadow"
             >
               <button
                 type="button"
                 title={`Export ${client.name}`}
                 onClick={(e) => exportSingleClient(client, e)}
-                className="absolute top-0 right-0 z-10 h-6 w-6 rounded-full border bg-[hsl(var(--card))] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[hsl(var(--muted))] cursor-pointer"
+                className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full border border-black/[0.06] bg-[#f5f5f7] dark:bg-[hsl(var(--muted))] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#ebebed] cursor-pointer"
               >
-                <Download className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                <Download className="h-3 w-3 text-[#86868b]" />
               </button>
 
               {isTopClient && (
@@ -388,146 +391,148 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
     setSaving(false)
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <p className="text-sm font-semibold">{existing ? "Edit Client" : "Add New Client"}</p>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+  const modal = (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-xl p-4" onClick={onClose}>
+      <div className="w-full max-w-5xl rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--card))] shadow-2xl overflow-hidden border border-black/[0.06] dark:border-[hsl(var(--border))]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] dark:border-[hsl(var(--border))] bg-white/80 dark:bg-[hsl(var(--card))]/80 backdrop-blur-sm">
+          <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{existing ? "Edit Client" : "Add New Client"}</p>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-black/[0.06]" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           {/* Photo Upload Section */}
-          <div className="flex items-center gap-3 pb-3 border-b">
+          <div className="flex items-center gap-3 pb-3 rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
             <div className="shrink-0">
               {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-[hsl(var(--border))]" />
+                <img src={imagePreview} alt="Preview" className="h-16 w-16 rounded-full object-cover ring-1 ring-black/[0.06]" />
               ) : (
-                <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))] flex items-center justify-center border-2 border-[hsl(var(--border))]">
-                  <User className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+                <div className="h-16 w-16 rounded-full bg-[#f2f2f7] dark:bg-[hsl(var(--muted))] flex items-center justify-center ring-1 ring-black/[0.06]">
+                  <User className="h-8 w-8 text-[#86868b]" />
                 </div>
               )}
             </div>
             <div className="flex-1">
               <input type="file" id="client-image" className="hidden" accept="image/*" onChange={handleImageChange} />
               <label htmlFor="client-image">
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs cursor-pointer" asChild>
+                <Button type="button" size="sm" variant="outline" className="h-8 text-[12px] cursor-pointer rounded-full border-black/[0.08] bg-white" asChild>
                   <span className="cursor-pointer">
                     <Upload className="h-3 w-3 mr-1" /> Upload Photo
                   </span>
                 </Button>
               </label>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">JPG, PNG or GIF (max 5MB)</p>
+              <p className="text-[10px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mt-1">JPG, PNG or GIF (max 5MB)</p>
             </div>
           </div>
 
           {/* Basic Information */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Basic Information</p>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-2 rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-wide">Basic Information</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Full Name *</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Full Name *</label>
                 <input value={name} onChange={e => setName(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Company</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Company</label>
                 <input value={company} onChange={e => setCompany(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Industry</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Industry</label>
                 <input value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. Technology"
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
             </div>
           </div>
 
           {/* Contact Details */}
-          <div className="space-y-2 pt-1 border-t">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Contact Details</p>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-2 rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-wide">Contact Details</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Email</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Email</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Phone</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Phone</label>
                 <input value={phone} onChange={e => setPhone(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Contact Person</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Contact Person</label>
                 <input value={contactPerson} onChange={e => setContactPerson(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
             </div>
           </div>
 
           {/* Address Information */}
-          <div className="space-y-2 pt-1 border-t">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Address Information</p>
+          <div className="space-y-2 rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-wide">Address Information</p>
             <div className="space-y-2">
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Address</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Address</label>
                 <input value={address} onChange={e => setAddress(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-medium">City</label>
+                  <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">City</label>
                   <input value={city} onChange={e => setCity(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                    className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-medium">Country</label>
+                  <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Country</label>
                   <input value={country} onChange={e => setCountry(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                    className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* Additional Information */}
-          <div className="space-y-2 pt-1 border-t">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Additional Information</p>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2 rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-semibold text-[#86868b] uppercase tracking-wide">Additional Information</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Website</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Website</label>
                 <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://example.com"
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">Tax ID / VAT</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Tax ID / VAT</label>
                 <input value={taxId} onChange={e => setTaxId(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium">NTN Number</label>
+                <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">NTN Number</label>
                 <input value={ntn} onChange={e => setNtn(e.target.value)} placeholder="e.g. 1234567-8"
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-medium">Notes</label>
+              <label className="text-[10px] font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Notes</label>
               <input value={notes} onChange={e => setNotes(e.target.value)}
-                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25" />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving || !name.trim()}>
+        <div className="flex items-center gap-2 px-6 py-4 border-t border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))]/90 backdrop-blur-sm">
+          <Button size="sm" className="h-9 text-[13px] px-5 cursor-pointer rounded-full bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" onClick={submit} disabled={saving || !name.trim()}>
             {saving ? "Saving..." : existing ? "Update Client" : "Add Client"}
           </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
+          <Button size="sm" variant="outline" className="h-9 text-[13px] px-4 cursor-pointer rounded-full border-black/[0.12]" onClick={onClose}>Cancel</Button>
         </div>
       </div>
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(modal, document.body) : null
 }
 
 function ClientNtnInput({
@@ -580,7 +585,7 @@ function ClientNtnInput({
       }}
       placeholder="NTN number"
       disabled={saving}
-      className="w-full max-w-[120px] h-6 px-2 rounded border bg-[hsl(var(--background))] text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40 disabled:opacity-60"
+      className="w-full max-w-[120px] h-7 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[10px] text-center focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 disabled:opacity-60"
     />
   )
 }
@@ -725,44 +730,31 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
     { icon: Hash, label: "NTN", value: client.ntn },
   ]
 
-  return (
-    <>
-      {editing ? (
-        <ClientForm
-          currentUser={client.createdBy}
-          workspace={workspace}
-          existing={client}
-          onClose={() => setEditing(false)}
-          onSave={c => {
-            onUpdate(c)
-            setEditing(false)
-          }}
-        />
-      ) : (
+  const detailModal = (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
           onClick={onClose}
         >
           <div
-            className="w-full sm:max-w-4xl max-h-[92vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-lg border bg-[hsl(var(--card))] flex flex-col overflow-hidden"
+            className="w-full sm:max-w-4xl max-h-[92vh] sm:max-h-[88vh] rounded-t-[22px] sm:rounded-[22px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7] dark:bg-[hsl(var(--card))] flex flex-col overflow-hidden shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-start gap-3 px-4 sm:px-5 py-4 border-b shrink-0">
+            <div className="flex items-start gap-3 px-4 sm:px-5 py-4 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/90 dark:bg-[hsl(var(--card))]/90 backdrop-blur-sm">
               {client.imageUrl ? (
                 <img
                   src={client.imageUrl}
                   alt={client.name}
-                  className="h-12 w-12 rounded-full object-cover border shrink-0"
+                  className="h-12 w-12 rounded-full object-cover ring-1 ring-black/[0.08] shrink-0"
                 />
               ) : (
-                <div className="h-12 w-12 rounded-full border bg-[#1faca6]/10 flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-full bg-[#f2f2f7] dark:bg-[hsl(var(--muted))] flex items-center justify-center shrink-0 ring-1 ring-black/[0.08]">
                   <User className="h-6 w-6 text-[#1faca6]" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-semibold capitalize truncate">{client.name}</h2>
+                  <h2 className="text-[15px] font-semibold tracking-tight capitalize truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{client.name}</h2>
                   {isTopClient && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                       <Crown className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -779,9 +771,9 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                   )}
                 </div>
                 {client.company && (
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 truncate">{client.company}</p>
+                  <p className="text-[12px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mt-0.5 truncate">{client.company}</p>
                 )}
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                <p className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mt-1">
                   Added {new Date(client.createdAt).toLocaleDateString("en-PK")} by {client.createdBy}
                   {client.industry ? ` · ${client.industry}` : ""}
                   {(salesInfo?.totalSales ?? 0) > 0 && (
@@ -789,18 +781,18 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                   )}
                 </p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full hover:bg-black/[0.06]" onClick={onClose}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto">
               {/* Contact strip */}
-              <div className="px-4 sm:px-5 py-3 border-b">
+              <div className="px-4 sm:px-5 py-3 border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {infoItems.map(({ icon: Icon, label, value, link }) => (
-                    <div key={label} className="rounded-md border px-2.5 py-2 min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
+                    <div key={label} className="rounded-[12px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] px-2.5 py-2 min-w-0">
+                      <p className="text-[11px] font-medium text-[#86868b] flex items-center gap-1">
                         <Icon className="h-3 w-3 shrink-0" />
                         {label}
                       </p>
@@ -809,28 +801,28 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                           href={link.startsWith("http") ? link : `https://${link}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-[#1faca6] hover:underline truncate block mt-0.5"
+                          className="text-[13px] text-[#1faca6] hover:underline truncate block mt-0.5"
                         >
                           {value}
                         </a>
                       ) : (
-                        <p className="text-xs font-medium truncate mt-0.5">{value?.trim() || "—"}</p>
+                        <p className="text-[13px] font-medium truncate mt-0.5 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{value?.trim() || "—"}</p>
                       )}
                     </div>
                   ))}
                 </div>
                 {(client.address || client.notes) && (
-                  <div className="mt-2 space-y-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+                  <div className="mt-2 space-y-1.5 text-[12px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">
                     {client.address && (
                       <p>
-                        <span className="font-medium text-[hsl(var(--foreground))]">Address: </span>
+                        <span className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Address: </span>
                         {client.address}
                         {client.country ? `, ${client.country}` : ""}
                       </p>
                     )}
                     {client.notes && (
                       <p className="line-clamp-2">
-                        <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
+                        <span className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Notes: </span>
                         {client.notes}
                       </p>
                     )}
@@ -850,15 +842,15 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                      className="h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
                       title="From date"
                     />
-                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">to</span>
+                    <span className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))]">to</span>
                     <input
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
-                      className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                      className="h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
                       title="To date"
                     />
                     {(dateFrom || dateTo) && (
@@ -868,14 +860,14 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                           setDateFrom("")
                           setDateTo("")
                         }}
-                        className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                        className="text-[11px] font-semibold text-[#0071e3] hover:underline cursor-pointer"
                       >
                         Clear
                       </button>
                     )}
                   </div>
-                  <div className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0 tabular-nums">
-                    <span className="font-semibold text-[hsl(var(--foreground))]">{filteredOrders.length}</span> orders
+                  <div className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] shrink-0 tabular-nums">
+                    <span className="font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{filteredOrders.length}</span> orders
                     {filteredOrders.length > 0 && (
                       <> · <span className="font-semibold text-[#1faca6]">{formatCurrency(ordersTotal)}</span></>
                     )}
@@ -895,15 +887,15 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                       : "No delivered orders in this date range."}
                   </div>
                 ) : (
-                  <div className="rounded-lg border overflow-hidden">
-                    <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] gap-2 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  <div className="rounded-[16px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] overflow-hidden">
+                    <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] gap-2 px-3 py-2 border-b border-black/[0.04] text-[11px] font-medium text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30">
                       <span>Order</span>
                       <span>Delivered</span>
                       <span className="text-right">Items</span>
                       <span>Products</span>
                       <span className="text-right">Total</span>
                     </div>
-                    <ul className="divide-y max-h-[280px] overflow-y-auto">
+                    <ul className="divide-y divide-black/[0.04] max-h-[280px] overflow-y-auto">
                       {filteredOrders.map((order) => {
                         const delivered = orderDeliveredAt(order)
                         const itemSummary = order.items
@@ -914,28 +906,28 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
                         return (
                           <li
                             key={order.id}
-                            className="px-3 py-2.5 hover:bg-[hsl(var(--muted))]/10 sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] sm:gap-2 sm:items-center"
+                            className="px-3 py-2.5 text-[13px] hover:bg-[#fafafa] dark:hover:bg-white/5 sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] sm:gap-2 sm:items-center"
                           >
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-[#1faca6] font-mono">{order.orderNumber}</p>
+                              <p className="text-[13px] font-semibold text-[#1faca6] font-mono">{order.orderNumber}</p>
                               {(order.fulfillmentDispatcher || order.dispatcher) && (
-                                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
+                                <p className="text-[11px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
                                   {order.fulfillmentDispatcher || order.dispatcher}
                                 </p>
                               )}
                             </div>
-                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] sm:text-xs tabular-nums flex items-center gap-1 mt-1 sm:mt-0">
+                            <p className="text-[13px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] tabular-nums flex items-center gap-1 mt-1 sm:mt-0">
                               <Calendar className="h-3 w-3 sm:hidden shrink-0" />
                               {formatDetailDate(delivered)}
                             </p>
-                            <p className="text-[11px] text-right tabular-nums mt-0.5 sm:mt-0">
+                            <p className="text-[13px] text-right tabular-nums mt-0.5 sm:mt-0 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                               {formatCrmItemsQtyLabel(order.items)}
                             </p>
-                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 sm:mt-0 col-span-2 sm:col-span-1">
+                            <p className="text-[13px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate mt-0.5 sm:mt-0 col-span-2 sm:col-span-1">
                               {itemSummary}
                               {extra}
                             </p>
-                            <p className="text-xs font-semibold text-right tabular-nums mt-1 sm:mt-0">
+                            <p className="text-[13px] font-semibold text-right tabular-nums mt-1 sm:mt-0 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                               {formatCurrency(order.total || 0)}
                             </p>
                           </li>
@@ -947,11 +939,11 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 border-t shrink-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 border-t border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/90 dark:bg-[hsl(var(--card))]/90 backdrop-blur-sm">
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs cursor-pointer gap-1.5"
+                className="h-9 text-[12px] cursor-pointer gap-1.5 rounded-full border-black/[0.12]"
                 onClick={handleExportClient}
                 disabled={exportingClient}
               >
@@ -960,31 +952,48 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
               </Button>
               {canReview && (
                 <>
-                  <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("active")} disabled={reviewing}>
+                  <Button size="sm" className="h-9 text-[12px] cursor-pointer rounded-full bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" onClick={() => reviewClient("active")} disabled={reviewing}>
                     Approve
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("rejected")} disabled={reviewing}>
+                  <Button size="sm" variant="outline" className="h-9 text-[12px] cursor-pointer rounded-full border-black/[0.12]" onClick={() => reviewClient("rejected")} disabled={reviewing}>
                     Reject
                   </Button>
                 </>
               )}
               {!readOnly && (
-                <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
+                <Button size="sm" variant="outline" className="h-9 text-[12px] cursor-pointer rounded-full border-black/[0.12]" onClick={() => setEditing(true)}>
                   Edit
                 </Button>
               )}
               {!readOnly && (
-                <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={handleDelete} disabled={deleting}>
+                <Button size="sm" variant="destructive" className="h-9 text-[12px] cursor-pointer rounded-full" onClick={handleDelete} disabled={deleting}>
                   <Trash2 className="h-3 w-3 mr-1" />
                   {deleting ? "Deleting…" : "Delete"}
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>
+              <Button size="sm" variant="outline" className="h-9 text-[12px] ml-auto cursor-pointer rounded-full border-black/[0.12]" onClick={onClose}>
                 Close
               </Button>
             </div>
           </div>
         </div>
+  )
+
+  return (
+    <>
+      {editing ? (
+        <ClientForm
+          currentUser={client.createdBy}
+          workspace={workspace}
+          existing={client}
+          onClose={() => setEditing(false)}
+          onSave={c => {
+            onUpdate(c)
+            setEditing(false)
+          }}
+        />
+      ) : (
+        typeof document !== "undefined" ? createPortal(detailModal, document.body) : null
       )}
     </>
   )

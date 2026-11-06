@@ -154,10 +154,10 @@ export function CrmProductPricesManager({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-2">
-        <h2 className="text-sm font-semibold">CRM product prices</h2>
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+    <div className="space-y-4 rounded-[18px] bg-[#f5f5f7] dark:bg-transparent p-3 sm:p-4 -m-3 sm:-m-4">
+      <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-4 space-y-1.5 shadow-sm">
+        <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">CRM product prices</h2>
+        <p className="text-[12px] leading-relaxed text-[#86868b] dark:text-[hsl(var(--muted-foreground))] max-w-2xl">
           Set retail, wholesale, and dealership prices per product model. Only administrators can
           edit prices. Quotations and orders use the selected price list automatically — no manual
           unit price entry.
@@ -165,38 +165,38 @@ export function CrmProductPricesManager({
       </div>
 
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search model or name…"
-          className="w-full h-9 pl-9 pr-3 rounded-md border bg-[hsl(var(--background))] text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+          className="w-full h-9 pl-9 pr-3 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        <div className="rounded-[16px] border border-dashed border-black/[0.12] dark:border-[hsl(var(--border))] p-10 text-center text-[13px] text-[#86868b] dark:text-[hsl(var(--muted-foreground))] bg-white/60 dark:bg-[hsl(var(--card))]/40">
           No products found. Add inventory stock first, then set prices here.
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
+            <table className="w-full text-[13px] min-w-[720px]">
               <thead>
-                <tr className="bg-[hsl(var(--muted))]/40 border-b text-xs">
-                  <th className="px-3 py-2 text-left font-semibold">Product</th>
-                  <th className="px-3 py-2 text-right font-semibold w-28">Retail</th>
-                  <th className="px-3 py-2 text-right font-semibold w-28">Wholesale</th>
-                  <th className="px-3 py-2 text-right font-semibold w-28">Dealership</th>
+                <tr className="bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 border-b border-black/[0.04] dark:border-[hsl(var(--border))]">
+                  <th className="px-3 py-2 text-left font-medium text-[11px] text-[#86868b]">Product</th>
+                  <th className="px-3 py-2 text-right font-medium text-[11px] text-[#86868b] w-28">Retail</th>
+                  <th className="px-3 py-2 text-right font-medium text-[11px] text-[#86868b] w-28">Wholesale</th>
+                  <th className="px-3 py-2 text-right font-medium text-[11px] text-[#86868b] w-28">Dealership</th>
                   {!readOnly && <th className="px-3 py-2 w-20" />}
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
                 {filtered.map((row) => (
-                  <tr key={row.model} className="bg-[hsl(var(--background))]">
+                  <tr key={row.model} className="bg-white dark:bg-[hsl(var(--card))]">
                     <td className="px-3 py-2">
-                      <p className="font-medium">{row.displayName}</p>
-                      <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">
+                      <p className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{row.displayName}</p>
+                      <p className="text-[11px] font-mono text-[#86868b]">
                         {row.model}
                       </p>
                     </td>
@@ -211,7 +211,7 @@ export function CrmProductPricesManager({
                           onChange={(e) =>
                             updateRow(row.model, { [field]: e.target.value, dirty: true })
                           }
-                          className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2 text-right text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40 disabled:opacity-60"
+                          className="w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2 text-right text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 disabled:opacity-60"
                           placeholder="0"
                         />
                       </td>
@@ -222,7 +222,7 @@ export function CrmProductPricesManager({
                           type="button"
                           size="sm"
                           variant={row.dirty ? "default" : "outline"}
-                          className={`h-8 text-xs ${row.dirty ? "bg-[#1faca6] hover:bg-[#17857f] text-white" : ""}`}
+                          className={`h-8 min-w-[4.25rem] px-3 justify-center text-[12px] font-semibold rounded-full ${row.dirty ? "bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f]" : "border-black/[0.1]"}`}
                           disabled={row.saving}
                           onClick={() => saveRow(row)}
                         >
