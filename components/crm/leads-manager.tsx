@@ -20,7 +20,6 @@ import { isLocalIndustrialLead } from "@/lib/crm-local-leads"
 import {
   fetchLeads,
   fetchLeadDetail,
-  fetchLeadContacts,
   importLeadsJson,
   importFacebookLeadAdsCsv,
   syncInstallersPhonesFromBrowser,
@@ -1407,13 +1406,14 @@ export function LeadsManager({
   const reloadLeadDetail = useCallback(async (id: string) => {
     setDetailLoading(true)
     try {
-      const [detailRes, contacts] = await Promise.all([fetchLeadDetail(id), fetchLeadContacts(id)])
+      // [id] already includes full contacts — avoid a second /contacts round-trip
+      const detailRes = await fetchLeadDetail(id)
       if (detailRes?.lead) {
         const lead = detailRes.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] }
         setDetail({
           ...lead,
-          contacts: contacts.length > 0 ? contacts : lead.contacts,
-          contactCount: contacts.length > 0 ? contacts.length : lead.contactCount,
+          contacts: lead.contacts || [],
+          contactCount: lead.contactCount ?? lead.contacts?.length ?? 0,
         })
       } else {
         setDetail(null)
@@ -1511,17 +1511,14 @@ export function LeadsManager({
     ;(async () => {
       setDetailLoading(true)
       try {
-        const [detailRes, contacts] = await Promise.all([
-          fetchLeadDetail(detailId),
-          fetchLeadContacts(detailId),
-        ])
+        const detailRes = await fetchLeadDetail(detailId)
         if (cancelled) return
         if (detailRes?.lead) {
           const lead = detailRes.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] }
           setDetail({
             ...lead,
-            contacts: contacts.length > 0 ? contacts : lead.contacts || [],
-            contactCount: contacts.length > 0 ? contacts.length : lead.contactCount,
+            contacts: lead.contacts || [],
+            contactCount: lead.contactCount ?? lead.contacts?.length ?? 0,
           })
         }
       } finally {
