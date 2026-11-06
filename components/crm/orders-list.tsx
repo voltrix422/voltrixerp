@@ -6,12 +6,11 @@ import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
-import { OrderSourceBadge, OrderSourceLabel } from "@/components/crm/order-source-badge"
+import { OrderSourceLabel } from "@/components/crm/order-source-badge"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
-import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
@@ -53,18 +52,10 @@ import {
   type CrmPriceTier,
   type CrmProductPrice,
 } from "@/lib/crm-product-prices"
-import {
-  aggregateOrderPaymentStats,
-  aggregateOrderPaymentsInPeriod,
-  isApprovedAwaitingPaymentOrder,
-  isDeliveredFullyPaidOrder,
-  isPartiallyPaidOrder,
-} from "@/lib/order-payment-stats"
+import { aggregateOrderPaymentStats } from "@/lib/order-payment-stats"
 import {
   crmOrdersReportMoney,
-  crmPeriodBounds,
   orderMatchesCrmDateRange,
-  orderReceivedInPeriod,
 } from "@/lib/crm-order-period"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned"
@@ -87,7 +78,7 @@ const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
 ]
 
 function formatOrderPkr(amount: number) {
-  return `PKR ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  return `PKR ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean {
@@ -97,45 +88,6 @@ function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean
   if (filter === "paid") return !isOrderReturned(order) && getOrderCreditBalance(order) <= 0.004
   if (filter === "not_credit") return !isOrderOnCredit(order)
   return true
-}
-
-function isApprovedAwaitingPayment(order: Order): boolean {
-  return isApprovedAwaitingPaymentOrder(order)
-}
-
-function isDeliveredFullyPaid(order: Order): boolean {
-  return isDeliveredFullyPaidOrder(order)
-}
-
-function isPartiallyPaid(order: Order): boolean {
-  return isPartiallyPaidOrder(order)
-}
-
-function ToggleChip({
-  on,
-  label,
-  onClick,
-}: {
-  on: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-tight transition-colors shrink-0 cursor-pointer ${
-        on
-          ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-          : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-      }`}
-    >
-      {label}
-    </button>
-  )
 }
 
 const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
@@ -222,7 +174,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [exportingPdf, setExportingPdf] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
-  const [summaryOpen, setSummaryOpen] = useState(false)
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
@@ -447,190 +398,116 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     }
   }
 
-  // Payment stats — shared logic with Finance overview (lib/order-payment-stats).
-  // Date range filters orders by created date. "Money received" still uses payments dated in that range
-  // (so credit collections show only the amount received then, not the full order).
+  // Payment stats — shared logic with Finance Client Orders (lib/order-payment-stats).
   const paymentStats = aggregateOrderPaymentStats(filtered)
-  const periodBounds = crmPeriodBounds(fromDate, toDate)
   const periodMoney = crmOrdersReportMoney(filtered, fromDate, toDate)
-  const periodPaymentStats = periodBounds
-    ? aggregateOrderPaymentsInPeriod(filtered, periodBounds.start, periodBounds.end)
-    : null
-  const totalOrderValue = paymentStats.totalOrderValue
-  const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
-
-  const deliveredFullyPaid = filtered.filter(isDeliveredFullyPaid)
   const creditOrders = filtered.filter(hasOutstandingCredit)
-  const approvedAwaitingPayment = filtered.filter(isApprovedAwaitingPayment)
   const returnedOrders = filtered.filter(isOrderReturned)
-  const partiallyPaidOrders = filtered
-    .filter(isPartiallyPaid)
-    .map((order) => ({
-      order,
-      paid: periodBounds
-        ? orderReceivedInPeriod(order, periodBounds.start, periodBounds.end)
-        : getOrderAmountPaid(order),
-      balance: getOrderCreditBalance(order),
-    }))
-    .sort((a, b) => b.paid - a.paid)
-
   const totalReceived = periodMoney.moneyReceived
   const totalOutstanding = paymentStats.totalOutstanding
-  const deliveredFullyPaidReceived = periodPaymentStats
-    ? periodPaymentStats.deliveredFullyPaidInPeriod
-    : paymentStats.deliveredFullyPaidReceived
   const onCreditAmount = paymentStats.creditOutstanding
-  const creditPaymentsReceived = periodPaymentStats
-    ? periodPaymentStats.partialPaymentsInPeriod
-    : paymentStats.creditPaymentsReceived
-  const approvedUnpaidAmount = paymentStats.approvedUnpaidOutstanding
-  const partialPaymentAmount = periodPaymentStats
-    ? periodPaymentStats.partialPaymentsInPeriod
-    : paymentStats.partialPaymentsReceived
-  const otherPaymentsReceived = periodPaymentStats
-    ? periodPaymentStats.otherPaymentsInPeriod
-    : paymentStats.otherPaymentsReceived
-  const returnedRefundAmount = paymentStats.returnedRefundAmount
-  const cashbackOrders = filtered.filter(orderHasCashback)
-  const cashbackAmount = paymentStats.cashbackAmount
-
   const headlineTotal = includeOutstandingInTotal
     ? totalReceived + totalOutstanding
     : totalReceived
+  const activeOrderCount = Math.max(0, filtered.length - returnedOrders.length)
 
   return (
-    <div className="space-y-1.5">
-      <div className="sticky top-[2.35rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-1 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
-          <section className="rounded-[16px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-            <div className="flex items-center gap-2 px-3 sm:px-3.5 py-2 min-h-[48px]">
+    <div className="space-y-3">
+      {(filtered.length > 0 || orders.length > 0 || !loading) && (
+        <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
+          <div className="flex items-center justify-end gap-1.5 px-3 pt-2.5">
+            {!workspace?.readOnly && (
               <button
                 type="button"
-                onClick={() => !loading && filtered.length > 0 && setSummaryOpen((v) => !v)}
-                className={`min-w-0 flex-1 flex items-center gap-2 text-left ${
-                  !loading && filtered.length > 0 ? "cursor-pointer" : "cursor-default"
-                }`}
-                aria-expanded={summaryOpen}
-                disabled={loading || filtered.length === 0}
+                className="h-8 px-3 rounded-full text-[12px] font-semibold cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90 inline-flex items-center gap-1"
+                onClick={() => setShowForm(true)}
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                    Order summary
-                  </p>
-                  <p className="text-[11px] text-[#86868b] tabular-nums truncate">
-                    {loading
-                      ? "Loading…"
-                      : `${filtered.length} orders · ${formatOrderPkr(totalOrderValue)}`}
-                  </p>
-                </div>
-                {!loading && filtered.length > 0 && (
-                  <ChevronDown
-                    className={`h-4 w-4 text-[#86868b] shrink-0 transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}
-                    strokeWidth={2}
-                  />
-                )}
+                <Plus className="h-3.5 w-3.5" /> Order
               </button>
+            )}
+            <button
+              ref={filterBtnRef}
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                showFilters
+                  ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                  : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+              }`}
+              aria-label="Filters and exports"
+              aria-expanded={showFilters}
+              title="Filters · ledger · export"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {hasActiveFilters && !showFilters && (
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+              )}
+            </button>
+          </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                {!loading && filtered.length > 0 && (
-                  <ToggleChip
-                    on={includeOutstandingInTotal}
-                    label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
-                    onClick={() => setIncludeOutstandingInTotal((v) => !v)}
-                  />
-                )}
-                {!workspace?.readOnly && (
-                  <button
-                    type="button"
-                    className="h-8 px-3 rounded-full text-[12px] font-semibold cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90 inline-flex items-center gap-1"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Order
-                  </button>
-                )}
-                <button
-                  ref={filterBtnRef}
-                  type="button"
-                  onClick={() => setShowFilters((v) => !v)}
-                  className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-                    showFilters
-                      ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-                      : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                  }`}
-                  aria-label="Filters and exports"
-                  aria-expanded={showFilters}
-                  title="Filters · ledger · export"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  {hasActiveFilters && !showFilters && (
-                    <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
-                  )}
-                </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06] dark:divide-[hsl(var(--border))]">
+            <div className="min-w-0">
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  {hasActiveFilters ? "Filtered orders" : "Orders"}
+                </p>
+                <p className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums">
+                  {loading ? "…" : activeOrderCount}
+                  {!loading && returnedOrders.length > 0 ? (
+                    <span className="text-[12px] font-semibold text-[#aeaeb2]">
+                      {" "}
+                      (+{returnedOrders.length} returned)
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] truncate">CRM active</p>
               </div>
             </div>
 
-            {summaryOpen && !loading && filtered.length > 0 && (
-              <div className="border-t border-black/[0.05] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 px-3 py-2.5 space-y-2">
-                <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">Money received</p>
-                    <p className="text-[20px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
-                      {formatOrderPkr(headlineTotal)}
-                    </p>
-                    {includeOutstandingInTotal && (
-                      <p className="text-[10px] text-[#aeaeb2] tabular-nums mt-0.5">
-                        Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] tabular-nums">
-                    <span><span className="text-[#86868b]">Received</span> <span className="font-semibold">{formatOrderPkr(totalReceived)}</span></span>
-                    <span><span className="text-[#86868b]">Outstanding</span> <span className="font-semibold">{formatOrderPkr(totalOutstanding)}</span></span>
-                    <span><span className="text-[#86868b]">In view</span> <span className="font-semibold">{filtered.length}</span></span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
-                    <p className="text-[9px] text-[#86868b]">Orders</p>
-                    <p className="text-[13px] font-semibold tabular-nums">{filtered.length}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
-                    <p className="text-[9px] text-[#86868b]">Qty</p>
-                    <p className="text-[13px] font-semibold tabular-nums">{totalOrderQty}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5 col-span-1 sm:col-span-1">
-                    <p className="text-[9px] text-[#86868b]">Value</p>
-                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(totalOrderValue)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
-                    <p className="text-[9px] text-[#86868b]">Delivered ({deliveredFullyPaid.length})</p>
-                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
-                    <p className="text-[9px] text-[#86868b]">Credit ({creditOrders.length})</p>
-                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(onCreditAmount)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] px-2 py-1.5">
-                    <p className="text-[9px] text-[#86868b]">Partial ({partiallyPaidOrders.length})</p>
-                    <p className="text-[12px] font-semibold tabular-nums truncate">{formatOrderPkr(partialPaymentAmount)}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums">
-                  {otherPaymentsReceived > 0.004 && (
-                    <span><span className="text-[#86868b]">Confirmed</span> <span className="font-semibold">{formatOrderPkr(otherPaymentsReceived)}</span></span>
-                  )}
-                  {creditPaymentsReceived > 0.004 && (
-                    <span><span className="text-[#86868b]">Credit installs</span> <span className="font-semibold">{formatOrderPkr(creditPaymentsReceived)}</span></span>
-                  )}
-                  <span><span className="text-[#86868b]">Approved unpaid ({approvedAwaitingPayment.length})</span> <span className="font-semibold">{formatOrderPkr(approvedUnpaidAmount)}</span></span>
-                  <span><span className="text-[#86868b]">Returned ({returnedOrders.length})</span> <span className="font-semibold">{formatOrderPkr(returnedRefundAmount)}</span></span>
-                  <span><span className="text-[#86868b]">Cashback ({cashbackOrders.length})</span> <span className="font-semibold">{formatOrderPkr(cashbackAmount)}</span></span>
-                </div>
+            <button
+              type="button"
+              onClick={() => setIncludeOutstandingInTotal((v) => !v)}
+              className="min-w-0 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
+              title={includeOutstandingInTotal ? "Showing received + still outstanding" : "Add still outstanding to total"}
+              disabled={loading || filtered.length === 0}
+            >
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  Money received
+                </p>
+                <p
+                  className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                  title={formatOrderPkr(headlineTotal)}
+                >
+                  {loading ? "…" : formatOrderPkr(headlineTotal)}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] truncate">
+                  {includeOutstandingInTotal ? "Incl. outstanding" : "+ Still outstanding"}
+                </p>
               </div>
-            )}
-          </section>
-      </div>
+            </button>
+
+            <div className="min-w-0">
+              <div className="px-2.5 sm:px-3 pb-3.5 pt-0.5 min-h-[72px] flex flex-col justify-end gap-1">
+                <p className="text-[11px] font-medium text-[#86868b] dark:text-[hsl(var(--muted-foreground))] truncate">
+                  Credit outstanding
+                </p>
+                <p
+                  className="text-[17px] sm:text-[18px] font-bold tracking-tight leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] tabular-nums break-words"
+                  title={formatOrderPkr(onCreditAmount)}
+                >
+                  {loading ? "…" : formatOrderPkr(onCreditAmount)}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] truncate">
+                  {onCreditAmount > 0.004
+                    ? `${creditOrders.length} order${creditOrders.length === 1 ? "" : "s"} on credit`
+                    : "No credit due"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {showFilters &&
         filterPos &&
@@ -820,25 +697,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block overflow-hidden rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <table className="w-full table-fixed text-[12px]">
-            <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[16%]" />
-              <col className="w-[8%]" />
-              <col className="w-[13%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[7%]" />
-              <col className="w-[5%]" />
-            </colgroup>
+          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date", ""].map((h) => (
                   <th
                     key={h || "actions"}
-                    className="h-9 px-2.5 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
+                    className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
                   >
                     {h}
                   </th>
@@ -852,66 +718,52 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 const netTotal = getOrderNetSalesValue(order)
                 const onCredit = hasOutstandingCredit(order)
                 const returned = isOrderReturned(order)
-                const money = (n: number) =>
-                  n.toLocaleString(undefined, { maximumFractionDigits: 0 })
                 return (
                 <tr
                   key={order.id}
                   className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   onClick={() => setSelected(order)}
                 >
-                  <td className="px-2.5 py-2.5 align-top">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="font-semibold tracking-tight text-[#0071e3] truncate">{order.orderNumber || "—"}</span>
-                        {onCredit && (
-                          <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
-                            Credit
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-[#aeaeb2] mt-0.5 truncate">
-                        <OrderSourceLabel order={order} />
-                      </p>
-                    </div>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="font-semibold tracking-tight text-[#0071e3]">{order.orderNumber || "—"}</span>
+                      {onCredit && (
+                        <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
+                          Credit
+                        </span>
+                      )}
+                    </span>
                   </td>
-                  <td className="px-2.5 py-2.5 align-top">
-                    <p className="font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
-                      {order.clientName || "—"}
-                    </p>
-                    {order.referrerName?.trim() && (
-                      <p className="text-[10px] text-[#aeaeb2] truncate mt-0.5">Ref · {order.referrerName}</p>
-                    )}
+                  <td className="px-4 py-3 font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {order.clientName || "—"}
                   </td>
-                  <td className="px-2.5 py-2.5 text-[#6e6e73] tabular-nums align-top">
+                  <td className="px-4 py-3 text-[#6e6e73] tabular-nums">
                     {returned ? "0" : formatCrmItemsQtyLabel(order.items)}
                   </td>
-                  <td className="px-2.5 py-2.5 font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] align-top truncate">
-                    {money(netTotal)}
+                  <td className="px-4 py-3 font-semibold tracking-tight whitespace-nowrap tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {formatOrderPkr(netTotal)}
                   </td>
-                  <td className="px-2.5 py-2.5 tabular-nums text-[#6e6e73] align-top truncate">
-                    {money(paid)}
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6e6e73]">
+                    {formatOrderPkr(paid)}
                   </td>
-                  <td className="px-2.5 py-2.5 align-top truncate">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {due <= 0.004 ? (
                       <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
                         Paid
                       </span>
                     ) : (
                       <span className="font-semibold tracking-tight tabular-nums text-[#9a6700]">
-                        {money(due)}
+                        {formatOrderPkr(due)}
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2.5 align-top overflow-hidden">
-                    <div className="truncate">
-                      <OrderStatusBadge status={order.status} />
-                    </div>
+                  <td className="px-4 py-3">
+                    <OrderStatusBadge status={order.status} />
                   </td>
-                  <td className="px-2 py-2.5 text-[11px] text-[#aeaeb2] tabular-nums align-top truncate">
+                  <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
                     {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-1.5 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5">
                       <button
                         type="button"
