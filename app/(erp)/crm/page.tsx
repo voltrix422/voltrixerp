@@ -22,6 +22,7 @@ export default function CRMPage() {
   const workspace = crmWorkspaceForUser(user)
   const isAdmin = isErpAdmin(user?.role)
   const [tab, setTab] = useState<CrmTab>("orders")
+  const [visited, setVisited] = useState<Set<CrmTab>>(() => new Set(["orders"]))
 
   useEffect(() => {
     if (user && isSalesAgentUser(user)) {
@@ -31,18 +32,29 @@ export default function CRMPage() {
 
   useEffect(() => {
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("crm-lead-detail-id")) {
-      setTab("leads")
+      selectTab("leads")
       return
     }
     const t = searchParams?.get("tab")
     if (t === "orders" || t === "quotations" || t === "clients" || t === "leads" || t === "prices") {
       if (t === "prices" && !isAdmin) {
-        setTab("orders")
+        selectTab("orders")
         return
       }
-      setTab(t)
+      selectTab(t)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isAdmin])
+
+  function selectTab(next: CrmTab) {
+    setTab(next)
+    setVisited((prev) => {
+      if (prev.has(next)) return prev
+      const copy = new Set(prev)
+      copy.add(next)
+      return copy
+    })
+  }
 
   const tabs: { id: CrmTab; label: string; shortLabel: string; adminOnly?: boolean }[] = [
     { id: "orders", label: "Orders", shortLabel: "Orders" },
@@ -68,9 +80,9 @@ export default function CRMPage() {
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setTab(t.id)}
+                    onClick={() => selectTab(t.id)}
                     className={cn(
-                      "shrink-0 px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer",
+                      "shrink-0 px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors duration-150 cursor-pointer",
                       selected
                         ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
                         : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
@@ -84,30 +96,40 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div className="min-w-0">
-            {tab === "orders" && (
-              <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+          <div className="relative min-w-0">
+            {visited.has("orders") && (
+              <div className={tab === "orders" ? "block" : "hidden"}>
+                <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+              </div>
             )}
-            {tab === "quotations" && (
-              <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+            {visited.has("quotations") && (
+              <div className={tab === "quotations" ? "block" : "hidden"}>
+                <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+              </div>
             )}
-            {tab === "clients" && (
-              <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+            {visited.has("clients") && (
+              <div className={tab === "clients" ? "block" : "hidden"}>
+                <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+              </div>
             )}
-            {tab === "leads" && (
-              <LeadsManager
-                currentUser={user?.name || user?.email || "Staff"}
-                currentUserId={user?.id}
-                userRole={user?.role}
-                readOnly={!!workspace?.readOnly}
-              />
+            {visited.has("leads") && (
+              <div className={tab === "leads" ? "block" : "hidden"}>
+                <LeadsManager
+                  currentUser={user?.name || user?.email || "Staff"}
+                  currentUserId={user?.id}
+                  userRole={user?.role}
+                  readOnly={!!workspace?.readOnly}
+                />
+              </div>
             )}
-            {tab === "prices" && isAdmin && (
-              <CrmProductPricesManager
-                currentUser={user?.name || user?.email || "Staff"}
-                currentUserId={user?.id}
-                readOnly={!!workspace?.readOnly}
-              />
+            {isAdmin && visited.has("prices") && (
+              <div className={tab === "prices" ? "block" : "hidden"}>
+                <CrmProductPricesManager
+                  currentUser={user?.name || user?.email || "Staff"}
+                  currentUserId={user?.id}
+                  readOnly={!!workspace?.readOnly}
+                />
+              </div>
             )}
           </div>
         </div>

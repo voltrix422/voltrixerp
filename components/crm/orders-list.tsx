@@ -860,14 +860,25 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <table className="w-full text-[13px] min-w-[52rem]">
-            <thead className="sticky top-0 z-10">
+          <div className="hidden md:block overflow-hidden rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <table className="w-full table-fixed text-[12px]">
+            <colgroup>
+              <col className="w-[15%]" />
+              <col className="w-[16%]" />
+              <col className="w-[8%]" />
+              <col className="w-[13%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[7%]" />
+              <col className="w-[5%]" />
+            </colgroup>
+            <thead>
               <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date", ""].map((h) => (
                   <th
                     key={h || "actions"}
-                    className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
+                    className="h-9 px-2.5 text-left text-[11px] font-semibold tracking-tight text-[#86868b] bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
                   >
                     {h}
                   </th>
@@ -881,61 +892,65 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 const netTotal = getOrderNetSalesValue(order)
                 const onCredit = hasOutstandingCredit(order)
                 const returned = isOrderReturned(order)
+                const money = (n: number) =>
+                  n.toLocaleString(undefined, { maximumFractionDigits: 0 })
                 return (
                 <tr
                   key={order.id}
                   className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   onClick={() => setSelected(order)}
                 >
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="font-semibold tracking-tight text-[#0071e3]">{order.orderNumber || "—"}</span>
-                      {onCredit && (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
-                          Credit
-                        </span>
-                      )}
-                    </span>
-                    <p className="text-[10px] text-[#aeaeb2] mt-0.5 truncate max-w-[9rem]">
-                      <OrderSourceLabel order={order} />
-                    </p>
+                  <td className="px-2.5 py-2.5 align-top">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-semibold tracking-tight text-[#0071e3] truncate">{order.orderNumber || "—"}</span>
+                        {onCredit && (
+                          <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
+                            Credit
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-[#aeaeb2] mt-0.5 truncate">
+                        <OrderSourceLabel order={order} />
+                      </p>
+                    </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate max-w-[12rem]">
+                  <td className="px-2.5 py-2.5 align-top">
+                    <p className="font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
                       {order.clientName || "—"}
                     </p>
                     {order.referrerName?.trim() && (
                       <p className="text-[10px] text-[#aeaeb2] truncate mt-0.5">Ref · {order.referrerName}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[#6e6e73] tabular-nums whitespace-nowrap">
+                  <td className="px-2.5 py-2.5 text-[#6e6e73] tabular-nums align-top">
                     {returned ? "0" : formatCrmItemsQtyLabel(order.items)}
                   </td>
-                  <td className="px-4 py-3 font-semibold tracking-tight whitespace-nowrap tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                    {formatOrderPkr(netTotal)}
+                  <td className="px-2.5 py-2.5 font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] align-top">
+                    {money(netTotal)}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6e6e73]">
-                    {formatOrderPkr(paid)}
+                  <td className="px-2.5 py-2.5 tabular-nums text-[#6e6e73] align-top">
+                    {money(paid)}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-2.5 py-2.5 align-top">
                     {due <= 0.004 ? (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
+                      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
                         Paid
                       </span>
                     ) : (
                       <span className="font-semibold tracking-tight tabular-nums text-[#9a6700]">
-                        {formatOrderPkr(due)}
+                        {money(due)}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2.5 py-2.5 align-top">
                     <OrderStatusBadge status={order.status} />
                   </td>
-                  <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
+                  <td className="px-2.5 py-2.5 text-[11px] text-[#aeaeb2] tabular-nums align-top">
                     {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-1.5 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-0.5">
                       <button
                         type="button"
                         onClick={(e) => void handleListDownloadPdf(order, e)}
@@ -1961,34 +1976,34 @@ function OrderDetail({
         }}
       />
     )}
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4" onClick={onClose}>
-      <div className="w-full sm:w-[min(1120px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
-        <div className="shrink-0 px-5 pt-4 pb-2.5 sm:px-7 sm:pt-5">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3" onClick={onClose}>
+      <div className="w-full sm:w-[min(1320px,calc(100vw-1.25rem))] sm:h-[min(94vh,960px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[96vh]" onClick={e => e.stopPropagation()}>
+        <div className="shrink-0 px-5 pt-4 pb-2 sm:px-7 sm:pt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <p className="text-[20px] sm:text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                <p className="text-[22px] sm:text-[26px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                   {detailOrder.orderNumber}
                 </p>
-                <p className="text-[14px] font-medium tracking-tight text-[#6e6e73] truncate">
+                <p className="text-[15px] font-medium tracking-tight text-[#6e6e73] truncate">
                   {detailOrder.clientName}
                 </p>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <OrderStatusBadge status={detailOrder.status} />
-                <span className="text-[11px] text-[#aeaeb2]">
+                <span className="text-[12px] text-[#aeaeb2]">
                   <OrderSourceLabel order={detailOrder} />
                 </span>
                 {detailOrder.deliveryDate && (
-                  <span className="text-[11px] text-[#aeaeb2] tabular-nums">
+                  <span className="text-[12px] text-[#aeaeb2] tabular-nums">
                     Delivery {new Date(detailOrder.deliveryDate).toLocaleDateString()}
                   </span>
                 )}
                 {detailOrder.referrerName?.trim() && (
-                  <span className="text-[11px] text-[#aeaeb2]">Ref · {detailOrder.referrerName}</span>
+                  <span className="text-[12px] text-[#aeaeb2]">Ref · {detailOrder.referrerName}</span>
                 )}
                 {detailOrder.dispatcher && (
-                  <span className="text-[11px] text-[#aeaeb2]">{detailOrder.dispatcher}</span>
+                  <span className="text-[12px] text-[#aeaeb2]">{detailOrder.dispatcher}</span>
                 )}
               </div>
             </div>
@@ -2003,7 +2018,7 @@ function OrderDetail({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
 
           {detailOrder.status === "delivered" && (
             <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 py-3">
@@ -2200,123 +2215,124 @@ function OrderDetail({
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-2.5 items-start">
-          <div className="rounded-lg border p-2.5 min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">Order Items</p>
-            <CrmLineItemsDisplay items={detailOrder.items} size="sm" />
-            <div className="mt-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-2">Order items</p>
+            <div className="[&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 text-[13px]">
+              <CrmLineItemsDisplay items={detailOrder.items} size="sm" />
+            </div>
+            <div className="mt-2 [&_.rounded-lg]:rounded-none [&_.rounded-lg]:border-0 [&_table]:text-[13px]">
               <CrmOrderSummaryDisplay order={detailOrder} />
             </div>
           </div>
 
           <div className="space-y-3 min-w-0">
-          <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-3 min-w-0">
-            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+          <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5 min-w-0">
+            <div className="flex items-center justify-between mb-2.5 gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">Payment</p>
                 {hasOutstandingCredit(detailOrder) && (
-                  <Badge variant="warning" className="text-[10px]">On credit</Badge>
+                  <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">On credit</span>
                 )}
                 {isOrderOnCredit(detailOrder) && creditBalance <= 0.004 && (
-                  <Badge variant="success" className="text-[10px]">Credit cleared</Badge>
+                  <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">Credit cleared</span>
                 )}
                 {cashbackAmount > 0 && (
-                  <Badge className="text-[10px] bg-violet-100 text-violet-800 border-violet-200">
-                    Cashback PKR {cashbackAmount.toLocaleString()}
-                  </Badge>
+                  <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#bf5af2]/15 text-[#8944ab]">
+                    Cashback {cashbackAmount.toLocaleString()}
+                  </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {canManageCashback && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1"
                     onClick={() => setShowCashback(true)}
                   >
-                    <Gift className="h-3.5 w-3.5 mr-1" />
-                    Add cashback
-                  </Button>
+                    <Gift className="h-3.5 w-3.5" />
+                    Cashback
+                  </button>
                 )}
                 {canManagePayments && (
-                  <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
-                  </Button>
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-full text-[12px] font-semibold bg-[#007aff] text-white hover:bg-[#0066d6] cursor-pointer inline-flex items-center gap-1"
+                    onClick={() => setShowPayment(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {detailOrder.payments?.length ? "Manage" : hasOutstandingCredit(detailOrder) ? "Record" : "Add"}
+                  </button>
                 )}
               </div>
             </div>
-            <div className="text-sm">
-              <p className="font-medium text-blue-900 dark:text-blue-100">
-                Total Amount: PKR{" "}
-                {getOrderNetSalesValue(detailOrder).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                {isOrderReturned(detailOrder) && Number(detailOrder.total) > 0.004 && (
-                  <span className="text-xs font-normal text-blue-700 dark:text-blue-300">
-                    {" "}
-                    (original PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })})
-                  </span>
-                )}
-              </p>
-              {(detailOrder.payments?.length ?? 0) > 0 || cashbackFromOrder > 0 || returnAmount > 0 ? (
-                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
-                  Paid PKR {amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  {cashbackFromOrder > 0 && (
-                    <> · Cashback (order) PKR {cashbackFromOrder.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
-                  )}
-                  {returnAmount > 0 && (
-                    <> · Refunded PKR {returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
-                  )}
-                  {creditBalance > 0.004 ? (
-                    <> · Balance PKR {creditBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
-                  ) : returnAmount > 0.004 || isOrderReturned(detailOrder) ? (
-                    <> · Balance PKR 0.00</>
-                  ) : null}
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[13px] text-[#86868b]">Total</p>
+                <p className="text-[17px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  PKR {getOrderNetSalesValue(detailOrder).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </p>
-              ) : null}
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[13px] text-[#86868b]">Paid</p>
+                <p className="text-[14px] font-semibold tabular-nums">
+                  PKR {amountPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </p>
+              </div>
+              {creditBalance > 0.004 && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[13px] text-[#86868b]">Remaining</p>
+                  <p className="text-[14px] font-semibold tabular-nums text-[#9a6700]">
+                    PKR {creditBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+              )}
               {detailOrder.payments && detailOrder.payments.length > 0 ? (
-                <div className="mt-2 space-y-1">
+                <div className="pt-1 space-y-1.5 border-t border-black/[0.05]">
                   {detailOrder.payments.map((p, i) => {
                     const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
                     return (
-                    <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
-                      Payment {i + 1}: PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
-                      {pStatus === "draft" && " · Draft"}
-                      {pStatus === "pending_approval" && " · Sent to finance"}
+                    <div key={p.id} className="flex items-start justify-between gap-2 text-[13px]">
+                      <div className="min-w-0">
+                        <p className="font-semibold tracking-tight tabular-nums">
+                          #{i + 1} · PKR {p.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </p>
+                        <p className="text-[12px] text-[#86868b]">
+                          {p.method} · {new Date(p.date).toLocaleDateString()}
+                          {pStatus === "draft" && " · Draft"}
+                          {pStatus === "pending_approval" && " · Pending finance"}
+                          {pStatus === "approved" && " · Approved"}
+                        </p>
+                      </div>
                     </div>
                   )})}
                 </div>
               ) : (
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                  {canManagePayments
-                    ? detailOrder.status === "delivered" && hasOutstandingCredit(detailOrder)
-                      ? "Record payments with amount and proof — remaining credit balance updates automatically."
-                      : detailOrder.status === "delivered"
-                        ? "Attach delivery or payment proof here — saved on the order only, does not change the paid balance."
-                        : "No payments yet — add payments with proof; each submit goes to Finance."
-                    : "No payments received yet"}
+                <p className="text-[13px] text-[#86868b] pt-1">
+                  {canManagePayments ? "No payments yet" : "No payments received"}
                 </p>
               )}
             </div>
           </div>
 
           {detailOrder.payments && detailOrder.payments.length > 0 && (
-            <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3 mt-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-green-900 dark:text-green-100 mb-2">Payments Received</p>
+            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] p-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] mb-2">Payments received</p>
               <div className="space-y-2">
                 {getBalanceSubmittedPayments(detailOrder.payments, detailOrder.status).map(p => {
                   const proofUrls = getOrderPaymentProofUrls(p)
                   const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
                   return (
-                  <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0 gap-2">
-                    <div>
-                      <p className="font-medium text-green-900 dark:text-green-100">PKR {p.amount.toLocaleString()}</p>
-                      <p className="text-green-700 dark:text-green-300">
+                  <div key={p.id} className="flex items-center justify-between text-[13px] border-b border-black/[0.05] dark:border-[hsl(var(--border))] pb-2 last:border-0 gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold tracking-tight tabular-nums">PKR {p.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      <p className="text-[12px] text-[#86868b]">
                         {p.method} · {new Date(p.date).toLocaleDateString()}
                         {pStatus === "draft" && " · Draft"}
                         {pStatus === "pending_approval" && " · Pending finance"}
                         {pStatus === "approved" && " · Approved"}
                       </p>
-                      {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
+                      {p.notes && <p className="text-[#aeaeb2] text-[11px] mt-0.5">{p.notes}</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
                       {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
@@ -2325,9 +2341,9 @@ function OrderDetail({
                             href={proofUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-green-700 dark:text-green-300 underline text-[10px]"
+                            className="text-[12px] font-semibold text-[#0071e3] hover:underline"
                           >
-                            {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
+                            {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "Proof"}
                           </a>
                         ))}
                       {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
