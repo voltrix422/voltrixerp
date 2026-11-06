@@ -130,7 +130,7 @@ export function ClientOrdersFinance({
   useEffect(() => {
     let cancelled = false
     const load = () =>
-      getOrders({ erpOnly: true }).then((o) => {
+      getOrders().then((o) => {
         if (cancelled) return
         setCrmOrdersAll(o.filter(isCrmErpOrderForPaymentStats))
       })
