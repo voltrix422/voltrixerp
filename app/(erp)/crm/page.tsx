@@ -84,7 +84,7 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div key={tab} className="min-w-0">
+          <div className="min-w-0">
             {tab === "orders" && (
               <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
             )}

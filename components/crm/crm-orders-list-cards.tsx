@@ -6,14 +6,13 @@ import {
   getOrderCreditBalance,
   getOrderNetSalesValue,
   hasOutstandingCredit,
-  isOrderOnCredit,
   isOrderReturned,
   type Order,
 } from "@/lib/orders"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
-import { OrderSourceBadge } from "@/components/crm/order-source-badge"
+import { OrderSourceLabel } from "@/components/crm/order-source-badge"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
-import { Loader2 } from "lucide-react"
+import { FileText, Loader2, Trash2 } from "lucide-react"
 
 function formatPkr(amount: number) {
   return `PKR ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -32,89 +31,104 @@ export function CrmOrdersListCards({
   onDelete?: (order: Order) => void
   pdfDownloadingId?: string | null
 }) {
-  const showActions = Boolean(onDownloadPdf || onDelete)
   return (
-    <div className="md:hidden space-y-2">
+    <div className="md:hidden rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] overflow-hidden divide-y divide-black/[0.05] dark:divide-[hsl(var(--border))]">
       {orders.map((order) => {
         const paid = getOrderAmountPaid(order)
         const due = getOrderCreditBalance(order)
         const netTotal = getOrderNetSalesValue(order)
         const onCredit = hasOutstandingCredit(order)
-        const notCredit = !isOrderOnCredit(order)
         const returned = isOrderReturned(order)
         return (
           <button
             key={order.id}
             type="button"
             onClick={() => onSelect(order)}
-            className="w-full text-left rounded-lg border p-3 space-y-2 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+            className="w-full text-left p-3.5 space-y-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 space-y-1">
-                <OrderSourceBadge order={order} />
-                <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber || "—"}</p>
-                <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
-                {order.warrantyHolderName?.trim() && (
-                  <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
-                )}
-                {order.referrerName?.trim() && (
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
-                )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold tracking-tight text-[#0071e3] truncate">
+                  {order.orderNumber || "—"}
+                </p>
+                <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate mt-0.5">
+                  {order.clientName || "—"}
+                </p>
+                <p className="text-[10px] text-[#aeaeb2] mt-0.5 truncate">
+                  <OrderSourceLabel order={order} />
+                </p>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
+                {onCredit && (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
+                    Credit
+                  </span>
+                )}
                 <OrderStatusBadge status={order.status} />
-                {onCredit ? (
-                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                    On Credit
-                  </span>
-                ) : notCredit ? (
-                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    Not Credit
-                  </span>
-                ) : (
-                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[12px]">
+              <div>
+                <p className="text-[10px] font-medium text-[#86868b]">Items</p>
+                <p className="font-semibold tracking-tight">
+                  {returned ? "0" : formatCrmItemsQtyLabel(order.items)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-medium text-[#86868b]">Total</p>
+                <p className="font-semibold tracking-tight tabular-nums">{formatPkr(netTotal)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium text-[#86868b]">Paid</p>
+                <p className="tabular-nums tracking-tight">{formatPkr(paid)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-medium text-[#86868b]">Remaining</p>
+                {due <= 0.004 ? (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
                     Paid
                   </span>
+                ) : (
+                  <p className="font-semibold tabular-nums tracking-tight text-[#9a6700]">{formatPkr(due)}</p>
                 )}
               </div>
             </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-              <span>{returned ? "0" : formatCrmItemsQtyLabel(order.items)}</span>
-              <span className="font-semibold text-[hsl(var(--foreground))]">{formatPkr(netTotal)}</span>
-              <span className="text-emerald-700">Paid {formatPkr(paid)}</span>
-              <span className="text-amber-700">Credit {formatPkr(due)}</span>
-              <span>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</span>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-[#aeaeb2]">
+                {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
+              </p>
+              {(onDownloadPdf || onDelete) && (
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  {onDownloadPdf && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => onDownloadPdf(order, e)}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#0071e3] hover:bg-[#007aff]/10 cursor-pointer"
+                    >
+                      {pdfDownloadingId === order.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileText className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+                  )}
+                  {onDelete && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(order)
+                      }}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            {showActions && (
-              <div className="flex gap-4 pt-1" onClick={(e) => e.stopPropagation()}>
-                {onDownloadPdf && (
-                  <button
-                    type="button"
-                    onClick={(e) => onDownloadPdf(order, e)}
-                    disabled={pdfDownloadingId === order.id}
-                    className="text-[#1a9f9a] text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
-                  >
-                    {pdfDownloadingId === order.id ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading…
-                      </>
-                    ) : (
-                      "PDF"
-                    )}
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    type="button"
-                    onClick={() => onDelete(order)}
-                    className="text-red-500 text-xs cursor-pointer"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            )}
           </button>
         )
       })}

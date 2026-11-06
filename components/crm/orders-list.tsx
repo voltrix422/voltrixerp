@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
@@ -9,7 +10,7 @@ import { OrderSourceBadge, OrderSourceLabel } from "@/components/crm/order-sourc
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
-import { CrmItemsQtyCell } from "@/components/crm/crm-items-qty-cell"
+import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
@@ -234,6 +235,43 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(328, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -472,8 +510,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   return (
     <div className="space-y-2.5">
       <div className="sticky top-[2.85rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-0.5 pb-2 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
-          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between gap-2 px-3 sm:px-3.5 py-2.5">
+          <section className="relative z-20 rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-visible shadow-sm">
+            <div className="flex items-center gap-2 px-3 sm:px-3.5 py-2.5 min-h-[58px]">
               <button
                 type="button"
                 onClick={() => !loading && filtered.length > 0 && setSummaryOpen((v) => !v)}
@@ -510,192 +548,37 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   />
                 )}
                 {!workspace?.readOnly && (
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs px-3 rounded-full cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Order
-                  </Button>
-                )}
-                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setShowFilters((v) => !v)}
-                    className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-                      showFilters
-                        ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                    }`}
-                    aria-label="Filters and exports"
-                    title="Filters · ledger · export"
+                    className="h-8 px-3 rounded-full text-[12px] font-semibold cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90 inline-flex items-center gap-1"
+                    onClick={() => setShowForm(true)}
                   >
-                    <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    {hasActiveFilters && !showFilters && (
-                      <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
-                    )}
+                    <Plus className="h-3.5 w-3.5" /> Order
                   </button>
-                  {showFilters && (
-                    <>
-                      <div className="fixed inset-0 z-30" onClick={() => setShowFilters(false)} />
-                      <div className="absolute right-0 top-full mt-2 z-40 w-[min(22rem,calc(100vw-1.25rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-2xl border bg-[hsl(var(--card))] shadow-xl p-3 space-y-2.5">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                            Client ledger
-                          </p>
-                          <ClientLedgerPicker
-                            clients={clients}
-                            orders={orders}
-                            selectedIds={ledgerClientIds}
-                            onChange={selectLedgerClients}
-                          />
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <CrmExcelExportButton
-                            onExport={exportListExcel}
-                            exporting={exportingExcel}
-                            disabled={loading || filtered.length === 0 || exportingPdf}
-                            className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
-                            disabled={loading || filtered.length === 0 || exportingPdf}
-                            onClick={() => void exportListPdf()}
-                          >
-                            {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                            {exportingPdf ? "PDF…" : "PDF"}
-                          </Button>
-                          {hasActiveFilters && (
-                            <Button size="sm" variant="ghost" className="h-7 text-[10px] cursor-pointer ml-auto px-2" onClick={clearFilters}>
-                              Clear
-                            </Button>
-                          )}
-                        </div>
-
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Status</p>
-                          <div className="flex flex-wrap gap-1">
-                            {STATUS_FILTER_OPTIONS.map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => setStatusFilter(opt.value)}
-                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                                  statusFilter === opt.value
-                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
-                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                                }`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Payment</p>
-                          <div className="flex flex-wrap gap-1">
-                            {PAYMENT_FILTER_OPTIONS.map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => setPaymentFilter(opt.value)}
-                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                                  paymentFilter === opt.value
-                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
-                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                                }`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <ClientExcludePicker
-                          clients={clients}
-                          orders={orders}
-                          excludedIds={excludedClientIds}
-                          onChange={(ids) => {
-                            setExcludedClientIds(ids)
-                            if (ids.length) setLedgerClientIds([])
-                          }}
-                        />
-
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Referrer</p>
-                          <select
-                            value={referrerFilter}
-                            onChange={(e) => setReferrerFilter(e.target.value)}
-                            className="w-full h-7 px-2 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                          >
-                            <option value="">All referrers</option>
-                            {referrerOptions.map((name) => (
-                              <option key={name} value={name}>{name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Date</p>
-                          <div className="flex flex-wrap gap-1 mb-1.5">
-                            {DATE_PRESET_OPTIONS.map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => applyDatePreset(opt.value)}
-                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                                  datePreset === opt.value
-                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
-                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                                }`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="date"
-                              value={fromDate}
-                              onChange={(e) => {
-                                setFromDate(e.target.value)
-                                setDatePreset("")
-                              }}
-                              className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
-                            />
-                            <span className="text-[9px] text-[hsl(var(--muted-foreground))]">to</span>
-                            <input
-                              type="date"
-                              value={toDate}
-                              onChange={(e) => {
-                                setToDate(e.target.value)
-                                setDatePreset("")
-                              }}
-                              className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
-                            />
-                          </div>
-                        </div>
-
-                        <input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Search orders, client, referrer…"
-                          className="w-full h-7 px-2.5 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                        />
-                      </div>
-                    </>
+                )}
+                <button
+                  ref={filterBtnRef}
+                  type="button"
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    showFilters
+                      ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                      : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                  }`}
+                  aria-label="Filters and exports"
+                  aria-expanded={showFilters}
+                  title="Filters · ledger · export"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {hasActiveFilters && !showFilters && (
+                    <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
                   )}
-                </div>
+                </button>
               </div>
             </div>
 
             {summaryOpen && !loading && filtered.length > 0 && (
-              <div className="px-3.5 pb-3.5 space-y-3 border-t border-black/[0.05] dark:border-[hsl(var(--border))] pt-3 max-h-[min(55vh,28rem)] overflow-y-auto overscroll-contain">
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-[18px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_16px_48px_rgba(0,0,0,0.14)] px-3.5 pb-3.5 pt-3 space-y-3 max-h-[min(55vh,28rem)] overflow-y-auto overscroll-contain">
                 <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[11px] font-medium text-[#86868b]">Money received</p>
@@ -779,7 +662,172 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               </div>
             )}
           </section>
+          {summaryOpen && (
+            <button
+              type="button"
+              aria-label="Close summary"
+              className="fixed inset-0 z-10 cursor-default"
+              onClick={() => setSummaryOpen(false)}
+            />
+          )}
       </div>
+
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(20.5rem,calc(100vw-1.5rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-[16px] border border-black/[0.08] bg-white/95 dark:bg-[hsl(var(--card))]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2 px-0.5">
+              <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Filters
+              </p>
+              {hasActiveFilters && (
+                <button type="button" onClick={clearFilters} className="text-[10px] font-medium text-[#0071e3] cursor-pointer">
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">Client ledger</p>
+              <ClientLedgerPicker
+                clients={clients}
+                orders={orders}
+                selectedIds={ledgerClientIds}
+                onChange={selectLedgerClients}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <CrmExcelExportButton
+                onExport={exportListExcel}
+                exporting={exportingExcel}
+                disabled={loading || filtered.length === 0 || exportingPdf}
+                className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                disabled={loading || filtered.length === 0 || exportingPdf}
+                onClick={() => void exportListPdf()}
+              >
+                {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                {exportingPdf ? "PDF…" : "PDF"}
+              </Button>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Status</p>
+              <div className="flex flex-wrap gap-1">
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStatusFilter(opt.value)}
+                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                      statusFilter === opt.value
+                        ? "bg-[#1d1d1f] text-white"
+                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Payment</p>
+              <div className="flex flex-wrap gap-1">
+                {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPaymentFilter(opt.value)}
+                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                      paymentFilter === opt.value
+                        ? "bg-[#1d1d1f] text-white"
+                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ClientExcludePicker
+              clients={clients}
+              orders={orders}
+              excludedIds={excludedClientIds}
+              onChange={(ids) => {
+                setExcludedClientIds(ids)
+                if (ids.length) setLedgerClientIds([])
+              }}
+            />
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Referrer</p>
+              <select
+                value={referrerFilter}
+                onChange={(e) => setReferrerFilter(e.target.value)}
+                className="w-full h-8 px-2 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px] focus:outline-none"
+              >
+                <option value="">All referrers</option>
+                {referrerOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1">Date</p>
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {DATE_PRESET_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => applyDatePreset(opt.value)}
+                    className={`h-6 px-2 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
+                      datePreset === opt.value
+                        ? "bg-[#1d1d1f] text-white"
+                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value)
+                    setDatePreset("")
+                  }}
+                  className="h-8 flex-1 min-w-0 px-1.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px]"
+                />
+                <span className="text-[9px] text-[#86868b]">to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value)
+                    setDatePreset("")
+                  }}
+                  className="h-8 flex-1 min-w-0 px-1.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px]"
+                />
+              </div>
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search orders, client, referrer…"
+              className="w-full h-8 px-2.5 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] text-[11px] focus:outline-none"
+            />
+          </div>,
+          document.body,
+        )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -812,98 +860,87 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             onDelete={setDeleteConfirmOrder}
             pdfDownloadingId={pdfDownloadingId}
           />
-          <div className="hidden md:block rounded-xl border overflow-x-auto bg-[hsl(var(--card))] shadow-sm">
-          <table className="w-full min-w-[1120px] table-fixed">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/35">
-                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[7%]">Order #</th>
-                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[11%]">Source</th>
-                <th className="h-8 px-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[14%]">Client</th>
-                <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[5%]">Qty</th>
-                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Total</th>
-                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Paid</th>
-                <th className="h-8 px-2 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Credit</th>
-                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%] whitespace-nowrap">Payment</th>
-                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[10%] whitespace-nowrap">Status</th>
-                <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[8%]">Date</th>
-                <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-[9%]">Actions</th>
+          <div className="hidden md:block overflow-auto rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <table className="w-full text-[13px] min-w-[52rem]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
+                {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date", ""].map((h) => (
+                  <th
+                    key={h || "actions"}
+                    className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[hsl(var(--border))]/70">
+            <tbody>
               {filtered.map(order => {
                 const paid = getOrderAmountPaid(order)
                 const due = getOrderCreditBalance(order)
                 const netTotal = getOrderNetSalesValue(order)
                 const onCredit = hasOutstandingCredit(order)
-                const notCredit = !isOrderOnCredit(order)
                 const returned = isOrderReturned(order)
                 return (
                 <tr
                   key={order.id}
-                  className="group/row cursor-pointer transition-all duration-150 hover:bg-[#1faca6]/[0.06] hover:shadow-[inset_3px_0_0_0_#1faca6]"
+                  className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   onClick={() => setSelected(order)}
                 >
-                  <td className="px-2.5 py-2 text-xs font-semibold text-[#1faca6]">
-                    <span className="whitespace-nowrap group-hover/row:underline underline-offset-2">{order.orderNumber || "—"}</span>
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <OrderSourceBadge order={order} />
-                  </td>
-                  <td className="px-2.5 py-2 text-xs font-medium">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium truncate leading-tight">{order.clientName || "—"}</p>
-                      {order.warrantyHolderName?.trim() && (
-                        <p className="text-[10px] text-[#1a9f9a] truncate mt-0.5">Warranty: {order.warrantyHolderName}</p>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="font-semibold tracking-tight text-[#0071e3]">{order.orderNumber || "—"}</span>
+                      {onCredit && (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
+                          Credit
+                        </span>
                       )}
-                      {order.referrerName?.trim() && (
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
-                      )}
-                    </div>
+                    </span>
+                    <p className="text-[10px] text-[#aeaeb2] mt-0.5 truncate max-w-[9rem]">
+                      <OrderSourceLabel order={order} />
+                    </p>
                   </td>
-                  <td className="px-2 py-2 text-xs text-center">
-                    {returned ? (
-                      <span className="text-[hsl(var(--muted-foreground))]">0</span>
-                    ) : (
-                      <CrmItemsQtyCell items={order.items} />
+                  <td className="px-4 py-3">
+                    <p className="font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate max-w-[12rem]">
+                      {order.clientName || "—"}
+                    </p>
+                    {order.referrerName?.trim() && (
+                      <p className="text-[10px] text-[#aeaeb2] truncate mt-0.5">Ref · {order.referrerName}</p>
                     )}
                   </td>
-                  <td className="px-2 py-2 text-xs text-right font-semibold tabular-nums whitespace-nowrap">
+                  <td className="px-4 py-3 text-[#6e6e73] tabular-nums whitespace-nowrap">
+                    {returned ? "0" : formatCrmItemsQtyLabel(order.items)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold tracking-tight whitespace-nowrap tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                     {formatOrderPkr(netTotal)}
                   </td>
-                  <td className="px-2 py-2 text-xs text-right tabular-nums text-emerald-700 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6e6e73]">
                     {formatOrderPkr(paid)}
                   </td>
-                  <td className="px-2 py-2 text-xs text-right tabular-nums text-amber-700 whitespace-nowrap">
-                    {formatOrderPkr(due)}
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap">
-                    {onCredit ? (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
-                        On Credit
-                      </span>
-                    ) : notCredit ? (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
-                        Not Credit
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {due <= 0.004 ? (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#30d158]/18 text-[#248a3d]">
+                        Paid
                       </span>
                     ) : (
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 whitespace-nowrap">
-                        Paid
+                      <span className="font-semibold tracking-tight tabular-nums text-[#9a6700]">
+                        {formatOrderPkr(due)}
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap">
+                  <td className="px-4 py-3">
                     <OrderStatusBadge status={order.status} />
                   </td>
-                  <td className="px-2 py-2 text-[11px] text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
+                  <td className="px-4 py-3 text-[12px] text-[#aeaeb2] whitespace-nowrap tabular-nums">
                     {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1.5 opacity-70 group-hover/row:opacity-100 transition-opacity">
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={(e) => void handleListDownloadPdf(order, e)}
                         disabled={pdfDownloadingId === order.id}
-                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-[#1a9f9a] hover:bg-[#1a9f9a]/10 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#0071e3] hover:bg-[#007aff]/10 cursor-pointer transition-colors disabled:opacity-50"
                         title="Download PDF"
                       >
                         {pdfDownloadingId === order.id ? (
@@ -918,7 +955,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                           e.stopPropagation()
                           setDeleteConfirmOrder(order)
                         }}
-                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer transition-colors"
                         title="Delete order"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1924,75 +1961,72 @@ function OrderDetail({
         }}
       />
     )}
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-3" onClick={onClose}>
-      <div className="w-full max-w-5xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-2 px-3 sm:px-4 py-2.5 border-b shrink-0">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <OrderSourceBadge order={detailOrder} />
-              <p className="text-sm font-bold text-[#1faca6]">{detailOrder.orderNumber}</p>
-              <OrderStatusBadge status={detailOrder.status} />
-              <p className="text-xs font-medium truncate">{detailOrder.clientName}</p>
-              {detailOrder.warrantyHolderName?.trim() && (
-                <p className="text-[10px] text-[#1a9f9a] truncate">Warranty: {detailOrder.warrantyHolderName}</p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-              {detailOrder.deliveryDate && (
-                <span><span className="font-medium text-[hsl(var(--foreground))]">Delivery</span> {new Date(detailOrder.deliveryDate).toLocaleDateString()}</span>
-              )}
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <span className="font-medium text-[hsl(var(--foreground))] shrink-0">Source</span>
-                <OrderSourceLabel order={detailOrder} className="truncate" />
-              </span>
-              <span><span className="font-medium text-[hsl(var(--foreground))]">Created</span> {new Date(detailOrder.createdAt).toLocaleDateString()} · {detailOrder.createdBy}</span>
-              {detailOrder.deliveryAddress && (
-                <span className="truncate max-w-[14rem]" title={detailOrder.deliveryAddress}>
-                  <span className="font-medium text-[hsl(var(--foreground))]">Addr</span> {detailOrder.deliveryAddress}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:w-[min(1120px,calc(100vw-2rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        <div className="shrink-0 px-5 pt-4 pb-2.5 sm:px-7 sm:pt-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                <p className="text-[20px] sm:text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  {detailOrder.orderNumber}
+                </p>
+                <p className="text-[14px] font-medium tracking-tight text-[#6e6e73] truncate">
+                  {detailOrder.clientName}
+                </p>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <OrderStatusBadge status={detailOrder.status} />
+                <span className="text-[11px] text-[#aeaeb2]">
+                  <OrderSourceLabel order={detailOrder} />
                 </span>
-              )}
-              {detailOrder.referrerName?.trim() && (
-                <span><span className="font-medium text-[hsl(var(--foreground))]">Referrer</span> {detailOrder.referrerName}</span>
-              )}
-              {detailOrder.dispatcher && (
-                <span className="truncate max-w-[12rem]"><span className="font-medium text-[hsl(var(--foreground))]">Dispatcher</span> {detailOrder.dispatcher}</span>
-              )}
-              {detailOrder.notes && (
-                <span className="truncate max-w-[16rem]" title={detailOrder.notes}>
-                  <span className="font-medium text-[hsl(var(--foreground))]">Notes</span> {detailOrder.notes}
-                </span>
-              )}
+                {detailOrder.deliveryDate && (
+                  <span className="text-[11px] text-[#aeaeb2] tabular-nums">
+                    Delivery {new Date(detailOrder.deliveryDate).toLocaleDateString()}
+                  </span>
+                )}
+                {detailOrder.referrerName?.trim() && (
+                  <span className="text-[11px] text-[#aeaeb2]">Ref · {detailOrder.referrerName}</span>
+                )}
+                {detailOrder.dispatcher && (
+                  <span className="text-[11px] text-[#aeaeb2]">{detailOrder.dispatcher}</span>
+                )}
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={2.25} />
+            </button>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-2.5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 sm:px-7 pb-4 space-y-3">
 
           {detailOrder.status === "delivered" && (
-            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 px-2.5 py-2">
+            <div className="rounded-[14px] border border-black/[0.04] bg-white dark:bg-[hsl(var(--card))] dark:border-[hsl(var(--border))] px-3.5 py-3">
               {workspace?.readOnly ? (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Shield className="h-3.5 w-3.5 text-[#1a9f9a] shrink-0" />
-                  <span className="font-medium">Warranty</span>
-                  <span>{detailOrder.warrantyHolderName?.trim() || "Not set"}</span>
+                <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                  <Shield className="h-3.5 w-3.5 text-[#007aff] shrink-0" />
+                  <span className="font-semibold tracking-tight">Warranty</span>
+                  <span className="text-[#6e6e73]">{detailOrder.warrantyHolderName?.trim() || "Not set"}</span>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-[#1a9f9a] shrink-0" />
-                  <span className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))] shrink-0">Warranty</span>
+                  <Shield className="h-3.5 w-3.5 text-[#007aff] shrink-0" />
+                  <span className="text-[11px] font-semibold text-[#86868b] shrink-0">Warranty</span>
                   <input
                     value={warrantyHolderDraft}
                     onChange={(e) => setWarrantyHolderDraft(e.target.value)}
                     placeholder="Warranty name"
                     title={`Not the client (${detailOrder.clientName})`}
-                    className="h-7 min-w-[8rem] flex-1 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                    className="h-8 min-w-[8rem] flex-1 rounded-[10px] border border-black/[0.08] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] px-2.5 text-[13px]"
                   />
-                  <Button
-                    size="sm"
-                    className="h-7 px-2.5 text-xs bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer"
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-full text-[12px] font-semibold bg-[#007aff] text-white hover:bg-[#0066d6] cursor-pointer disabled:opacity-40"
                     disabled={
                       savingWarrantyHolder ||
                       warrantyHolderDraft.trim() === (detailOrder.warrantyHolderName || "").trim()
@@ -2000,11 +2034,10 @@ function OrderDetail({
                     onClick={() => void handleSaveWarrantyHolder()}
                   >
                     {savingWarrantyHolder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2.5 text-xs cursor-pointer border-[#1a9f9a] text-[#1a9f9a] hover:bg-[#1a9f9a]/10"
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer disabled:opacity-40 inline-flex items-center gap-1"
                     disabled={!canStartOrderWarranties || startingWarranties}
                     onClick={() => setShowStartWarrantiesConfirm(true)}
                   >
@@ -2012,19 +2045,19 @@ function OrderDetail({
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <>
-                        <PlayCircle className="h-3.5 w-3.5 mr-1" />
+                        <PlayCircle className="h-3.5 w-3.5" />
                         {scannedSerialCount > 0 ? `Start ${scannedSerialCount}` : "Start"}
                       </>
                     )}
-                  </Button>
+                  </button>
                   {!savedWarrantyName && (
-                    <span className="text-[10px] text-amber-700">Save name first</span>
+                    <span className="text-[11px] text-[#9a6700]">Save name first</span>
                   )}
                   {savedWarrantyName && scannedSerialCount === 0 && (
-                    <span className="text-[10px] text-amber-700">No scanned serials</span>
+                    <span className="text-[11px] text-[#9a6700]">No scanned serials</span>
                   )}
                   {warrantyStartResult && (
-                    <span className="text-[10px] text-emerald-800">{warrantyStartResult}</span>
+                    <span className="text-[11px] text-[#248a3d]">{warrantyStartResult}</span>
                   )}
                 </div>
               )}
@@ -2460,107 +2493,65 @@ function OrderDetail({
           )}
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-1.5 px-3 sm:px-4 py-2.5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-wrap items-center gap-1.5 px-5 sm:px-7 py-3 shrink-0 border-t border-black/[0.06] dark:border-[hsl(var(--border))] bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {canEditOrder && (
-            <Button size="sm" variant="outline" className="h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={() => setShowEdit(true)}>
-              <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
-            </Button>
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowEdit(true)}>
+              <Edit className="h-3.5 w-3.5" /> Edit
+            </button>
           )}
           {canFinalize && (
-            <Button size="sm" className="h-8 text-xs bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
-              <FileText className="h-3.5 w-3.5 mr-1.5" /> Finalize
-            </Button>
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-[#34c759] text-white hover:bg-[#2db84e] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowFinalize(true)}>
+              <FileText className="h-3.5 w-3.5" /> Finalize
+            </button>
           )}
-              {canManagePayments && (
-                <Button size="sm" className="h-8 text-xs bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
-                </Button>
-              )}
-              {canManageCashback && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
-                  onClick={() => setShowCashback(true)}
-                >
-                  <Gift className="h-3.5 w-3.5 mr-1.5" />
-                  Cashback
-                </Button>
-              )}
-              {canAddFreeItem && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 cursor-pointer"
-                  onClick={() => setShowFreeItem(true)}
-                >
-                  <Gift className="h-3.5 w-3.5 mr-1.5" />
-                  Free item
-                </Button>
-              )}
+          {canManagePayments && (
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-[#007aff] text-white hover:bg-[#0066d6] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowPayment(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
+            </button>
+          )}
+          {canManageCashback && (
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowCashback(true)}>
+              <Gift className="h-3.5 w-3.5" /> Cashback
+            </button>
+          )}
+          {canAddFreeItem && (
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowFreeItem(true)}>
+              <Gift className="h-3.5 w-3.5" /> Free item
+            </button>
+          )}
           {canReturn && (
-            <Button
-              size="sm"
-              className="h-8 text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
-              onClick={() => setShowReturn(true)}
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-[#ff9f0a] text-white hover:bg-[#f09200] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowReturn(true)}>
+              <RotateCcw className="h-3.5 w-3.5" />
               {hasReturns ? "Return more" : "Return"}
-            </Button>
+            </button>
           )}
           {canManageReturnPayments && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs cursor-pointer border-orange-300 text-orange-800 hover:bg-orange-50"
-              onClick={() => setShowReturnPayment(true)}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Return payment
-            </Button>
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowReturnPayment(true)}>
+              <Plus className="h-3.5 w-3.5" /> Return payment
+            </button>
           )}
           {canEditInvoice && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-10 text-sm cursor-pointer"
-              onClick={() => setShowInvoiceEdit(true)}
-            >
-              <Edit className="h-4 w-4 mr-2" /> Edit invoice
-            </Button>
+            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowInvoiceEdit(true)}>
+              <Edit className="h-3.5 w-3.5" /> Edit invoice
+            </button>
           )}
           {showInvoiceActions && (
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-10 w-10 p-0 cursor-pointer"
-                onClick={viewInvoice}
-                disabled={!!invoiceLoading}
-                title="View Invoice"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-10 w-10 p-0 cursor-pointer"
-                onClick={() => void downloadInvoice()}
-                disabled={!!invoiceLoading}
-                title={invoiceLoading === "download" ? "Generating PDF…" : "Download PDF"}
-              >
-                {invoiceLoading === "download" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-              </Button>
+              <button type="button" className="h-8 w-8 rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center justify-center disabled:opacity-40" onClick={viewInvoice} disabled={!!invoiceLoading} title="View Invoice">
+                <Eye className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" className="h-8 w-8 rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center justify-center disabled:opacity-40" onClick={() => void downloadInvoice()} disabled={!!invoiceLoading} title={invoiceLoading === "download" ? "Generating PDF…" : "Download PDF"}>
+                {invoiceLoading === "download" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              </button>
             </>
           )}
-          <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm sm:ml-auto cursor-pointer" onClick={onClose}>Close</Button>
-          <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
-            <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
-          </Button>
+          <button type="button" className="h-8 px-3.5 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer sm:ml-auto" onClick={onClose}>
+            Close
+          </button>
+          <button type="button" className="h-8 px-3.5 rounded-full text-[12px] font-semibold bg-[#ff3b30] text-white hover:bg-[#e0342b] cursor-pointer disabled:opacity-40 inline-flex items-center gap-1" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
+            <Trash2 className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : "Delete"}
+          </button>
         </div>
       </div>
     </div>
