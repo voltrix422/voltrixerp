@@ -1228,7 +1228,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
         </div>
       )}
       <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[10px] p-0 sm:p-3 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
-        <div className="w-full sm:w-[min(1180px,calc(100vw-1.25rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:h-[min(96vh,980px)] sm:max-h-[96vh]" onClick={e => e.stopPropagation()}>
+        <div className="w-full sm:w-[min(1180px,calc(100vw-1.25rem))] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[96vh]" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 px-5 sm:px-7 pt-4 pb-3 shrink-0">
             <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
               {isEdit ? existing?.orderNumber : "New order"}
@@ -1243,7 +1243,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </button>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto sm:overflow-hidden overflow-x-hidden overscroll-contain px-5 sm:px-7 pb-3 space-y-3 sm:flex sm:flex-col">
+          <div className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-7 pb-3 space-y-3">
             <div className="space-y-1.5 relative">
             <label className="text-[11px] font-medium text-[#86868b]">Client</label>
             {(() => {
@@ -1341,8 +1341,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </div>
           </div>
 
-          <div className="space-y-2 min-h-0 sm:flex-1 sm:flex sm:flex-col">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0">
+          <div className="space-y-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Items</p>
               <div className="flex flex-wrap items-center gap-2">
                 <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} />
@@ -1357,25 +1357,23 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-6 text-center">
+              <div className="rounded-[14px] border border-dashed border-black/[0.1] px-4 py-5 text-center">
                 <p className="text-[13px] text-[#86868b]">No items yet</p>
               </div>
             ) : (
-              <div className="min-h-0 sm:flex-1 sm:overflow-y-auto">
-                <CrmLineItemsEditor
-                  items={items}
-                  onUpdate={(id, key, value) => updateItem(id, key, value)}
-                  onRemove={removeItem}
-                  size="md"
-                  removeIcon="trash"
-                  gstPercent={taxPercent}
-                  variant="sheet"
-                />
-              </div>
+              <CrmLineItemsEditor
+                items={items}
+                onUpdate={(id, key, value) => updateItem(id, key, value)}
+                onRemove={removeItem}
+                size="md"
+                removeIcon="trash"
+                gstPercent={taxPercent}
+                variant="sheet"
+              />
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_280px] gap-3 shrink-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_280px] gap-3">
             {items.length > 0 ? (
               <div className="rounded-[14px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.06] dark:border-[hsl(var(--border))] p-3 space-y-2.5">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
