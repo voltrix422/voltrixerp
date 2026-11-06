@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { getInventoryHistory } from "@/lib/inventory-history"
 import { getOrders } from "@/lib/orders"
 import { getManualInventoryItems } from "@/lib/manual-inventory"
@@ -19,17 +20,19 @@ import { downloadInventoryMovementsExcel } from "@/lib/inventory-excel-export"
 import { downloadInventoryMovementsPDF } from "@/lib/generate-inventory-movements-pdf"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { getSession } from "@/lib/auth"
-import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
   ArrowRightLeft,
   Calendar,
   FileDown,
+  Loader2,
   Package,
   Search,
+  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react"
 
 const DATE_PRESETS: { id: DateRangePreset; label: string }[] = [
@@ -60,6 +63,10 @@ export function InventoryMovementOverview() {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
 
   const dateRange = useMemo(
     () => ({ from: customFrom, to: customTo }),
@@ -129,6 +136,42 @@ export function InventoryMovementOverview() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!filterOpen) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(328, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [filterOpen])
+
+  useEffect(() => {
+    if (!filterOpen) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setFilterOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [filterOpen])
+
+  const hasActiveFilters = Boolean(search.trim() || filterType !== "all")
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -203,188 +246,225 @@ export function InventoryMovementOverview() {
     }
   }
 
+  function clearMovementFilters() {
+    setSearch("")
+    setFilterType("all")
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <p className="text-[11px] text-[#86868b]">
-          Stock in / out by date, order, and client
+    <div className="space-y-4 rounded-[18px] bg-[#f5f5f7] p-3 -m-3 sm:m-0 sm:p-4 sm:rounded-[20px]">
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <p className="text-[11px] text-[#86868b] tabular-nums min-w-0">
+          <span className="text-[#1d1d1f] font-medium">{periodLabel}</span>
+          <span className="mx-1.5 text-[#d2d2d7]">·</span>
+          {loading ? "…" : `${filtered.length} movement${filtered.length !== 1 ? "s" : ""}`}
         </p>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <CrmExcelExportButton
             onExport={handleExportExcel}
             exporting={exportingExcel}
             disabled={filtered.length === 0}
-            className="h-8 rounded-full px-3.5 text-[11px] border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+            className="h-9 rounded-full px-4 text-[12px] border-black/[0.08] bg-white shadow-sm cursor-pointer"
           />
-          <Button
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 rounded-full text-[11px] px-3.5 gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] cursor-pointer"
             disabled={filtered.length === 0 || exportingPdf}
             onClick={() => void handleExportPdf()}
+            className="h-9 rounded-full text-[12px] px-4 gap-1.5 border border-black/[0.08] bg-white shadow-sm cursor-pointer inline-flex items-center font-medium text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-40"
           >
-            <FileDown className="h-3.5 w-3.5" />
-            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-          </Button>
+            {exportingPdf ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+            )}
+            PDF
+          </button>
+          <button
+            ref={filterBtnRef}
+            type="button"
+            onClick={() => setFilterOpen((v) => !v)}
+            className={`relative h-9 w-9 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer border border-black/[0.08] bg-white shadow-sm shrink-0 ${
+              filterOpen
+                ? "bg-[#1d1d1f] text-white border-transparent"
+                : "text-[#86868b] hover:bg-black/[0.04] hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filters"
+            aria-expanded={filterOpen}
+            title="Filters"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {hasActiveFilters && !filterOpen && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Date presets */}
-      <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          <Calendar className="h-3.5 w-3.5" />
-          Time period
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {DATE_PRESETS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => applyDatePreset(id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
-                datePreset === id
-                  ? "bg-[#1faca6] text-white border-[#1faca6]"
-                  : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <input
-            type="date"
-            value={customFrom}
-            onChange={(e) => {
-              setCustomFrom(e.target.value)
-              setDatePreset("custom")
-            }}
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-          />
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">to</span>
-          <input
-            type="date"
-            value={customTo}
-            onChange={(e) => {
-              setCustomTo(e.target.value)
-              setDatePreset("custom")
-            }}
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 cursor-pointer"
-            disabled={filtered.length === 0 || exportingPdf}
-            onClick={() => void handleExportPdf()}
+      {filterOpen &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(19.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,36rem)] overflow-y-auto scrollbar-none overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
           >
-            <FileDown className="h-3.5 w-3.5" />
-            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-          </Button>
-        </div>
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Showing: <span className="font-medium text-[hsl(var(--foreground))]">{periodLabel}</span>
-        </p>
-      </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f]">Filters</p>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <button type="button" onClick={clearMovementFilters} className="text-[11px] font-semibold text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-tight text-[#86868b]">
+                <Calendar className="h-3 w-3" />
+                Period
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {DATE_PRESETS.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => applyDatePreset(id)}
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded-full transition-colors cursor-pointer ${
+                      datePreset === id
+                        ? "bg-[#1d1d1f] text-white"
+                        : "bg-[#f2f2f7] text-[#6e6e73] hover:text-[#1d1d1f]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value)
+                  setDatePreset("custom")
+                }}
+                className="h-8 flex-1 min-w-[8.5rem] rounded-[10px] border-0 bg-[#f2f2f7] px-2 text-[11px] text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+              />
+              <span className="text-[10px] text-[#86868b]">to</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => {
+                  setCustomTo(e.target.value)
+                  setDatePreset("custom")
+                }}
+                className="h-8 flex-1 min-w-[8.5rem] rounded-[10px] border-0 bg-[#f2f2f7] px-2 text-[11px] text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+              />
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full h-8 pl-8 pr-2.5 rounded-[10px] border-0 bg-[#f2f2f7] text-[12px] text-[#1d1d1f] placeholder:text-[#86868b] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Direction</p>
+              <div className="flex gap-1 rounded-[10px] bg-[#f2f2f7] p-1">
+                {(["all", "in", "out"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFilterType(type)}
+                    className={`flex-1 h-7 rounded-[7px] text-[10px] font-semibold capitalize transition-colors cursor-pointer ${
+                      filterType === type
+                        ? "bg-white text-[#1d1d1f] shadow-sm"
+                        : "text-[#6e6e73] hover:text-[#1d1d1f]"
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg border p-3 bg-green-50/50 dark:bg-green-950/20">
-          <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-            <TrendingUp className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide">Stock In</span>
+        <div className="rounded-[16px] border border-black/[0.06] bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2 text-[#34c759]">
+            <TrendingUp className="h-4 w-4" strokeWidth={2} />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">In</span>
           </div>
-          <p className="text-xl font-bold mt-1">{stats.inboundCount}</p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{stats.qtyIn.toLocaleString()} units</p>
+          <p className="text-xl font-bold mt-1 text-[#1d1d1f] tabular-nums">{stats.inboundCount}</p>
+          <p className="text-[10px] text-[#86868b]">{stats.qtyIn.toLocaleString()} units</p>
         </div>
-        <div className="rounded-lg border p-3 bg-red-50/50 dark:bg-red-950/20">
-          <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-            <TrendingDown className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide">Stock Out</span>
+        <div className="rounded-[16px] border border-black/[0.06] bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2 text-[#ff3b30]">
+            <TrendingDown className="h-4 w-4" strokeWidth={2} />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">Out</span>
           </div>
-          <p className="text-xl font-bold mt-1">{stats.outboundCount}</p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{stats.qtyOut.toLocaleString()} units</p>
+          <p className="text-xl font-bold mt-1 text-[#1d1d1f] tabular-nums">{stats.outboundCount}</p>
+          <p className="text-[10px] text-[#86868b]">{stats.qtyOut.toLocaleString()} units</p>
         </div>
-        <div className="rounded-lg border p-3">
-          <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]">
-            <ArrowRightLeft className="h-4 w-4" />
+        <div className="rounded-[16px] border border-black/[0.06] bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2 text-[#86868b]">
+            <ArrowRightLeft className="h-4 w-4" strokeWidth={2} />
             <span className="text-[10px] font-semibold uppercase tracking-wide">Orders</span>
           </div>
-          <p className="text-xl font-bold mt-1">{stats.orders}</p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">dispatch movements</p>
+          <p className="text-xl font-bold mt-1 text-[#1d1d1f] tabular-nums">{stats.orders}</p>
+          <p className="text-[10px] text-[#86868b]">Dispatch</p>
         </div>
-        <div className="rounded-lg border p-3">
-          <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]">
-            <Users className="h-4 w-4" />
+        <div className="rounded-[16px] border border-black/[0.06] bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2 text-[#86868b]">
+            <Users className="h-4 w-4" strokeWidth={2} />
             <span className="text-[10px] font-semibold uppercase tracking-wide">Clients</span>
           </div>
-          <p className="text-xl font-bold mt-1">{stats.clients}</p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">received stock</p>
+          <p className="text-xl font-bold mt-1 text-[#1d1d1f] tabular-nums">{stats.clients}</p>
+          <p className="text-[10px] text-[#86868b]">Receiving</p>
         </div>
       </div>
-
-      {/* Search & filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search item, order, client, source, destination..."
-            className="w-full h-9 pl-9 pr-3 rounded-lg border bg-[hsl(var(--background))] text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-          />
-        </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-1 shrink-0">
-          {(["all", "in", "out"] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setFilterType(type)}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer capitalize ${
-                filterType === type
-                  ? type === "in"
-                    ? "bg-green-600 text-white"
-                    : type === "out"
-                      ? "bg-red-600 text-white"
-                      : "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                  : "hover:bg-[hsl(var(--muted))]/50"
-              }`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        {filtered.length} movement{filtered.length !== 1 ? "s" : ""} in selected period
-      </p>
 
       {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading movement history...</p>
+        <div className="flex items-center justify-center py-24 rounded-[16px] bg-white border border-black/[0.06]">
+          <p className="text-sm text-[#86868b]">Loading…</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center rounded-lg border">
-          <Package className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-          <p className="text-sm font-medium">No movements found</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-sm">
-            Try a different date range or filter. Movements are logged when stock is received, dispatched, transferred, or adjusted.
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-[16px] bg-white border border-black/[0.06] shadow-sm">
+          <Package className="h-10 w-10 text-[#86868b] opacity-40 mb-3" strokeWidth={1.25} />
+          <p className="text-[15px] font-semibold text-[#1d1d1f]">No movements</p>
+          <p className="text-[12px] text-[#86868b] mt-1 max-w-[280px]">
+            Adjust period or filters.
           </p>
         </div>
       ) : (
         <>
           {/* Mobile: compact expandable cards */}
-          <div className="md:hidden rounded-lg border overflow-hidden divide-y">
+          <div className="md:hidden rounded-[16px] border border-black/[0.06] bg-white overflow-hidden divide-y divide-black/[0.06] shadow-sm">
             {filtered.map((m) => (
               <InventoryMovementRowCard key={m.id} movement={m} />
             ))}
           </div>
 
           {/* Desktop: compact table — click row for full detail */}
-          <div className="hidden md:block rounded-lg border overflow-x-auto">
+          <div className="hidden md:block rounded-[16px] border border-black/[0.06] bg-white overflow-x-auto shadow-sm">
             <table className="w-full min-w-[960px]">
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/40">
@@ -412,8 +492,8 @@ export function InventoryMovementOverview() {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] hidden md:block">
-            Click a row for full notes and reference. <strong>Main WH</strong> = main warehouse qty before → after this movement.
+          <p className="text-[10px] text-[#86868b] hidden md:block px-1">
+            Row: detail · Main WH = qty before → after.
           </p>
         </>
       )}

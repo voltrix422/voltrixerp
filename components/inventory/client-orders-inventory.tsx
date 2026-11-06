@@ -1,11 +1,11 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from "react"
+import { createPortal } from "react-dom"
 import {
   getOrders,
   saveOrder,
   hasOutstandingCredit,
   canReplaceOrderItem,
-  STATUS_LABELS,
   getOrderCreditBalance,
   isOrderOnCredit,
   isOrderReturned,
@@ -17,7 +17,8 @@ import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getClients, type Client } from "@/lib/crm"
 import { Button } from "@/components/ui/button"
 import { SuccessNotification } from "@/components/ui/success-notification"
-import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, RefreshCw, ChevronDown } from "lucide-react"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
+import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, RefreshCw, SlidersHorizontal } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
@@ -207,6 +208,9 @@ export function ClientOrdersInventory() {
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
   const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all")
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
@@ -215,6 +219,40 @@ export function ClientOrdersInventory() {
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
   const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const currentUser = getSession()?.name || "Inventory"
+
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(328, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
 
   useEffect(() => {
     loadInventoryProductOptions()
@@ -474,265 +512,234 @@ export function ClientOrdersInventory() {
       ledgerClientIds.length > 0,
   )
 
-  const chipClass = (active: boolean) =>
-    `h-7 px-2.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer border ${
+  const segBtn = (active: boolean) =>
+    `h-6 px-2 rounded-[7px] text-[10px] font-semibold transition-colors cursor-pointer ${
       active
-        ? "bg-[#1d1d1f] text-white border-[#1d1d1f] dark:bg-white dark:text-[#1d1d1f] dark:border-white"
-        : "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] border-black/[0.08] dark:border-[hsl(var(--border))] hover:bg-black/[0.04]"
+        ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+        : "text-[#6e6e73] hover:text-[#1d1d1f]"
     }`
 
-  const fieldClass =
-    "h-8 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
-
   return (
-    <div className="space-y-3">
-      {showFilters && !loading && (
-        <div className="space-y-3 p-3.5 rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Activity
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex items-center justify-end gap-1.5 shrink-0">
+        <CrmExcelExportButton
+          onExport={exportDispatchExcel}
+          exporting={exportingExcel}
+          disabled={loading || filteredOrders.length === 0 || exportingPdf}
+          className="h-8 rounded-full px-3 text-[11px] gap-1 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
+        />
+        <button
+          type="button"
+          disabled={loading || filteredOrders.length === 0 || exportingPdf}
+          onClick={() => void exportListPdf()}
+          className="h-8 px-3 rounded-full text-[11px] font-semibold border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer inline-flex items-center gap-1"
+        >
+          {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+          PDF
+        </button>
+        <button
+          ref={filterBtnRef}
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+            showFilters
+              ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+              : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+          }`}
+          aria-label="Filters"
+          aria-expanded={showFilters}
+          title="Filters"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {filterActive && !showFilters && (
+            <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+          )}
+        </button>
+      </div>
+
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(19.5rem,calc(100vw-1.5rem))] max-h-[min(72vh,34rem)] overflow-y-auto scrollbar-none overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Filters
+              </p>
+              <div className="flex items-center gap-2">
+                {filterActive && (
+                  <button type="button" onClick={clearFilters} className="text-[11px] font-semibold text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                )}
                 <button
-                  key={opt.value}
                   type="button"
-                  onClick={() => setActivityFilter(opt.value)}
-                  className={chipClass(activityFilter === opt.value)}
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
                 >
-                  {opt.label}
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Status
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setStatusFilter(opt.value)}
-                  className={chipClass(statusFilter === opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search orders, client…"
+              className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+            />
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Ledger</p>
+              <ClientLedgerPicker
+                clients={clients}
+                orders={orders}
+                selectedIds={ledgerClientIds}
+                onChange={selectLedgerClients}
+              />
             </div>
-          </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Payment
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {PAYMENT_FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setPaymentFilter(opt.value)}
-                  className={chipClass(paymentFilter === opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Activity</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
+                {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setActivityFilter(opt.value)}
+                    className={segBtn(activityFilter === opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <ClientExcludePicker
-            clients={clients}
-            orders={orders}
-            excludedIds={excludedClientIds}
-            onChange={(ids) => {
-              setExcludedClientIds(ids)
-              if (ids.length) setLedgerClientIds([])
-            }}
-          />
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Status</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStatusFilter(opt.value)}
+                    className={segBtn(statusFilter === opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Referrer
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setReferrerFilter("")}
-                className={chipClass(!referrerFilter)}
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Payment</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
+                {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPaymentFilter(opt.value)}
+                    className={segBtn(paymentFilter === opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <ClientExcludePicker
+              clients={clients}
+              orders={orders}
+              excludedIds={excludedClientIds}
+              onChange={(ids) => {
+                setExcludedClientIds(ids)
+                if (ids.length) setLedgerClientIds([])
+              }}
+            />
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Referrer</p>
+              <select
+                value={referrerFilter}
+                onChange={(e) => setReferrerFilter(e.target.value)}
+                className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none"
               >
-                All
-              </button>
-              {referrerOptions.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => setReferrerFilter(name)}
-                  className={chipClass(referrerFilter === name)}
-                >
-                  {name}
-                </button>
-              ))}
-              {referrerOptions.length === 0 && (
-                <span className="h-7 px-2.5 text-[11px] text-[#86868b] inline-flex items-center">
-                  No referrers yet
-                </span>
-              )}
+                <option value="">All referrers</option>
+                {referrerOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Date range
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {DATE_PRESET_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => applyDatePreset(opt.value)}
-                  className={chipClass(datePreset === opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#86868b] mb-1.5">
-              Product
-            </p>
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Product</p>
               <select
                 value={selectedProductModel}
                 onChange={(e) => handleProductDropdownChange(e.target.value)}
                 disabled={loadingProducts}
-                className={`${fieldClass} min-w-[160px] cursor-pointer`}
+                className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none cursor-pointer"
               >
-                <option value="">
-                  {loadingProducts ? "Loading inventory…" : "All products"}
-                </option>
+                <option value="">{loadingProducts ? "Loading…" : "All products"}</option>
                 {filteredInventoryProducts.map((product) => (
                   <option key={product.id} value={product.id}>
                     {product.displayName} ({product.inStock} in stock)
                   </option>
                 ))}
               </select>
-              <div className="relative flex-1 min-w-[160px] max-w-sm">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+              <input
+                value={productSearch}
+                onChange={(e) => handleProductSearchChange(e.target.value)}
+                placeholder="Product / model…"
+                className="w-full h-8 px-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Date</p>
+              <div className="flex flex-wrap gap-1 rounded-[10px] bg-[#f2f2f7] dark:bg-white/10 p-1">
+                {DATE_PRESET_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => applyDatePreset(opt.value)}
+                    className={segBtn(datePreset === opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
                 <input
-                  value={productSearch}
-                  onChange={(e) => handleProductSearchChange(e.target.value)}
-                  placeholder="Product / model name…"
-                  className={`w-full ${fieldClass} pl-8`}
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value)
+                    setDatePreset("")
+                  }}
+                  className="h-8 flex-1 min-w-0 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[11px]"
+                />
+                <span className="text-[10px] text-[#aeaeb2]">–</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value)
+                    setDatePreset("")
+                  }}
+                  className="h-8 flex-1 min-w-0 px-2 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[11px]"
                 />
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
+        )}
 
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => {
-                setFromDate(e.target.value)
-                setDatePreset("")
-              }}
-              className={fieldClass}
-            />
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => {
-                setToDate(e.target.value)
-                setDatePreset("")
-              }}
-              className={fieldClass}
-            />
-            <select
-              value={referrerFilter}
-              onChange={(e) => setReferrerFilter(e.target.value)}
-              className={`${fieldClass} min-w-[10rem]`}
-            >
-              <option value="">All referrers</option>
-              {referrerOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1 min-w-[12rem]">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search orders, client, or referrer…"
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-            {filterActive && (
-              <Button size="sm" variant="outline" className="h-8 rounded-full text-[11px] px-3 border-black/[0.08] cursor-pointer" onClick={clearFilters}>
-                Clear
-              </Button>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-full text-[11px] px-3 gap-1.5 border-black/[0.08] cursor-pointer shrink-0"
-              disabled={loading || filteredOrders.length === 0 || exportingPdf}
-              onClick={() => void exportListPdf()}
-            >
-              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <ClientLedgerPicker
-          clients={clients}
-          orders={orders}
-          selectedIds={ledgerClientIds}
-          onChange={selectLedgerClients}
-        />
-        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-          <CrmExcelExportButton
-            onExport={exportDispatchExcel}
-            exporting={exportingExcel}
-            disabled={loading || filteredOrders.length === 0 || exportingPdf}
-            className="h-8 rounded-full px-3.5 text-[11px] gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))]"
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 rounded-full text-[11px] px-3.5 gap-1.5 border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] cursor-pointer shrink-0"
-            disabled={loading || filteredOrders.length === 0 || exportingPdf}
-            onClick={() => void exportListPdf()}
-          >
-            {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className={`h-8 rounded-full text-[11px] px-3.5 cursor-pointer border-black/[0.08] ${
-              showFilters
-                ? "bg-[#1d1d1f] text-white border-[#1d1d1f] dark:bg-white dark:text-[#1d1d1f]"
-                : "bg-white dark:bg-[hsl(var(--card))]"
-            }`}
-            onClick={() => setShowFilters((o) => !o)}
-          >
-            {showFilters ? "Hide Filters" : "Filters"}
-            <ChevronDown className={`h-3 w-3 ml-1 transition-transform ${showFilters ? "rotate-180" : ""}`} />
-          </Button>
-        </div>
-      </div>
-
-      <p className="text-[11px] text-[#86868b]">
+      <p className="text-[11px] text-[#86868b] shrink-0">
         {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
         {isProductFiltered ? " with this product" : ledgerClients.length ? " for selected client(s)" : " for dispatch"}
         {filterActive ? " · filters on" : ""}
@@ -834,10 +841,10 @@ export function ClientOrdersInventory() {
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <div className="overflow-x-auto scrollbar-none rounded-[16px] border border-black/[0.06] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="min-h-0 flex-1 overflow-auto scrollbar-none rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <table className="w-full min-w-[40rem] text-[13px]">
-            <thead>
-              <tr className="border-b border-black/[0.04] dark:border-[hsl(var(--border))] bg-[#fafafa] dark:bg-[hsl(var(--muted))]/30 text-left">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-black/[0.06] dark:border-[hsl(var(--border))]">
                 {[
                   "Order #",
                   "Client",
@@ -847,13 +854,16 @@ export function ClientOrdersInventory() {
                   "Delivery Date",
                   "Status",
                 ].filter(Boolean).map((h) => (
-                  <th key={h as string} className="h-9 px-3 font-medium text-[11px] text-[#86868b] whitespace-nowrap">
+                  <th
+                    key={h as string}
+                    className="h-9 px-4 text-left text-[11px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap bg-[#fafafa] dark:bg-[hsl(var(--muted))]"
+                  >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
+            <tbody>
               {filteredOrders.map((order) => {
                 const productDesc = isProductFiltered
                   ? matchingProductDescription(order, productFilter)
@@ -889,46 +899,59 @@ export function ClientOrdersInventory() {
                       : replaceQty > 0
                         ? `replaced ${replaceQty}`
                         : "—"
+                const onCredit = hasOutstandingCredit(order)
 
                 return (
                   <tr
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
+                    className="border-b border-black/[0.04] last:border-b-0 dark:border-[hsl(var(--border))] hover:bg-[#f5f5f7]/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
                   >
-                    <td className="px-3 py-2.5 whitespace-nowrap font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                      {order.orderNumber}
-                      {hasOutstandingCredit(order) ? (
-                        <span className="text-[#86868b] font-normal"> · Credit</span>
-                      ) : null}
-                      {returnQty > 0 ? (
-                        <span className="text-[#86868b] font-normal"> · Returned</span>
-                      ) : null}
-                      {replaceQty > 0 ? (
-                        <span className="text-[#86868b] font-normal"> · Replaced</span>
-                      ) : null}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="font-semibold tracking-tight text-[#0071e3]">
+                          {order.orderNumber || "—"}
+                        </span>
+                        {onCredit && (
+                          <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-[#ff9f0a]/18 text-[#9a6700]">
+                            Credit
+                          </span>
+                        )}
+                        {returnQty > 0 && (
+                          <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-black/[0.06] text-[#6e6e73]">
+                            Returned
+                          </span>
+                        )}
+                        {replaceQty > 0 && (
+                          <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-black/[0.06] text-[#6e6e73]">
+                            Replaced
+                          </span>
+                        )}
+                      </span>
                     </td>
-                    <td className="px-3 py-2.5">{order.clientName}</td>
+                    <td className="px-4 py-3 font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {order.clientName || "—"}
+                    </td>
                     {isProductFiltered && (
-                      <td className="px-3 py-2.5 max-w-[200px]">
+                      <td className="px-4 py-3 max-w-[200px] text-[#6e6e73]">
                         <span className="line-clamp-2">{displayProduct}</span>
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-[#86868b]">
+                    <td className="px-4 py-3 text-[#6e6e73] tabular-nums">
                       {isProductFiltered
                         ? displayQty
                         : formatCrmItemsQtyLabel(order.items)}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums font-medium">
+                    <td className="px-4 py-3 font-semibold tracking-tight whitespace-nowrap tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                       {isProductFiltered
                         ? `PKR ${matchingProductValue(order, productFilter).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                         : `PKR ${order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-[#86868b]">
+                    <td className="px-4 py-3 whitespace-nowrap text-[#6e6e73]">
                       {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-3 py-2.5 capitalize text-[12px]">
-                      {STATUS_LABELS[order.status] || order.status}
+                    <td className="px-4 py-3">
+                      <OrderStatusBadge status={order.status} />
                     </td>
                   </tr>
                 )

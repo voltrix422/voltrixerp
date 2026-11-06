@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import {
   deleteInventorySerialUnit,
   deleteInventorySerialUnitsByModel,
@@ -35,7 +36,7 @@ import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useDialog } from "@/components/ui/dialog-provider"
-import { Search, X, QrCode, Loader2, Route, ChevronDown } from "lucide-react"
+import { Search, X, QrCode, Loader2, Route, SlidersHorizontal } from "lucide-react"
 
 type InventorySerialViewProps = {
   /** Renders after Export Excel / Scan QR (e.g. Send multiple on branch detail). */
@@ -68,6 +69,43 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [trackOpen, setTrackOpen] = useState(false)
   const [trackModelKey, setTrackModelKey] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(300, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: globalThis.MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -438,54 +476,70 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     }
   }
 
-  function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
+  function renderGroupItem(group: UnifiedInventoryModelGroup, asCard: boolean) {
     return (
-      <div className="border border-[hsl(var(--border))] overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-[hsl(var(--border))]">
-          <p className="text-xs font-semibold">{title}</p>
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{groups.length} models</span>
+      <InventoryModelGroup
+        key={group.modelKey}
+        modelKey={group.modelKey}
+        modelUnits={group.units}
+        stockOnly={group.stockOnly}
+        variant={asCard ? "card" : "row"}
+        expanded={expandedModels[group.modelKey] === true}
+        onToggle={() =>
+          setExpandedModels((prev) => ({ ...prev, [group.modelKey]: !prev[group.modelKey] }))
+        }
+        customName={getDisplayName(group.modelKey) || group.displayName}
+        isEditing={editingModel === group.modelKey}
+        editingName={editingName}
+        savingModelLabel={savingModelLabel}
+        deletingId={deletingId}
+        deletingModel={deletingModel === group.modelKey}
+        onEditingNameChange={setEditingName}
+        onStartEdit={(e) => startEditModelName(group.modelKey, e)}
+        onSaveName={() => void saveModelName(group.modelKey)}
+        onCancelEdit={() => setEditingModel(null)}
+        onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
+        onDeleteModel={() => handleDeleteModel(group)}
+        onSubtractManualStock={handleSubtractManualStock}
+        onSubtractManualUnits={handleSubtractManualUnits}
+        onMarkSerialFaulty={handleMarkSerialFaulty}
+        onMoveQtyToFaulty={handleMoveQtyToFaulty}
+        adjustingManual={adjustingManual}
+        markingFaultyId={markingFaultyId}
+        movingToFaulty={movingToFaulty}
+      />
+    )
+  }
+
+  function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[], asCards = false) {
+    if (asCards) {
+      return (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2 px-0.5">
+            <p className="text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{title}</p>
+            <span className="text-[11px] text-[#86868b]">{groups.length} models</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            {groups.map((group) => renderGroupItem(group, true))}
+          </div>
         </div>
-        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 px-2 py-1.5 border-b border-[hsl(var(--border))] text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+      )
+    }
+    return (
+      <div className="rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-black/[0.04] dark:border-[hsl(var(--border))]">
+          <p className="text-[12px] font-semibold tracking-tight">{title}</p>
+          <span className="text-[11px] text-[#86868b]">{groups.length} models</span>
+        </div>
+        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 px-3 py-1.5 border-b border-black/[0.04] text-[10px] font-semibold tracking-tight text-[#86868b]">
           <span>Model / product</span>
           <span>Model code</span>
           <span className="text-right">Stock</span>
           <span className="text-right">Units</span>
-          <span className="text-right text-[10px] font-normal normal-case tracking-normal">
-            Click for prices · − stock · U− units
-          </span>
+          <span className="text-right font-normal">Prices · − · U−</span>
         </div>
-        <div className="divide-y">
-          {groups.map((group) => (
-            <InventoryModelGroup
-              key={group.modelKey}
-              modelKey={group.modelKey}
-              modelUnits={group.units}
-              stockOnly={group.stockOnly}
-              expanded={expandedModels[group.modelKey] === true}
-              onToggle={() =>
-                setExpandedModels((prev) => ({ ...prev, [group.modelKey]: !prev[group.modelKey] }))
-              }
-              customName={getDisplayName(group.modelKey) || group.displayName}
-              isEditing={editingModel === group.modelKey}
-              editingName={editingName}
-              savingModelLabel={savingModelLabel}
-              deletingId={deletingId}
-              deletingModel={deletingModel === group.modelKey}
-              onEditingNameChange={setEditingName}
-              onStartEdit={(e) => startEditModelName(group.modelKey, e)}
-              onSaveName={() => void saveModelName(group.modelKey)}
-              onCancelEdit={() => setEditingModel(null)}
-              onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
-              onDeleteModel={() => handleDeleteModel(group)}
-              onSubtractManualStock={handleSubtractManualStock}
-              onSubtractManualUnits={handleSubtractManualUnits}
-              onMarkSerialFaulty={handleMarkSerialFaulty}
-              onMoveQtyToFaulty={handleMoveQtyToFaulty}
-              adjustingManual={adjustingManual}
-              markingFaultyId={markingFaultyId}
-              movingToFaulty={movingToFaulty}
-            />
-          ))}
+        <div className="divide-y divide-black/[0.04] dark:divide-[hsl(var(--border))]">
+          {groups.map((group) => renderGroupItem(group, false))}
         </div>
       </div>
     )
@@ -528,47 +582,75 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </Button>
           {toolbarEnd}
           <button
+            ref={filterBtnRef}
             type="button"
-            className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] inline-flex items-center gap-1 cursor-pointer"
             onClick={() => setShowFilters((o) => !o)}
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              showFilters
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filters"
+            aria-expanded={showFilters}
+            title="Filters"
           >
-            Filter
-            <ChevronDown className={`h-3 w-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {search.trim() && !showFilters && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
           </button>
-          {search.trim() ? <span className="text-[11px] text-[hsl(var(--muted-foreground))]">on</span> : null}
         </div>
       </div>
 
-      {showFilters && (
-        <div className="flex flex-wrap gap-2 items-center border border-[hsl(var(--border))] px-2 py-2">
-          <div className="relative flex-1 min-w-[180px] max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search model, SN…"
-              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
-            />
-          </div>
-          {search.trim() ? (
-            <button
-              type="button"
-              className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
-              onClick={() => setSearch("")}
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-      )}
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(18rem,calc(100vw-1.5rem))] rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Filters
+              </p>
+              <div className="flex items-center gap-2">
+                {search.trim() ? (
+                  <button type="button" onClick={() => setSearch("")} className="text-[11px] font-semibold text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search model, SN…"
+                className="w-full h-8 pl-8 pr-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {modelCount === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]">
-          <p className="text-sm font-medium text-[hsl(var(--foreground))]">No inventory yet</p>
-          <p className="text-xs mt-1 max-w-sm">Scan QR to add boxes to the warehouse.</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center text-[#86868b] rounded-[16px] border border-dashed border-black/[0.08] bg-white/60 dark:bg-[hsl(var(--card))]/40">
+          <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">No inventory yet</p>
+          <p className="text-[12px] mt-1 max-w-sm">Scan QR to add boxes to the warehouse.</p>
           <Button
             variant="outline"
-            className="mt-4 h-7 px-3 text-[11px] gap-1"
+            className="mt-4 h-8 px-3 text-[11px] gap-1 rounded-full"
             onClick={() => setShowQrModal(true)}
           >
             <QrCode className="h-3 w-3" />
@@ -576,42 +658,50 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </Button>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
-          {serialTrackedGroups.length > 0 && renderGroupTable("Inventory with SN numbers", serialTrackedGroups)}
-          {nonSerialGroups.length > 0 && renderGroupTable("Inventory without SN numbers", nonSerialGroups)}
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none space-y-4 pr-0.5">
+          {serialTrackedGroups.length > 0 && renderGroupTable("Inventory with SN numbers", serialTrackedGroups, false)}
+          {nonSerialGroups.length > 0 && renderGroupTable("Inventory without SN numbers", nonSerialGroups, true)}
         </div>
       )}
 
-      {showQrModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3"
-          onClick={() => setShowQrModal(false)}
-        >
+      {showQrModal &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="w-full max-w-2xl max-h-[92vh] border border-[hsl(var(--border))] bg-[hsl(var(--card))] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xl p-3"
+            onClick={() => setShowQrModal(false)}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
-              <div>
-                <p className="text-sm font-semibold">Bulk QR receiving</p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Scan each box, then complete scan to save.
-                </p>
+            <div
+              className="w-full max-w-2xl max-h-[92vh] rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0">
+                <div>
+                  <p className="text-[14px] font-semibold tracking-tight">Bulk QR receiving</p>
+                  <p className="text-[11px] text-[#86868b] mt-0.5">
+                    Scan each box, then complete scan to save.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  onClick={() => setShowQrModal(false)}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))]" onClick={() => setShowQrModal(false)}>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex-1 overflow-y-auto scrollbar-none p-4">
+                <InventoryQrScanPanel
+                  existingSerialNumbers={units.map((u) => u.serialNumber)}
+                  onSaved={handleScanSaved}
+                  compact
+                />
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <InventoryQrScanPanel
-                existingSerialNumbers={units.map((u) => u.serialNumber)}
-                onSaved={handleScanSaved}
-                compact
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       <TrackProductModal
         open={trackOpen}

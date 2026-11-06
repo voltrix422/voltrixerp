@@ -46,6 +46,7 @@ export function InventoryModelGroup({
   markingFaultyId,
   movingToFaulty,
   stockOnly,
+  variant = "row",
 }: {
   modelKey: string
   modelUnits: InventorySerialUnit[]
@@ -75,6 +76,8 @@ export function InventoryModelGroup({
   markingFaultyId?: string | null
   movingToFaulty?: boolean
   stockOnly?: StockOnlyMeta
+  /** Apple card grid (non-SN / manual). Default table row. */
+  variant?: "row" | "card"
 }) {
   const count = modelUnits.length > 0 ? modelUnits.length : (stockOnly?.total ?? 0)
   const inStock =
@@ -133,6 +136,210 @@ export function InventoryModelGroup({
   }
 
   const canMoveQtyToFaulty = !hasSerials && inStock > 0 && Boolean(onMoveQtyToFaulty)
+
+  if (variant === "card") {
+    return (
+      <div className="group relative flex flex-col rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-shadow overflow-hidden">
+        <InventoryModelPricePanel
+          open={pricePanelOpen}
+          onClose={() => setPricePanelOpen(false)}
+          modelKey={modelKey}
+          title={title}
+          modelUnits={modelUnits}
+          inStock={inStock}
+          total={count}
+          deletingId={deletingId}
+          deletingModel={deletingModel}
+          onDeleteUnit={onDeleteUnit}
+          onDeleteModel={async () => {
+            const ok = await onDeleteModel()
+            if (ok !== false) setPricePanelOpen(false)
+          }}
+        />
+        {isEditing ? (
+          <div className="flex flex-col gap-2 p-3" onClick={(e) => e.stopPropagation()}>
+            <input
+              value={editingName}
+              onChange={(e) => onEditingNameChange(e.target.value)}
+              placeholder="Friendly name"
+              autoFocus
+              className="h-8 w-full rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSaveName()
+                if (e.key === "Escape") onCancelEdit()
+              }}
+            />
+            <div className="flex gap-1.5">
+              <Button type="button" size="sm" className="h-7 text-[11px] px-3 rounded-full" disabled={savingModelLabel} onClick={onSaveName}>
+                {savingModelLabel ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 text-[11px] px-3 rounded-full" onClick={onCancelEdit}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="flex-1 min-w-0 text-left p-3.5 pb-2 cursor-pointer"
+              onClick={openPricePanel}
+              title="Click for prices"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug line-clamp-2">
+                  {title}
+                </p>
+                {isManualModel && (
+                  <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#86868b]">Manual</span>
+                )}
+              </div>
+              <p className="mt-1 text-[10px] font-mono text-[#86868b] truncate">{modelKey}</p>
+              <div className="mt-3 flex items-end justify-between gap-2">
+                <div>
+                  <p className="text-[20px] font-semibold tracking-tight tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-none">
+                    {inStock}
+                    <span className="text-[12px] font-medium text-[#86868b]">/{count}</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-[#86868b]">
+                    {outCount > 0 ? `${outCount} out · ` : ""}
+                    {count} {unitLabel}
+                  </p>
+                </div>
+              </div>
+            </button>
+            <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2.5">
+              {isManualStock ? (
+                <>
+                  <button
+                    type="button"
+                    className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("stock")
+                    }}
+                    disabled={inStock <= 0 || isAdjusting}
+                    title="Subtract from stock"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "stock" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Minus className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="h-7 min-w-7 px-1.5 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40 text-[10px] font-bold"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("units")
+                    }}
+                    disabled={count <= 0 || isAdjusting}
+                    title="Subtract units"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "units" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      "U−"
+                    )}
+                  </button>
+                </>
+              ) : null}
+              {canMoveQtyToFaulty ? (
+                <button
+                  type="button"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFaultyQty("1")
+                    setFaultyOpen(true)
+                  }}
+                  disabled={movingToFaulty}
+                  title="Move to faulty"
+                >
+                  {movingToFaulty ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05]"
+                onClick={onStartEdit}
+                title="Edit name"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:text-red-600 hover:bg-red-500/10 disabled:opacity-40"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void onDeleteModel()
+                }}
+                disabled={deletingModel || count === 0}
+                title="Delete model"
+              >
+                {deletingModel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </>
+        )}
+        {adjustOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xl p-4" onClick={() => setAdjustOpen(false)}>
+            <div
+              className="w-full max-w-xs rounded-[18px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-4 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-[13px] font-semibold tracking-tight">
+                Subtract {adjustMode === "stock" ? "stock" : "units"}
+              </p>
+              <input
+                type="number"
+                min={1}
+                max={adjustMode === "stock" ? inStock : count}
+                value={adjustQty}
+                onChange={(e) => setAdjustQty(e.target.value)}
+                className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] focus:outline-none"
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full text-[11px]" onClick={() => setAdjustOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" className="h-8 rounded-full text-[11px]" disabled={isAdjusting} onClick={() => void confirmAdjust()}>
+                  {isAdjusting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirm"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        {faultyOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xl p-4" onClick={() => setFaultyOpen(false)}>
+            <div
+              className="w-full max-w-xs rounded-[18px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-4 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-[13px] font-semibold tracking-tight">Move to faulty</p>
+              <input
+                type="number"
+                min={1}
+                max={inStock}
+                value={faultyQty}
+                onChange={(e) => setFaultyQty(e.target.value)}
+                className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] focus:outline-none"
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full text-[11px]" onClick={() => setFaultyOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" className="h-8 rounded-full text-[11px]" disabled={movingToFaulty} onClick={() => void confirmFaultyMove()}>
+                  {movingToFaulty ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Move"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="bg-[hsl(var(--background))]">

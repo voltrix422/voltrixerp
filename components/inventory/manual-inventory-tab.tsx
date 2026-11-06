@@ -1,16 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, Fragment } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   Plus,
   ChevronDown,
-  ChevronRight,
   Loader2,
   Minus,
   PackagePlus,
   Trash2,
   X,
   Search,
+  SlidersHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
@@ -57,6 +58,9 @@ export function ManualInventoryTab() {
   const [restocking, setRestocking] = useState(false)
   const [showSubtract, setShowSubtract] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
   const [subtractItem, setSubtractItem] = useState<ManualInventoryItem | null>(null)
   const [subtractMode, setSubtractMode] = useState<"stock" | "units">("stock")
   const [subtractQty, setSubtractQty] = useState("")
@@ -81,6 +85,40 @@ export function ManualInventoryTab() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(300, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -273,53 +311,79 @@ export function ManualInventoryTab() {
             Add item
           </Button>
           <button
+            ref={filterBtnRef}
             type="button"
-            className="h-8 rounded-full px-3 text-[11px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] inline-flex items-center gap-1 cursor-pointer"
             onClick={() => setShowFilters((o) => !o)}
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              showFilters
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filters"
+            aria-expanded={showFilters}
+            title="Filters"
           >
-            Filter
-            <ChevronDown className={`h-3 w-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {search.trim() && !showFilters && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
           </button>
-          {search.trim() ? <span className="text-[11px] text-[hsl(var(--muted-foreground))]">on</span> : null}
         </div>
       </div>
 
-      {showFilters && (
-        <div className="flex flex-wrap gap-2 items-center border border-[hsl(var(--border))] px-2 py-2">
-          <div className="relative flex-1 min-w-[180px] max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search item, model…"
-              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
-            />
-          </div>
-          {search.trim() ? (
-            <button
-              type="button"
-              className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
-              onClick={() => setSearch("")}
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-      )}
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(18rem,calc(100vw-1.5rem))] rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight">Filters</p>
+              <div className="flex items-center gap-2">
+                {search.trim() ? (
+                  <button type="button" onClick={() => setSearch("")} className="text-[11px] font-semibold text-[#0071e3] cursor-pointer">
+                    Clear
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search item, model…"
+                className="w-full h-8 pl-8 pr-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {loading ? (
-        <div className="flex flex-1 items-center justify-center text-[hsl(var(--muted-foreground))]">
+        <div className="flex flex-1 items-center justify-center text-[#86868b]">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          <span className="text-sm">Loading…</span>
+          <span className="text-[13px]">Loading…</span>
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed">
+        <div className="flex flex-1 flex-col items-center justify-center py-16 text-center text-[#86868b] rounded-[16px] border border-dashed border-black/[0.08]">
           <PackagePlus className="h-9 w-9 opacity-30 mb-3" />
-          <p className="text-sm font-medium text-[hsl(var(--foreground))]">No manual items yet</p>
-          <p className="text-xs mt-1">Add your first item with name and quantity.</p>
+          <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">No manual items yet</p>
+          <p className="text-[12px] mt-1">Add your first item with name and quantity.</p>
           <Button
             variant="outline"
-            className="mt-4 h-7 px-3 text-[11px] gap-1"
+            className="mt-4 h-8 px-3 text-[11px] gap-1 rounded-full"
             onClick={() => setShowAdd(true)}
           >
             <PackagePlus className="h-3.5 w-3.5" />
@@ -327,191 +391,150 @@ export function ManualInventoryTab() {
           </Button>
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed">
+        <div className="flex flex-1 items-center justify-center text-[13px] text-[#86868b] rounded-[16px] border border-dashed border-black/[0.08]">
           No items match &ldquo;{search.trim()}&rdquo;
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-hidden border border-[hsl(var(--border))]">
-          <div className="h-full overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-[hsl(var(--background))] border-b">
-                <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  <th className="w-8 px-3 py-2" />
-                  <th className="px-3 py-2 min-w-[140px]">Item</th>
-                  <th className="px-3 py-2 min-w-[120px]">Model</th>
-                  <th className="px-3 py-2 text-right w-24">Total</th>
-                  <th className="px-3 py-2 text-right w-24">Available</th>
-                  <th className="px-3 py-2 w-24">Last added</th>
-                  <th className="px-3 py-2 text-right w-20">Serials</th>
-                  <th className="px-3 py-2 w-16" />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
-                  const serials = item.serialUnits ?? []
-                  const expanded = expandedItems[item.id] === true
-                  const hasSerials = serials.length > 0
-                  return (
-                    <Fragment key={item.id}>
-                      <tr className="border-b last:border-b-0 hover:bg-[hsl(var(--muted))]/10">
-                        <td className="px-3 py-2.5 align-top">
-                          {hasSerials ? (
-                            <button
-                              type="button"
-                              className="p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
-                              onClick={() =>
-                                setExpandedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
-                              }
-                              aria-expanded={expanded}
-                            >
-                              {expanded ? (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2.5 align-top">
-                          <p className="font-medium text-[hsl(var(--foreground))] leading-snug">{item.name}</p>
-                          {item.notes ? (
-                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-1">
-                              {item.notes}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2.5 align-top font-mono text-[11px] text-[hsl(var(--muted-foreground))] break-all">
-                          {item.model}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">
-                          {item.qty} {item.unit}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">
-                          <span className="tabular-nums">
-                            {item.availableQty} {item.unit}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-[11px] text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                          {new Date(item.lastAddedAt || item.createdAt).toLocaleDateString("en-PK")}
-                        </td>
-                        <td className="px-3 py-2.5 align-top text-right tabular-nums text-[11px] text-[hsl(var(--muted-foreground))]">
-                          {serials.length > 0 ? (
-                            <span>
-                              {serials.filter((s) => s.status === "in_stock").length}/{serials.length}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 align-top">
-                          <div className="flex items-center justify-end gap-0.5">
-                            <button
-                              type="button"
-                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer"
-                              onClick={() => openAddQty(item, "units")}
-                              title="Add to total units"
-                            >
-                              <span className="text-[10px] font-bold leading-none">U+</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
-                              onClick={() => openAddQty(item, "stock")}
-                              disabled={item.availableQty >= item.qty}
-                              title="Add to available stock"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
-                              onClick={() => openSubtract(item, "stock")}
-                              disabled={item.availableQty <= 0}
-                              title="Subtract from stock"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
-                              onClick={() => openSubtract(item, "units")}
-                              disabled={item.qty <= 0}
-                              title="Subtract from units"
-                            >
-                              <span className="text-[10px] font-bold leading-none">U−</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer"
-                              onClick={() => void handleDelete(item)}
-                              title="Delete item"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expanded && hasSerials && (
-                        <tr className="border-b bg-[hsl(var(--muted))]/5">
-                          <td colSpan={8} className="px-3 py-2">
-                            <div className="rounded-md border overflow-hidden">
-                              <table className="w-full text-[11px]">
-                                <thead>
-                                  <tr className="border-b text-[hsl(var(--muted-foreground))]">
-                                    <th className="px-2.5 py-1.5 text-left font-semibold">Serial</th>
-                                    <th className="px-2.5 py-1.5 text-left font-semibold">Status</th>
-                                    <th className="px-2.5 py-1.5 text-left font-semibold">Order</th>
-                                    <th className="px-2.5 py-1.5 text-left font-semibold">Client</th>
-                                    <th className="px-2.5 py-1.5 text-left font-semibold">Scanned</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {serials.map((unit) => {
-                                    const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
-                                    const client = parseSerialDispatchClient(unit.notes)
-                                    return (
-                                      <tr key={unit.id} className="border-b last:border-b-0">
-                                        <td className="px-2.5 py-1.5 font-mono font-medium break-all">
-                                          {unit.serialNumber}
-                                        </td>
-                                        <td className="px-2.5 py-1.5 capitalize">
-                                          {serialStatusLabel(unit.status)}
-                                        </td>
-                                        <td className="px-2.5 py-1.5 font-mono">{orderRef ?? "—"}</td>
-                                        <td className="px-2.5 py-1.5">{client ?? "—"}</td>
-                                        <td className="px-2.5 py-1.5 tabular-nums text-[hsl(var(--muted-foreground))]">
-                                          {new Date(unit.scannedAt).toLocaleDateString("en-PK")}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            {filteredItems.map((item) => {
+              const serials = item.serialUnits ?? []
+              const expanded = expandedItems[item.id] === true
+              const hasSerials = serials.length > 0
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-[16px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)] overflow-hidden"
+                >
+                  <div className="p-3.5 pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-snug line-clamp-2">
+                        {item.name}
+                      </p>
+                      {hasSerials ? (
+                        <button
+                          type="button"
+                          className="h-6 w-6 shrink-0 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] cursor-pointer"
+                          onClick={() =>
+                            setExpandedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                          }
+                          aria-expanded={expanded}
+                        >
+                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "" : "-rotate-90"}`} />
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-[10px] font-mono text-[#86868b] truncate">{item.model}</p>
+                    {item.notes ? (
+                      <p className="mt-1 text-[11px] text-[#86868b] line-clamp-1">{item.notes}</p>
+                    ) : null}
+                    <div className="mt-3 flex items-end justify-between gap-2">
+                      <div>
+                        <p className="text-[20px] font-semibold tracking-tight tabular-nums leading-none text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                          {item.availableQty}
+                          <span className="text-[12px] font-medium text-[#86868b]">/{item.qty}</span>
+                        </p>
+                        <p className="mt-1 text-[10px] text-[#86868b]">
+                          {item.unit}
+                          {hasSerials
+                            ? ` · ${serials.filter((s) => s.status === "in_stock").length}/${serials.length} SN`
+                            : ""}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-[#aeaeb2]">
+                        {new Date(item.lastAddedAt || item.createdAt).toLocaleDateString("en-PK")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2.5">
+                    <button
+                      type="button"
+                      className="h-7 min-w-7 px-1.5 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] text-[10px] font-bold cursor-pointer"
+                      onClick={() => openAddQty(item, "units")}
+                      title="Add to total units"
+                    >
+                      U+
+                    </button>
+                    <button
+                      type="button"
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40 cursor-pointer"
+                      onClick={() => openAddQty(item, "stock")}
+                      disabled={item.availableQty >= item.qty}
+                      title="Add to available stock"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40 cursor-pointer"
+                      onClick={() => openSubtract(item, "stock")}
+                      disabled={item.availableQty <= 0}
+                      title="Subtract from stock"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="h-7 min-w-7 px-1.5 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] disabled:opacity-40 text-[10px] font-bold cursor-pointer"
+                      onClick={() => openSubtract(item, "units")}
+                      disabled={item.qty <= 0}
+                      title="Subtract from units"
+                    >
+                      U−
+                    </button>
+                    <button
+                      type="button"
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                      onClick={() => void handleDelete(item)}
+                      title="Delete item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {expanded && hasSerials && (
+                    <div className="border-t border-black/[0.04] px-3 py-2 space-y-1.5 bg-[#fafafa]/80 dark:bg-white/[0.02]">
+                      {serials.map((unit) => {
+                        const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
+                        const client = parseSerialDispatchClient(unit.notes)
+                        return (
+                          <div key={unit.id} className="flex items-start justify-between gap-2 text-[10px]">
+                            <div className="min-w-0">
+                              <p className="font-mono font-medium truncate">{unit.serialNumber}</p>
+                              <p className="text-[#86868b] truncate">
+                                {serialStatusLabel(unit.status)}
+                                {orderRef ? ` · ${orderRef}` : ""}
+                                {client ? ` · ${client}` : ""}
+                              </p>
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
+                            <span className="shrink-0 tabular-nums text-[#aeaeb2]">
+                              {new Date(unit.scannedAt).toLocaleDateString("en-PK")}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {showAdd && (
+      {showAdd &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-4"
           onClick={() => !saving && setShowAdd(false)}
         >
           <form
-            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
+            className="w-full max-w-md rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleAdd(e)}
           >
-            <div className="flex items-center justify-between border-b pb-3">
-              <p className="text-sm font-semibold">Add manual inventory</p>
+            <div className="flex items-center justify-between pb-1">
+              <p className="text-[14px] font-semibold tracking-tight">Add manual inventory</p>
               <Button
                 type="button"
                 variant="ghost"
@@ -565,28 +588,30 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              variant="outline"
-              className="w-full h-7 text-[11px]"
+              className="w-full h-8 text-[11px] rounded-full"
               disabled={saving}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save item"}
             </Button>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {showAddQty && restockItem && (
+      {showAddQty && restockItem &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-4"
           onClick={() => !restocking && setShowAddQty(false)}
         >
           <form
-            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
+            className="w-full max-w-md rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleAddQty(e)}
           >
-            <div className="flex items-center justify-between border-b pb-3">
-              <p className="text-sm font-semibold">Add quantity</p>
+            <div className="flex items-center justify-between pb-1">
+              <p className="text-[14px] font-semibold tracking-tight">Add quantity</p>
               <Button
                 type="button"
                 variant="ghost"
@@ -624,8 +649,7 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              variant="outline"
-              className="w-full h-7 text-[11px]"
+              className="w-full h-8 text-[11px] rounded-full"
               disabled={restocking}
             >
               {restocking ? (
@@ -637,21 +661,24 @@ export function ManualInventoryTab() {
               )}
             </Button>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {showSubtract && subtractItem && (
+      {showSubtract && subtractItem &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-4"
           onClick={() => !subtracting && setShowSubtract(false)}
         >
           <form
-            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
+            className="w-full max-w-md rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleSubtract(e)}
           >
-            <div className="flex items-center justify-between border-b pb-3">
-              <p className="text-sm font-semibold">
+            <div className="flex items-center justify-between pb-1">
+              <p className="text-[14px] font-semibold tracking-tight">
                 {subtractMode === "stock" ? "Subtract from stock" : "Subtract from units"}
               </p>
               <Button
@@ -694,14 +721,14 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              variant="outline"
-              className="w-full h-7 text-[11px]"
+              className="w-full h-8 text-[11px] rounded-full"
               disabled={subtracting}
             >
               {subtracting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Subtract"}
             </Button>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

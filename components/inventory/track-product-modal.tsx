@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { getInventoryHistory } from "@/lib/inventory-history"
 import { getOrders, type Order } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
@@ -220,13 +221,13 @@ function rebuildProductTrailForBalance(params: {
 
 function Stat({ label, value, hint, unit }: { label: string; value: number | string; hint?: string; unit?: string }) {
   return (
-    <div className="border border-[hsl(var(--border))] px-2 py-1 min-w-[88px]">
-      <p className="text-[9px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] leading-tight">{label}</p>
-      <p className="text-xs font-semibold tabular-nums mt-0.5 leading-tight">
+    <div className="rounded-[12px] border border-black/[0.04] bg-white/90 dark:bg-[hsl(var(--card))] px-2.5 py-1.5 min-w-[92px] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+      <p className="text-[9px] font-semibold tracking-tight text-[#86868b] leading-tight">{label}</p>
+      <p className="text-[13px] font-semibold tabular-nums tracking-tight mt-0.5 leading-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
         {typeof value === "number" ? value.toLocaleString() : value}
-        {unit ? <span className="text-[9px] font-normal text-[hsl(var(--muted-foreground))] ml-0.5">{unit}</span> : null}
+        {unit ? <span className="text-[9px] font-medium text-[#86868b] ml-0.5">{unit}</span> : null}
       </p>
-      {hint ? <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-tight line-clamp-1">{hint}</p> : null}
+      {hint ? <p className="text-[9px] text-[#aeaeb2] mt-0.5 leading-tight line-clamp-1">{hint}</p> : null}
     </div>
   )
 }
@@ -247,11 +248,11 @@ function MiniTable({
   compact?: boolean
 }) {
   return (
-    <div className="border border-[hsl(var(--border))] flex flex-col min-h-0 overflow-hidden">
-      <div className="px-2 py-1 border-b border-[hsl(var(--border))] flex items-center justify-between gap-2 shrink-0">
-        <span className="text-[10px] font-medium truncate">{title}</span>
+    <div className="rounded-[14px] border border-black/[0.04] bg-white/90 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--card))] flex flex-col min-h-0 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="px-2.5 py-1.5 border-b border-black/[0.04] dark:border-[hsl(var(--border))] flex items-center justify-between gap-2 shrink-0">
+        <span className="text-[11px] font-semibold tracking-tight truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{title}</span>
         {totalLabel ? (
-          <span className="text-[10px] tabular-nums font-semibold shrink-0">{totalLabel}</span>
+          <span className="text-[10px] tabular-nums font-semibold shrink-0 text-[#86868b]">{totalLabel}</span>
         ) : null}
       </div>
       {rows.length === 0 ? (
@@ -602,29 +603,31 @@ export function TrackProductModal({
     }
   }
 
-  if (!open) return null
+  if (!open || typeof document === "undefined") return null
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 p-1 sm:p-2" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xl p-2 sm:p-3" onClick={onClose}>
       <div
-        className="w-full h-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col"
+        className="w-full h-full rounded-[20px] border border-black/[0.06] bg-[#f5f5f7]/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-[hsl(var(--border))] shrink-0">
-          <p className="text-sm font-semibold shrink-0">Track product</p>
-          <div className="relative w-40 shrink-0">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+        <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
+          <p className="text-[14px] font-semibold tracking-tight shrink-0 text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Track product
+          </p>
+          <div className="relative w-36 sm:w-44 shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" />
             <input
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
               placeholder="Filter…"
-              className="w-full h-7 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-7 pr-2 text-[11px] focus:outline-none"
+              className="w-full h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-8 pr-2.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
             />
           </div>
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            className="flex-1 min-w-[200px] h-7 border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[11px] cursor-pointer"
+            className="flex-1 min-w-[160px] h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[12px] cursor-pointer focus:outline-none"
           >
             <option value="">Select a product…</option>
             {filteredProducts.map((p) => (
@@ -633,24 +636,27 @@ export function TrackProductModal({
               </option>
             ))}
           </select>
-          <Button
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 px-2.5 text-[11px] gap-1.5 cursor-pointer shrink-0"
+            className="h-8 px-3 rounded-full text-[11px] font-semibold border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5 shrink-0"
             disabled={!selected || !summary || loading || exportingPdf}
             onClick={() => void handleExportPdf()}
           >
             {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {exportingPdf ? "Preparing…" : "Download PDF"}
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose} aria-label="Close">
+            {exportingPdf ? "Preparing…" : "PDF"}
+          </button>
+          <button
+            type="button"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer shrink-0"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
 
         {selected && summary && (
-          <div className="px-3 py-1.5 border-b border-[hsl(var(--border))] flex flex-wrap gap-1.5 shrink-0">
+          <div className="px-3 py-2 border-b border-black/[0.06] dark:border-[hsl(var(--border))] flex flex-wrap gap-1.5 shrink-0">
             <Stat label="Starting units" value={summary.starting} unit={summary.unit} hint="Total recorded" />
             <Stat
               label="Main WH opening"
@@ -674,11 +680,11 @@ export function TrackProductModal({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-hidden p-2 flex flex-col gap-2">
+        <div className="min-h-0 flex-1 overflow-hidden p-2.5 flex flex-col gap-2.5">
           {!selectedModel ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-[hsl(var(--muted-foreground))]">
-              <Package className="h-7 w-7 opacity-30 mb-2" />
-              <p className="text-xs">Select a product</p>
+            <div className="flex flex-col items-center justify-center flex-1 text-[#86868b]">
+              <Package className="h-8 w-8 opacity-30 mb-2" />
+              <p className="text-[13px] font-medium tracking-tight">Select a product</p>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center flex-1 gap-2 text-xs text-[hsl(var(--muted-foreground))]">
@@ -869,6 +875,7 @@ export function TrackProductModal({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
