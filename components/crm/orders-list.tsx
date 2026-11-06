@@ -470,223 +470,231 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     : totalReceived
 
   return (
-    <div className="space-y-3">
-      <div className="sticky top-[3.1rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-1 pb-2.5 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl space-y-2.5">
-      <div className="flex items-center justify-end gap-2">
-        {!workspace?.readOnly && (
-          <Button
-            size="sm"
-            className="h-8 text-xs px-3.5 rounded-full cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90"
-            onClick={() => setShowForm(true)}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" /> Order
-          </Button>
-        )}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowFilters((v) => !v)}
-            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-              showFilters
-                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
-                : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-            }`}
-            aria-label="Filters and exports"
-            title="Filters · ledger · export"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
-            {hasActiveFilters && !showFilters && (
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
-            )}
-          </button>
-          {showFilters && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setShowFilters(false)} />
-              <div className="absolute right-0 top-full mt-2 z-40 w-[min(22rem,calc(100vw-1.25rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-2xl border bg-[hsl(var(--card))] shadow-xl p-3 space-y-2.5">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                    Client ledger
+    <div className="space-y-2.5">
+      <div className="sticky top-[2.85rem] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-0.5 pb-2 bg-[#f5f5f7]/90 dark:bg-[hsl(var(--background))]/90 backdrop-blur-xl">
+          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-3.5 py-2.5">
+              <button
+                type="button"
+                onClick={() => !loading && filtered.length > 0 && setSummaryOpen((v) => !v)}
+                className={`min-w-0 flex-1 flex items-center gap-2 text-left ${
+                  !loading && filtered.length > 0 ? "cursor-pointer" : "cursor-default"
+                }`}
+                aria-expanded={summaryOpen}
+                disabled={loading || filtered.length === 0}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    Order summary
                   </p>
-                  <ClientLedgerPicker
-                    clients={clients}
-                    orders={orders}
-                    selectedIds={ledgerClientIds}
-                    onChange={selectLedgerClients}
-                  />
+                  <p className="text-[12px] text-[#86868b] mt-0.5 tabular-nums truncate">
+                    {loading
+                      ? "Loading…"
+                      : `${filtered.length} orders · ${formatOrderPkr(totalOrderValue)}`}
+                  </p>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <CrmExcelExportButton
-                    onExport={exportListExcel}
-                    exporting={exportingExcel}
-                    disabled={loading || filtered.length === 0 || exportingPdf}
-                    className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                {!loading && filtered.length > 0 && (
+                  <ChevronDown
+                    className={`h-4 w-4 text-[#86868b] shrink-0 transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}
+                    strokeWidth={2}
                   />
+                )}
+              </button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!loading && filtered.length > 0 && (
+                  <ToggleChip
+                    on={includeOutstandingInTotal}
+                    label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
+                    onClick={() => setIncludeOutstandingInTotal((v) => !v)}
+                  />
+                )}
+                {!workspace?.readOnly && (
                   <Button
-                    type="button"
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
-                    disabled={loading || filtered.length === 0 || exportingPdf}
-                    onClick={() => void exportListPdf()}
+                    className="h-8 text-xs px-3 rounded-full cursor-pointer bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:text-[#1d1d1f] dark:hover:bg-white/90"
+                    onClick={() => setShowForm(true)}
                   >
-                    {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                    {exportingPdf ? "PDF…" : "PDF"}
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Order
                   </Button>
-                  {hasActiveFilters && (
-                    <Button size="sm" variant="ghost" className="h-7 text-[10px] cursor-pointer ml-auto px-2" onClick={clearFilters}>
-                      Clear
-                    </Button>
+                )}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                      showFilters
+                        ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                        : "bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                    }`}
+                    aria-label="Filters and exports"
+                    title="Filters · ledger · export"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    {hasActiveFilters && !showFilters && (
+                      <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#1faca6]" />
+                    )}
+                  </button>
+                  {showFilters && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setShowFilters(false)} />
+                      <div className="absolute right-0 top-full mt-2 z-40 w-[min(22rem,calc(100vw-1.25rem))] max-h-[min(70vh,32rem)] overflow-y-auto rounded-2xl border bg-[hsl(var(--card))] shadow-xl p-3 space-y-2.5">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                            Client ledger
+                          </p>
+                          <ClientLedgerPicker
+                            clients={clients}
+                            orders={orders}
+                            selectedIds={ledgerClientIds}
+                            onChange={selectLedgerClients}
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <CrmExcelExportButton
+                            onExport={exportListExcel}
+                            exporting={exportingExcel}
+                            disabled={loading || filtered.length === 0 || exportingPdf}
+                            className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[10px] gap-1 cursor-pointer shrink-0"
+                            disabled={loading || filtered.length === 0 || exportingPdf}
+                            onClick={() => void exportListPdf()}
+                          >
+                            {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                            {exportingPdf ? "PDF…" : "PDF"}
+                          </Button>
+                          {hasActiveFilters && (
+                            <Button size="sm" variant="ghost" className="h-7 text-[10px] cursor-pointer ml-auto px-2" onClick={clearFilters}>
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Status</p>
+                          <div className="flex flex-wrap gap-1">
+                            {STATUS_FILTER_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setStatusFilter(opt.value)}
+                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                                  statusFilter === opt.value
+                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
+                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Payment</p>
+                          <div className="flex flex-wrap gap-1">
+                            {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setPaymentFilter(opt.value)}
+                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                                  paymentFilter === opt.value
+                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
+                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <ClientExcludePicker
+                          clients={clients}
+                          orders={orders}
+                          excludedIds={excludedClientIds}
+                          onChange={(ids) => {
+                            setExcludedClientIds(ids)
+                            if (ids.length) setLedgerClientIds([])
+                          }}
+                        />
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Referrer</p>
+                          <select
+                            value={referrerFilter}
+                            onChange={(e) => setReferrerFilter(e.target.value)}
+                            className="w-full h-7 px-2 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                          >
+                            <option value="">All referrers</option>
+                            {referrerOptions.map((name) => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Date</p>
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {DATE_PRESET_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => applyDatePreset(opt.value)}
+                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
+                                  datePreset === opt.value
+                                    ? "bg-[#1faca6] text-white border-[#1faca6]"
+                                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="date"
+                              value={fromDate}
+                              onChange={(e) => {
+                                setFromDate(e.target.value)
+                                setDatePreset("")
+                              }}
+                              className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
+                            />
+                            <span className="text-[9px] text-[hsl(var(--muted-foreground))]">to</span>
+                            <input
+                              type="date"
+                              value={toDate}
+                              onChange={(e) => {
+                                setToDate(e.target.value)
+                                setDatePreset("")
+                              }}
+                              className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
+                            />
+                          </div>
+                        </div>
+
+                        <input
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Search orders, client, referrer…"
+                          className="w-full h-7 px-2.5 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Status</p>
-                  <div className="flex flex-wrap gap-1">
-                    {STATUS_FILTER_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setStatusFilter(opt.value)}
-                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                          statusFilter === opt.value
-                            ? "bg-[#1faca6] text-white border-[#1faca6]"
-                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Payment</p>
-                  <div className="flex flex-wrap gap-1">
-                    {PAYMENT_FILTER_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setPaymentFilter(opt.value)}
-                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                          paymentFilter === opt.value
-                            ? "bg-[#1faca6] text-white border-[#1faca6]"
-                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <ClientExcludePicker
-                  clients={clients}
-                  orders={orders}
-                  excludedIds={excludedClientIds}
-                  onChange={(ids) => {
-                    setExcludedClientIds(ids)
-                    if (ids.length) setLedgerClientIds([])
-                  }}
-                />
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Referrer</p>
-                  <select
-                    value={referrerFilter}
-                    onChange={(e) => setReferrerFilter(e.target.value)}
-                    className="w-full h-7 px-2 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  >
-                    <option value="">All referrers</option>
-                    {referrerOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Date</p>
-                  <div className="flex flex-wrap gap-1 mb-1.5">
-                    {DATE_PRESET_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => applyDatePreset(opt.value)}
-                        className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
-                          datePreset === opt.value
-                            ? "bg-[#1faca6] text-white border-[#1faca6]"
-                            : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => {
-                        setFromDate(e.target.value)
-                        setDatePreset("")
-                      }}
-                      className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
-                    />
-                    <span className="text-[9px] text-[hsl(var(--muted-foreground))]">to</span>
-                    <input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => {
-                        setToDate(e.target.value)
-                        setDatePreset("")
-                      }}
-                      className="h-7 flex-1 min-w-0 px-1.5 rounded-md border bg-[hsl(var(--background))] text-[11px]"
-                    />
-                  </div>
-                </div>
-
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search orders, client, referrer…"
-                  className="w-full h-7 px-2.5 rounded-md border bg-[hsl(var(--background))] text-[11px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                />
               </div>
-            </>
-          )}
-        </div>
-      </div>
+            </div>
 
-      {!loading && filtered.length > 0 && (
-          <section className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-            <button
-              type="button"
-              onClick={() => setSummaryOpen((v) => !v)}
-              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
-              aria-expanded={summaryOpen}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                  Order summary
-                </p>
-                <p className="text-[12px] text-[#86868b] mt-0.5 tabular-nums">
-                  {filtered.length} orders · {formatOrderPkr(totalOrderValue)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <ToggleChip
-                  on={includeOutstandingInTotal}
-                  label={includeOutstandingInTotal ? "Incl. outstanding" : "+ Outstanding"}
-                  onClick={() => setIncludeOutstandingInTotal((v) => !v)}
-                />
-                <ChevronDown
-                  className={`h-4 w-4 text-[#86868b] transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}
-                  strokeWidth={2}
-                />
-              </div>
-            </button>
-
-            {summaryOpen && (
+            {summaryOpen && !loading && filtered.length > 0 && (
               <div className="px-3.5 pb-3.5 space-y-3 border-t border-black/[0.05] dark:border-[hsl(var(--border))] pt-3 max-h-[min(55vh,28rem)] overflow-y-auto overscroll-contain">
                 <div className="rounded-[14px] border border-black/[0.05] dark:border-[hsl(var(--border))] p-3 space-y-2">
                   <div className="flex items-baseline justify-between gap-2">
@@ -771,7 +779,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               </div>
             )}
           </section>
-      )}
       </div>
 
       {loading ? (
