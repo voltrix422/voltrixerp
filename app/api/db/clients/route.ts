@@ -32,6 +32,21 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Keep denormalized client names in sync (name only — no other fields touched).
+  if (record.id && typeof record.name === "string" && record.name.trim()) {
+    const name = record.name.trim()
+    await Promise.all([
+      prisma.erpOrder.updateMany({
+        where: { clientId: record.id },
+        data: { clientName: name },
+      }),
+      prisma.crmQuotation.updateMany({
+        where: { clientId: record.id },
+        data: { clientName: name },
+      }),
+    ])
+  }
+
   const newStatus = c.status ?? "active"
   if (
     newStatus === "pending_approval" &&

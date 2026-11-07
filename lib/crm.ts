@@ -73,11 +73,28 @@ export async function getClientById(id: string): Promise<Client | null> {
 }
 
 export async function saveClient(client: Client): Promise<void> {
-  await fetch("/api/db/clients", {
+  const res = await fetch("/api/db/clients", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(client),
   })
+  if (!res.ok) return
+  // Live UI sync — orders/quotations already updated server-side by clientId.
+  try {
+    const { publishErpLive } = await import("@/lib/erp-live-sync")
+    publishErpLive({
+      type: "client-updated",
+      clientId: client.id,
+      name: client.name,
+      company: client.company,
+      phone: client.phone,
+      email: client.email,
+      address: client.address,
+      city: client.city,
+    })
+  } catch {
+    // non-fatal
+  }
 }
 
 export async function deleteClient(id: string): Promise<void> {

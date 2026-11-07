@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, buildOrderFromQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
+import { subscribeErpLive } from "@/lib/erp-live-sync"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getClients, type Client } from "@/lib/crm"
 import { generateOrderNumber, saveOrder } from "@/lib/orders"
@@ -102,6 +103,36 @@ export function QuotationsList({
       setClients(scopedClients)
       setLoading(false)
     })
+    const unsub = subscribeErpLive((ev) => {
+      if (ev.type !== "client-updated") return
+      const name = (ev.name || "").trim()
+      if (!ev.clientId || !name) return
+      setQuotations((prev) =>
+        prev.map((q) => (q.clientId === ev.clientId ? { ...q, clientName: name } : q)),
+      )
+      setSelected((prev) =>
+        prev && prev.clientId === ev.clientId ? { ...prev, clientName: name } : prev,
+      )
+      setEditingQuotation((prev) =>
+        prev && prev.clientId === ev.clientId ? { ...prev, clientName: name } : prev,
+      )
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === ev.clientId
+            ? {
+                ...c,
+                name,
+                company: ev.company ?? c.company,
+                phone: ev.phone ?? c.phone,
+                email: ev.email ?? c.email,
+                address: ev.address ?? c.address,
+                city: ev.city ?? c.city,
+              }
+            : c,
+        ),
+      )
+    })
+    return () => unsub()
   }, [])
 
   const filtered = quotations.filter(q => {

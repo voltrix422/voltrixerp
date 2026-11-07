@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { getClients, saveClient, deleteClient, type Client, CLIENT_STATUS_COLORS, CLIENT_STATUS_LABELS } from "@/lib/crm"
+import { subscribeErpLive } from "@/lib/erp-live-sync"
 import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
 import { isBranchPosClientHiddenFromErp } from "@/lib/branch-pos"
@@ -52,6 +53,30 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
       setOrders(o)
       setLoading(false)
     })
+    const unsub = subscribeErpLive((ev) => {
+      if (ev.type !== "client-updated") return
+      const name = (ev.name || "").trim()
+      if (!ev.clientId || !name) return
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === ev.clientId
+            ? {
+                ...c,
+                name,
+                company: ev.company ?? c.company,
+                phone: ev.phone ?? c.phone,
+                email: ev.email ?? c.email,
+                address: ev.address ?? c.address,
+                city: ev.city ?? c.city,
+              }
+            : c,
+        ),
+      )
+      setOrders((prev) =>
+        prev.map((o) => (o.clientId === ev.clientId ? { ...o, clientName: name } : o)),
+      )
+    })
+    return () => unsub()
   }, [workspace?.ownerUserId])
 
   const salesMap = useMemo(() => {

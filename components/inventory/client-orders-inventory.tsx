@@ -49,6 +49,7 @@ import {
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
+import { subscribeErpLive } from "@/lib/erp-live-sync"
 import {
   computeNetDeliveredProductQty,
   computeProductReturnReplaceSummary,
@@ -303,7 +304,36 @@ export function ClientOrdersInventory() {
         setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
       })
     }, 30000)
-    return () => clearInterval(interval)
+    const unsub = subscribeErpLive((ev) => {
+      if (ev.type !== "client-updated") return
+      const name = (ev.name || "").trim()
+      if (!ev.clientId || !name) return
+      setOrders((prev) =>
+        prev.map((o) => (o.clientId === ev.clientId ? { ...o, clientName: name } : o)),
+      )
+      setSelectedOrder((prev) =>
+        prev && prev.clientId === ev.clientId ? { ...prev, clientName: name } : prev,
+      )
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === ev.clientId
+            ? {
+                ...c,
+                name,
+                company: ev.company ?? c.company,
+                phone: ev.phone ?? c.phone,
+                email: ev.email ?? c.email,
+                address: ev.address ?? c.address,
+                city: ev.city ?? c.city,
+              }
+            : c,
+        ),
+      )
+    })
+    return () => {
+      clearInterval(interval)
+      unsub()
+    }
   }, [])
 
   const ledgerOptions = useMemo(() => listLedgerClients(clients, orders), [clients, orders])
@@ -1530,9 +1560,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const appleField =
     "w-full h-10 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
   const appleSheet =
-    "w-full sm:max-w-3xl rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+    "w-full sm:max-w-6xl rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[92vh]"
   const appleBackdrop =
-    "fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
+    "fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-3"
 
   return (
     <>
@@ -1613,38 +1643,39 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4">
-          <div>
-            <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-none p-4 sm:p-5">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-4 lg:gap-5">
+          <div className="min-w-0 space-y-3">
+            <p className="text-[11px] font-semibold tracking-tight text-[#86868b]">Order Items</p>
             <CrmLineItemsDisplay items={order.items} />
             {orderHasSerialAllocations(order) && (
-              <div className="mt-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+              <div className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] p-3 space-y-2">
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">
                   Dispatched serial numbers
                 </p>
-                <ul className="space-y-1.5 text-xs">
+                <ul className="space-y-1.5 text-[12px]">
                   {order.fulfillmentSerialAllocations!.map((a) => (
                     <li key={`${a.orderItemId}-${a.serialNumber}`} className="flex flex-wrap gap-x-2">
-                      <span className="font-semibold tabular-nums">{a.model}</span>
-                      <span className="font-mono text-[hsl(var(--primary))]">{a.serialNumber}</span>
+                      <span className="font-semibold tabular-nums text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{a.model}</span>
+                      <span className="font-mono text-[#0071e3]">{a.serialNumber}</span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
             {(order.replacementLines?.length ?? 0) > 0 && (
-              <div className="mt-3 rounded-lg border border-[#1faca6]/20 bg-[#1faca6]/5 p-3 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#1faca6]">
+              <div className="rounded-[14px] border border-[#0071e3]/20 bg-[#0071e3]/06 p-3 space-y-2">
+                <p className="text-[10px] font-semibold tracking-tight text-[#0071e3]">
                   Item replacements
                 </p>
-                <ul className="space-y-1.5 text-xs">
+                <ul className="space-y-1.5 text-[12px] text-[#6e6e73]">
                   {order.replacementLines!.map((r) => (
-                    <li key={r.id} className="text-[hsl(var(--muted-foreground))]">
+                    <li key={r.id}>
                       {r.oldSerialNumber && r.newSerialNumber ? (
                         <span>
                           <span className="font-mono line-through opacity-70">{r.oldSerialNumber}</span>
                           {" → "}
-                          <span className="font-mono text-[hsl(var(--foreground))] font-semibold">{r.newSerialNumber}</span>
+                          <span className="font-mono text-[#1d1d1f] dark:text-[hsl(var(--foreground))] font-semibold">{r.newSerialNumber}</span>
                         </span>
                       ) : (
                         <span>{r.qty} {r.unit || "pcs"} swapped</span>
@@ -1658,8 +1689,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 </ul>
               </div>
             )}
+            <CrmOrderSummaryDisplay order={order} />
           </div>
-          <CrmOrderSummaryDisplay order={order} />
+          <div className="min-w-0 space-y-3">
 
           {(needsStockUpdate || stockDeductionNotice || deductingStock) && (
             <div
@@ -1807,6 +1839,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             )}
           </div>
         )}
+          {!hasDispatcher && !(needsStockUpdate || stockDeductionNotice || deductingStock) && (
+            <div className="rounded-[14px] border border-dashed border-black/[0.08] bg-[#fafafa]/80 dark:bg-white/[0.02] px-3.5 py-4 text-[12px] text-[#86868b]">
+              Create a dispatch note to record dispatcher, receiver, vehicle, and proof photos.
+            </div>
+          )}
+          </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 sm:hidden px-4 py-3 border-t border-black/[0.06] bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -2072,7 +2111,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         createPortal(
         <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={() => !updating && setShowFulfillDialog(false)}>
           <div
-            className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
+            className="w-full sm:max-w-4xl max-h-[94vh] sm:max-h-[92vh] rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
@@ -2201,122 +2240,118 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               ) : null}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none p-4 sm:p-5 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none p-4 sm:p-5 space-y-4">
               {fulfillTab === "dispatcher" && (
-              <>
-              <div>
-                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Dispatcher</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Dispatcher name *
-                    </label>
-                    <input
-                      type="text"
-                      value={fulfillDispatcherName}
-                      onChange={e => setFulfillDispatcherName(e.target.value)}
-                      placeholder="Enter dispatcher name"
-                      className={appleField}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Receiver</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Receiver name
-                    </label>
-                    <input
-                      type="text"
-                      value={receiverName}
-                      onChange={e => setReceiverName(e.target.value)}
-                      placeholder="Enter receiver name"
-                      className={appleField}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Receiver CNIC
-                    </label>
-                    <input
-                      type="text"
-                      value={receiverCnic}
-                      onChange={e => setReceiverCnic(e.target.value)}
-                      placeholder="Enter CNIC number"
-                      className={appleField}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Receiver image
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => setReceiverImage(e.target.files?.[0] || null)}
-                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
-                    />
-                    {(order.fulfillmentReceiverImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      CNIC image
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => setReceiverCnicImage(e.target.files?.[0] || null)}
-                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
-                    />
-                    {(order.fulfillmentReceiverCnicImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Vehicle</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Vehicle number
-                    </label>
-                    <input
-                      type="text"
-                      value={vehicleNumber}
-                      onChange={e => setVehicleNumber(e.target.value)}
-                      placeholder="Enter vehicle number"
-                      className={appleField}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
-                      Vehicle image
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => setVehicleImage(e.target.files?.[0] || null)}
-                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
-                    />
-                    {(order.fulfillmentVehicleImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Product images</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+              <div className="space-y-4">
                 <div>
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">Dispatcher</p>
+                  <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                    Dispatcher name *
+                  </label>
+                  <input
+                    type="text"
+                    value={fulfillDispatcherName}
+                    onChange={e => setFulfillDispatcherName(e.target.value)}
+                    placeholder="Enter dispatcher name"
+                    className={appleField}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">Receiver</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        Receiver name
+                      </label>
+                      <input
+                        type="text"
+                        value={receiverName}
+                        onChange={e => setReceiverName(e.target.value)}
+                        placeholder="Enter receiver name"
+                        className={appleField}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        Receiver CNIC
+                      </label>
+                      <input
+                        type="text"
+                        value={receiverCnic}
+                        onChange={e => setReceiverCnic(e.target.value)}
+                        placeholder="Enter CNIC number"
+                        className={appleField}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        Receiver image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setReceiverImage(e.target.files?.[0] || null)}
+                        className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
+                      />
+                      {(order.fulfillmentReceiverImageUrl || "").trim() && (
+                        <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        CNIC image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setReceiverCnicImage(e.target.files?.[0] || null)}
+                        className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
+                      />
+                      {(order.fulfillmentReceiverCnicImageUrl || "").trim() && (
+                        <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">Vehicle</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        Vehicle number
+                      </label>
+                      <input
+                        type="text"
+                        value={vehicleNumber}
+                        onChange={e => setVehicleNumber(e.target.value)}
+                        placeholder="Enter vehicle number"
+                        className={appleField}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                        Vehicle image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setVehicleImage(e.target.files?.[0] || null)}
+                        className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
+                      />
+                      {(order.fulfillmentVehicleImageUrl || "").trim() && (
+                        <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">Product images</p>
                   <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
                     Upload product images
                   </label>
@@ -2339,7 +2374,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   )}
                 </div>
               </div>
-              </>
+              </div>
               )}
 
               {showFulfillDialog && useQrScanDispatch && (

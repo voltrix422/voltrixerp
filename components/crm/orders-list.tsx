@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { subscribeErpLive } from "@/lib/erp-live-sync"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -251,7 +252,36 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         setOrders(scopedOrders)
       })
     }, 30000)
-    return () => clearInterval(interval)
+    const unsub = subscribeErpLive((ev) => {
+      if (ev.type !== "client-updated") return
+      const name = (ev.name || "").trim()
+      if (!ev.clientId || !name) return
+      setOrders((prev) =>
+        prev.map((o) => (o.clientId === ev.clientId ? { ...o, clientName: name } : o)),
+      )
+      setSelected((prev) =>
+        prev && prev.clientId === ev.clientId ? { ...prev, clientName: name } : prev,
+      )
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === ev.clientId
+            ? {
+                ...c,
+                name,
+                company: ev.company ?? c.company,
+                phone: ev.phone ?? c.phone,
+                email: ev.email ?? c.email,
+                address: ev.address ?? c.address,
+                city: ev.city ?? c.city,
+              }
+            : c,
+        ),
+      )
+    })
+    return () => {
+      clearInterval(interval)
+      unsub()
+    }
   }, [])
 
   const ledgerOptions = listLedgerClients(clients, orders)

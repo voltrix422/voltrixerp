@@ -141,7 +141,7 @@ export function OrderItemReplacement({
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-lg rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] max-h-[92vh] overflow-hidden flex flex-col"
+        className="w-full sm:max-w-4xl rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] max-h-[94vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
@@ -162,8 +162,9 @@ export function OrderItemReplacement({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-none p-4 space-y-4">
-          <div>
+        <div className="flex-1 overflow-y-auto scrollbar-none p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <label className="text-[10px] font-semibold tracking-tight text-[#86868b]">Order line</label>
             <select
               value={orderItemId}
@@ -246,7 +247,7 @@ export function OrderItemReplacement({
             </>
           ) : (
             <>
-              <div className="rounded-[14px] border border-[#0071e3]/20 bg-[#0071e3]/06 p-3 space-y-1.5">
+              <div className="sm:col-span-2 rounded-[14px] border border-[#0071e3]/20 bg-[#0071e3]/06 p-3 space-y-1.5">
                 <p className="text-[12px] font-semibold tracking-tight text-[#0071e3]">Manual dispatch — no serials on this order line</p>
                 <p className="text-[11px] text-[#86868b]">
                   This order was dispatched by quantity only. You do not need the old serial — just receive the returned
@@ -279,7 +280,7 @@ export function OrderItemReplacement({
                 </div>
               </div>
 
-              <div className="rounded-[14px] border border-dashed border-[#0071e3]/30 bg-[#0071e3]/05 p-3">
+              <div className="rounded-[14px] border border-dashed border-[#0071e3]/30 bg-[#0071e3]/05 p-3 sm:col-span-1">
                 <label className="text-[10px] font-semibold tracking-tight text-[#0071e3]">
                   Step 2 · New serial — scan replacement unit
                 </label>
@@ -317,7 +318,7 @@ export function OrderItemReplacement({
             </>
           )}
 
-          <div>
+          <div className="sm:col-span-2">
             <label className="text-[10px] font-semibold tracking-tight text-[#86868b]">
               {requiresSerial ? "Return old item to" : "Step 3 · Return old item to"}
             </label>
@@ -385,7 +386,7 @@ export function OrderItemReplacement({
           </div>
 
           {(order.replacementLines?.length ?? 0) > 0 ? (
-            <div className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] p-3 space-y-2">
+            <div className="sm:col-span-2 rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] p-3 space-y-2">
               <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">
                 Previous replacements
               </p>
@@ -399,6 +400,7 @@ export function OrderItemReplacement({
               ))}
             </div>
           ) : null}
+          </div>
         </div>
 
         <div className="border-t border-black/[0.06] p-4 flex justify-end gap-2 shrink-0 bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20">
