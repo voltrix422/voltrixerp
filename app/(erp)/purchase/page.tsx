@@ -8,7 +8,7 @@ import { SuppliersTab } from "@/components/purchase/suppliers-tab"
 import { AdvanceAccountsTab } from "@/components/purchase/advance-accounts-tab"
 import { ClientProjectsTab } from "@/components/purchase/client-projects-tab"
 import { ImportedPurchasesTab } from "@/components/purchase/imported-purchases-tab"
-import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship, Building2, ChevronDown } from "lucide-react"
+import { FolderLock, Building2, ChevronDown } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
 import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib/purchase-scopes"
@@ -75,11 +75,11 @@ export default function PurchasePage() {
   }
 
   const tabs = [
-    { key: "ledger" as const, label: "Purchase Ledger", icon: BookOpen },
-    { key: "imports" as const, label: "Imported Purchases", icon: Ship },
-    { key: "suppliers" as const, label: "Suppliers", icon: Users },
-    { key: "advances" as const, label: "Advances", icon: Wallet },
-    { key: "projects" as const, label: "Client Projects", icon: FolderKanban },
+    { key: "ledger" as const, label: "Purchase Ledger" },
+    { key: "imports" as const, label: "Imported Purchases" },
+    { key: "suppliers" as const, label: "Suppliers" },
+    { key: "advances" as const, label: "Advances" },
+    { key: "projects" as const, label: "Client Projects" },
   ]
 
   return (
@@ -92,32 +92,30 @@ export default function PurchasePage() {
         <div className="max-w-[1400px] mx-auto w-full">
           <div className="px-4 pt-4 sm:px-6">
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
-              <div className="inline-flex w-full sm:w-auto items-center gap-0.5 rounded-[12px] bg-[#f2f2f7] dark:bg-white/10 p-1 overflow-x-auto">
+              <div className="inline-flex w-full sm:w-auto items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5 overflow-x-auto">
                 {tabs.map(t => {
-                  const Icon = t.icon
                   const active = tab === t.key
                   return (
                     <button
                       key={t.key}
                       onClick={() => selectTab(t.key)}
-                      className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-[11px] font-semibold tracking-tight rounded-[9px] transition-colors cursor-pointer whitespace-nowrap ${
+                      className={`inline-flex flex-1 sm:flex-none items-center justify-center px-3.5 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer whitespace-nowrap ${
                         active
                           ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
                           : "text-[#6e6e73] hover:text-[#1d1d1f]"
                       }`}
                     >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                       {t.label}
                     </button>
                   )
                 })}
               </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[12.5rem]">
+              <div className="relative w-full sm:w-auto sm:min-w-[13rem]">
                 <Building2 className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
                 <select
                   value={scopeId}
                   onChange={e => setScopeId(e.target.value)}
-                  className="h-9 w-full appearance-none rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-8 pr-8 text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+                  className="h-8 w-full appearance-none rounded-full border border-black/[0.06] bg-white dark:bg-[hsl(var(--background))] pl-8 pr-8 text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
                 >
                   {allowedScopes.map(id => (
                     <option key={id} value={id}>

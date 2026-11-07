@@ -75,17 +75,17 @@ import { listFuelAllotments, type FuelAllotment } from "@/lib/fuel-petrol"
 import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 
 const inputCls =
-  "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+  "w-full h-8 rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
 
 function todayPkIso() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" })
 }
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
-  <div className="space-y-1 min-w-0">
+  <div className="space-y-0.5 min-w-0">
     <label className="text-[10px] font-semibold tracking-tight text-[#86868b]">{label}</label>
     {children}
-    {hint ? <p className="text-[10px] text-[#aeaeb2] leading-tight">{hint}</p> : null}
+    {hint ? <p className="text-[9px] text-[#aeaeb2] leading-tight">{hint}</p> : null}
   </div>
 )
 
@@ -218,46 +218,44 @@ function AttachmentList({
   emptyLabel: string
 }) {
   if (items.length === 0) {
-    return <p className="text-[11px] text-[#aeaeb2] px-0.5">{emptyLabel}</p>
+    return <p className="text-[10px] text-[#aeaeb2] px-0.5">{emptyLabel}</p>
   }
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-1">
       {items.map((item) => (
         <li
           key={item.key}
-          className="rounded-[12px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-2.5 py-2 space-y-1.5 transition-all duration-200"
+          className="flex items-center gap-1.5 rounded-[9px] bg-[#f2f2f7]/90 dark:bg-white/[0.04] px-2 py-1.5 min-w-0"
         >
-          <div className="flex items-center gap-2 min-w-0">
+          {item.previewUrl && isImageBillUrl(item.previewUrl) ? (
+            <img
+              src={item.previewUrl}
+              alt=""
+              className="h-6 w-6 rounded object-cover border border-black/[0.06] shrink-0 bg-white"
+            />
+          ) : (
             <FileText className="h-3.5 w-3.5 text-[#0071e3] shrink-0" strokeWidth={1.75} />
-            {item.href ? (
-              <a
-                href={item.href}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-[#0071e3] hover:underline truncate flex-1 font-medium"
-              >
-                {item.name}
-              </a>
-            ) : (
-              <span className="text-[11px] truncate flex-1 font-medium tracking-tight">{item.name}</span>
-            )}
-            <button
-              type="button"
-              className="h-6 px-2 rounded-full text-[10px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/10 shrink-0 cursor-pointer"
-              onClick={() => onRemove(item.key)}
-            >
-              Remove
-            </button>
-          </div>
-          {item.previewUrl && isImageBillUrl(item.previewUrl) && (
-            <a href={item.previewUrl} target="_blank" rel="noreferrer" className="block">
-              <img
-                src={item.previewUrl}
-                alt={item.name}
-                className="max-h-24 w-full rounded-[10px] border border-black/[0.06] object-contain bg-white"
-              />
-            </a>
           )}
+          {item.href ? (
+            <a
+              href={item.href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-[#0071e3] hover:underline truncate flex-1 font-medium"
+            >
+              {item.name}
+            </a>
+          ) : (
+            <span className="text-[11px] truncate flex-1 font-medium tracking-tight">{item.name}</span>
+          )}
+          <button
+            type="button"
+            className="h-5 w-5 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 shrink-0 cursor-pointer"
+            onClick={() => onRemove(item.key)}
+            aria-label="Remove"
+          >
+            <X className="h-3 w-3" strokeWidth={2.25} />
+          </button>
         </li>
       ))}
     </ul>
@@ -280,16 +278,16 @@ function MultiFileDropzone({
   const [dragging, setDragging] = useState(false)
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <p className="text-[10px] font-semibold tracking-tight text-[#86868b] flex items-center gap-1.5">
         {icon}
         {label}
       </p>
       <label
-        className={`apple-dropzone group relative flex flex-col items-center justify-center gap-1.5 min-h-[88px] rounded-[14px] border border-dashed px-3 py-3.5 cursor-pointer transition-all duration-300 ${
+        className={`flex items-center gap-2 h-9 rounded-[10px] border border-dashed px-2.5 cursor-pointer transition-colors ${
           dragging
-            ? "border-[#0071e3] bg-[#0071e3]/10 scale-[1.01]"
-            : `border-black/[0.12] bg-[#f2f2f7]/70 dark:bg-white/[0.03] hover:border-[#0071e3]/45 hover:bg-[#0071e3]/06 ${accentClass}`
+            ? "border-[#0071e3] bg-[#0071e3]/10"
+            : `border-black/[0.12] bg-[#f2f2f7]/80 dark:bg-white/[0.03] hover:border-[#0071e3]/40 hover:bg-[#0071e3]/05 ${accentClass}`
         }`}
         onDragEnter={(e) => {
           e.preventDefault()
@@ -309,13 +307,11 @@ function MultiFileDropzone({
           if (files.length) onAddFiles(files)
         }}
       >
-        <span className="apple-dropzone-icon h-9 w-9 rounded-full bg-white dark:bg-white/10 border border-black/[0.06] inline-flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-300">
-          <Upload className="h-4 w-4 text-[#0071e3]" strokeWidth={1.75} />
-        </span>
-        <span className="text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] text-center">
+        <Upload className="h-3.5 w-3.5 text-[#0071e3] shrink-0" strokeWidth={1.75} />
+        <span className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">
           {dragging ? "Drop files" : hint}
         </span>
-        <span className="text-[10px] text-[#86868b]">Images or PDF · multiple</span>
+        <span className="ml-auto text-[9px] text-[#aeaeb2] shrink-0 hidden sm:inline">PDF / image</span>
         <input
           type="file"
           accept="image/*,.pdf"
@@ -562,32 +558,31 @@ function LineItemsEditor({
   onChange: (items: PurchaseLedgerItem[]) => void
 }) {
   return (
-    <div className="rounded-[14px] border border-black/[0.06] overflow-hidden bg-white/70 dark:bg-white/[0.02]">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-black/[0.06] bg-[#fafafa]/90">
-        <p className="text-[12px] font-semibold tracking-tight">Items</p>
+    <div className="rounded-[12px] border border-black/[0.06] overflow-hidden bg-white/80 dark:bg-white/[0.02]">
+      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/[0.06] bg-[#fafafa]/90">
+        <p className="text-[11px] font-semibold tracking-tight">Items</p>
         <button
           type="button"
-          className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
+          className="h-6 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
           onClick={() => onChange([...items, newLedgerItem()])}
         >
           <Plus className="h-3 w-3" strokeWidth={2} /> Add
         </button>
       </div>
-      <div className="hidden md:grid grid-cols-[minmax(0,1fr)_72px_96px_104px_36px] gap-2 px-3 py-1.5 text-[10px] font-semibold tracking-tight text-[#86868b] border-b border-black/[0.04]">
+      <div className="hidden md:grid grid-cols-[minmax(0,1fr)_56px_72px_80px_28px] gap-1.5 px-2.5 py-1 text-[9px] font-semibold tracking-tight text-[#86868b] border-b border-black/[0.04]">
         <span>Product</span>
         <span>Qty</span>
         <span>Unit</span>
         <span>Total</span>
         <span />
       </div>
-      <div className="divide-y divide-black/[0.04]">
+      <div className="divide-y divide-black/[0.04] max-h-[9.5rem] overflow-y-auto scrollbar-none">
         {items.map((item, index) => (
           <div
             key={item.id}
-            className="px-3 py-2.5 space-y-2 md:space-y-0 md:grid md:grid-cols-[minmax(0,1fr)_72px_96px_104px_36px] md:gap-2 md:items-center"
+            className="px-2.5 py-1.5 space-y-1.5 md:space-y-0 md:grid md:grid-cols-[minmax(0,1fr)_56px_72px_80px_28px] md:gap-1.5 md:items-center"
           >
             <div className="min-w-0">
-              <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Product</label>
               <input
                 required
                 value={item.productName}
@@ -598,76 +593,67 @@ function LineItemsEditor({
                 className={inputCls}
               />
             </div>
-            <div className="grid grid-cols-3 gap-2 md:contents">
-              <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Qty</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={item.quantity || ""}
-                  onChange={(e) => onChange(updateItemField(items, item.id, "quantity", e.target.value))}
-                  className={inputCls}
-                  inputMode="decimal"
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Unit</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={item.unitPrice || ""}
-                  onChange={(e) => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))}
-                  className={inputCls}
-                  inputMode="decimal"
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Total</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={item.lineTotal || ""}
-                  onChange={(e) => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))}
-                  className={inputCls}
-                  inputMode="decimal"
-                />
-              </div>
+            <div className="grid grid-cols-3 gap-1.5 md:contents">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={item.quantity || ""}
+                onChange={(e) => onChange(updateItemField(items, item.id, "quantity", e.target.value))}
+                className={inputCls}
+                inputMode="decimal"
+              />
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={item.unitPrice || ""}
+                onChange={(e) => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))}
+                className={inputCls}
+                inputMode="decimal"
+              />
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={item.lineTotal || ""}
+                onChange={(e) => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))}
+                className={inputCls}
+                inputMode="decimal"
+              />
             </div>
             <div className="flex justify-end md:justify-center">
               {items.length > 1 ? (
                 <button
                   type="button"
-                  className="h-8 w-8 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
                   onClick={() => onChange(items.filter((row) => row.id !== item.id))}
                 >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  <Trash2 className="h-3 w-3" strokeWidth={1.75} />
                 </button>
               ) : (
-                <span className="hidden md:block w-8" />
+                <span className="hidden md:block w-7" />
               )}
             </div>
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-black/[0.06] bg-[#fafafa]/80">
+      <div className="flex items-center justify-end gap-2 px-2.5 py-1.5 border-t border-black/[0.06] bg-[#fafafa]/80">
         <span className="text-[10px] font-semibold text-[#86868b]">Subtotal</span>
-        <span className="text-[13px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(sumItemTotals(items))}</span>
+        <span className="text-[12px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(sumItemTotals(items))}</span>
       </div>
     </div>
   )
 }
 
 const filterSelectCls =
-  "h-9 w-full appearance-none rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-3 pr-8 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+  "h-8 w-full appearance-none rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-2.5 pr-7 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
 const filterDateCls =
-  "h-9 w-full rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-9 pr-3 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 [color-scheme:light] dark:[color-scheme:dark]"
+  "h-8 w-full rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-8 pr-2.5 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 [color-scheme:light] dark:[color-scheme:dark]"
 const appleField =
-  "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+  "w-full h-8 rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
 const appleSelect =
-  "w-full h-9 appearance-none rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-3 pr-8 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+  "w-full h-8 appearance-none rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-2.5 pr-7 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
 const applePill =
   "h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
 
@@ -1700,15 +1686,22 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-            Purchase Ledger
-            <span className="text-[#86868b] font-normal"> · {purchaseScopeLabel(purchaseScopeId)}</span>
-          </h2>
-          <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
-            {filterTransactionType === "petrol"
-              ? `${filteredPetrol.length} petrol · ${fmtMoney(filteredPetrol.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0))}`
-              : `${filterStats.combined.count} shown · ${fmtMoney(filterStats.combined.total)}`}
-          </p>
+          <div className="inline-flex items-center gap-2">
+            <span className="h-7 w-7 rounded-[9px] bg-[#0071e3]/10 inline-flex items-center justify-center shrink-0">
+              <Receipt className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
+                Purchase Ledger
+                <span className="text-[#86868b] font-medium"> · {purchaseScopeLabel(purchaseScopeId)}</span>
+              </h2>
+              <p className="text-[11px] text-[#86868b] tabular-nums">
+                {filterTransactionType === "petrol"
+                  ? `${filteredPetrol.length} petrol · ${fmtMoney(filteredPetrol.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0))}`
+                  : `${filterStats.combined.count} shown · ${fmtMoney(filterStats.combined.total)}`}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -1865,30 +1858,30 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       {showForm &&
         typeof document !== "undefined" &&
         createPortal(
-        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={closeForm}>
-          <div className="apple-sheet-in w-full sm:max-w-5xl max-h-[96vh] sm:max-h-[94vh] flex flex-col rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-black/[0.06] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-md p-0 sm:p-3" onClick={closeForm}>
+          <div className="w-full sm:max-w-6xl max-h-[94vh] sm:max-h-[90vh] flex flex-col rounded-t-[18px] sm:rounded-[18px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] shadow-[0_16px_48px_rgba(0,0,0,0.28)] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-3.5 sm:px-4 py-2.5 border-b border-black/[0.06] shrink-0">
               <div className="min-w-0 pr-2">
-                <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                <p className="text-[14px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
                   {isEditing ? "Edit purchase" : "New purchase"}
                 </p>
-                <p className="text-[11px] text-[#86868b] truncate mt-0.5">
-                  {isEditing ? "Bills & proofs · payments kept as recorded" : "Items · tax · attachments · auto totals"}
+                <p className="text-[10px] text-[#86868b] truncate">
+                  {isEditing ? "Payments kept as recorded" : "Items · tax · attachments"}
                 </p>
               </div>
               <button
                 type="button"
-                className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
                 onClick={closeForm}
                 aria-label="Close"
               >
-                <X className="h-4 w-4" strokeWidth={2.25} />
+                <X className="h-3.5 w-3.5" strokeWidth={2.25} />
               </button>
             </div>
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain scrollbar-none">
-                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div className="min-h-0 flex-1 overflow-y-auto sm:overflow-hidden px-3.5 sm:px-4 py-3 space-y-2.5 overscroll-contain scrollbar-none">
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                   <Field label="Ledger No.">
                     <input readOnly value={ledgerNumber} className={`${inputCls} text-[#0071e3] font-semibold font-mono`} />
                   </Field>
@@ -1897,7 +1890,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       required
                       value={transactionDate}
                       onChange={(e) => setTransactionDate(e.target.value)}
-                      className={`${appleField} pl-9`}
+                      className={`${appleField} pl-8`}
                     />
                   </Field>
                   <Field label="Link type">
@@ -1924,8 +1917,6 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   </Field>
                 </section>
 
-                <DottedRule />
-
                 {linkMode === "project" && (
                   <ProjectPicker
                     required
@@ -1935,27 +1926,26 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   />
                 )}
 
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)] gap-3 lg:min-h-0 lg:overflow-hidden">
+                <div className="space-y-2.5 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-none">
                   {linkMode === "project" && (
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold">Suppliers & items</p>
-                      <Button
+                      <p className="text-[11px] font-semibold tracking-tight">Suppliers & items</p>
+                      <button
                         type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[10px] cursor-pointer"
+                        className="h-6 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
                         onClick={() => setSupplierGroups(prev => [
                           ...prev,
                           newSupplierGroup({ date: transactionDate }),
                         ])}
                       >
-                        <Plus className="h-3 w-3" /> Add supplier
-                      </Button>
+                        <Plus className="h-3 w-3" strokeWidth={2} /> Add supplier
+                      </button>
                     </div>
                   )}
 
                   {activeGroups.map((group, groupIndex) => (
-                    <section key={group.id} className="rounded-[14px] border border-black/[0.06] bg-[#fafafa]/80 dark:bg-white/[0.02] p-3 space-y-3">
+                    <section key={group.id} className="rounded-[12px] border border-black/[0.06] bg-[#fafafa]/80 dark:bg-white/[0.02] p-2.5 space-y-2">
                       {linkMode === "project" && (
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -2002,7 +1992,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           <AppleDateInput
                             value={group.date || transactionDate}
                             onChange={(e) => updateSupplierGroup(group.id, { date: e.target.value })}
-                            className={`${appleField} pl-9`}
+                            className={`${appleField} pl-8`}
                           />
                         </Field>
                         <Field label="Account details">
@@ -2167,12 +2157,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   ))}
                 </div>
 
-                <div className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-3.5 py-3 space-y-2.5">
+                <div className="space-y-2 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-none">
+                <div className="rounded-[12px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-2.5 py-2 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-[#86868b]">Items subtotal</span>
-                    <span className="text-[13px] font-semibold tabular-nums">{fmtMoney(itemsSubtotal)}</span>
+                    <span className="text-[10px] text-[#86868b]">Items subtotal</span>
+                    <span className="text-[12px] font-semibold tabular-nums">{fmtMoney(itemsSubtotal)}</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <Field label="Tax %">
                       <input
                         type="number"
@@ -2200,12 +2191,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         min="0"
                         step="any"
                         value={taxAmount}
-                        onChange={e => {
-                          setTaxAmount(e.target.value)
-                          // Manual amount overrides percent linkage for display; keep % if set for reference
-                        }}
+                        onChange={e => setTaxAmount(e.target.value)}
                         onBlur={() => {
-                          // If percent is set, keep amount in sync with current subtotal on blur when amount empty
                           const pct = parseFloat(taxPercent) || 0
                           if (pct > 0 && !(parseFloat(taxAmount) > 0)) {
                             setTaxAmount(String(taxAmountFromPercent(itemsSubtotal, pct)))
@@ -2216,74 +2203,55 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         inputMode="decimal"
                       />
                     </Field>
+                    {!isProjectMode ? (
+                      <Field label="Discount">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          max={itemsSubtotal + taxAmountValue || undefined}
+                          value={
+                            supplierGroups[0]?.discount
+                              ? String(supplierGroups[0].discount)
+                              : ""
+                          }
+                          onChange={e => {
+                            const group = supplierGroups[0]
+                            if (!group) return
+                            const raw = parseFloat(e.target.value) || 0
+                            const capped = Math.max(
+                              0,
+                              Math.min(raw, itemsSubtotal + taxAmountValue),
+                            )
+                            updateSupplierGroup(group.id, {
+                              discount: e.target.value.trim() === "" ? 0 : capped,
+                            })
+                          }}
+                          placeholder="0"
+                          className={inputCls}
+                          inputMode="decimal"
+                        />
+                      </Field>
+                    ) : (
+                      <div />
+                    )}
                   </div>
-                  {taxPercentValue > 0 && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                      Tax {taxPercentValue}% of {fmtMoney(itemsSubtotal)} = {fmtMoney(taxAmountValue)}
-                    </p>
-                  )}
-                  {!isProjectMode && (
-                    <Field label="Supplier discount">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        max={itemsSubtotal + taxAmountValue || undefined}
-                        value={
-                          supplierGroups[0]?.discount
-                            ? String(supplierGroups[0].discount)
-                            : ""
-                        }
-                        onChange={e => {
-                          const group = supplierGroups[0]
-                          if (!group) return
-                          const raw = parseFloat(e.target.value) || 0
-                          const capped = Math.max(
-                            0,
-                            Math.min(raw, itemsSubtotal + taxAmountValue),
-                          )
-                          updateSupplierGroup(group.id, {
-                            discount: e.target.value.trim() === "" ? 0 : capped,
-                          })
-                        }}
-                        placeholder="0"
-                        className={inputCls}
-                        inputMode="decimal"
-                      />
-                    </Field>
-                  )}
-                  {supplierDiscountValue > 0 && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                        Supplier discount
-                      </span>
-                      <span className="text-sm font-medium tabular-nums text-amber-700 dark:text-amber-400">
-                        −{fmtMoney(supplierDiscountValue)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between gap-2 border-t border-black/[0.06] pt-2">
-                    <span className="text-[11px] font-semibold tracking-tight">
+                  <div className="flex items-center justify-between gap-2 border-t border-black/[0.06] pt-1.5">
+                    <span className="text-[10px] font-semibold tracking-tight">
                       {linkMode === "project" ? "Project total" : "Grand total"}
                     </span>
-                    <span className="text-[16px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(grandTotal)}</span>
+                    <span className="text-[14px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(grandTotal)}</span>
                   </div>
                 </div>
 
                 {!isProjectMode && (
-                <section className="rounded-[16px] border border-[#0071e3]/20 bg-[#0071e3]/[0.04] px-3.5 py-3.5 space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="h-8 w-8 rounded-full bg-[#0071e3]/12 inline-flex items-center justify-center">
-                      <Paperclip className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
-                    </span>
-                    <div>
-                      <p className="text-[13px] font-semibold tracking-tight">Attachments</p>
-                      <p className="text-[11px] text-[#86868b]">Bills and payment proofs</p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                    <div className="rounded-[14px] border border-black/[0.06] bg-white/80 dark:bg-white/[0.03] p-3 space-y-2">
+                <section className="rounded-[12px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] px-2.5 py-2 space-y-2">
+                  <p className="text-[11px] font-semibold tracking-tight flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
+                    Attachments
+                  </p>
+                  <div className="grid gap-2 grid-cols-1">
+                    <div className="space-y-1">
                       <MultiFileDropzone
                         label="Purchase bill"
                         icon={<Receipt className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />}
@@ -2292,7 +2260,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         onAddFiles={files => setBillFiles(prev => [...prev, ...files])}
                       />
                       <AttachmentList
-                        emptyLabel="No bills yet"
+                        emptyLabel="No bills"
                         onRemove={key => {
                           if (key.startsWith("pending:")) {
                             const index = Number(key.slice(8))
@@ -2316,8 +2284,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         ]}
                       />
                     </div>
-
-                    <div className="rounded-[14px] border border-black/[0.06] bg-white/80 dark:bg-white/[0.03] p-3 space-y-2">
+                    <div className="space-y-1">
                       <MultiFileDropzone
                         label="Payment proof"
                         icon={<Wallet className="h-3.5 w-3.5 text-[#248a3d]" strokeWidth={1.75} />}
@@ -2326,7 +2293,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         onAddFiles={files => setProofFiles(prev => [...prev, ...files])}
                       />
                       <AttachmentList
-                        emptyLabel="No proofs yet"
+                        emptyLabel="No proofs"
                         onRemove={key => {
                           if (key.startsWith("pending:")) {
                             const index = Number(key.slice(8))
@@ -2359,41 +2326,47 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 </section>
                 )}
 
-                <section className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-3.5 py-3">
-                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">
+                <section className="rounded-[12px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-2.5 py-2">
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-1.5">
                     {isProjectMode ? "Project payment" : "Payment"}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                    <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
-                      <p className="text-[10px] text-[#86868b]">{isProjectMode ? "Project total" : "Grand total"}</p>
-                      <p className="text-[13px] font-semibold mt-0.5 tabular-nums">{fmtMoney(grandTotal)}</p>
+                  <div className="grid grid-cols-3 gap-1.5 items-end">
+                    <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                      <p className="text-[9px] text-[#86868b]">Total</p>
+                      <p className="text-[12px] font-semibold tabular-nums">{fmtMoney(grandTotal)}</p>
                     </div>
                     {isProjectMode ? (
                       <>
-                        <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
-                          <p className="text-[10px] text-[#86868b]">Paid</p>
-                          <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#248a3d]">{fmtMoney(totalPaidNow)}</p>
+                        <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                          <p className="text-[9px] text-[#86868b]">Paid</p>
+                          <p className="text-[12px] font-semibold tabular-nums text-[#248a3d]">{fmtMoney(totalPaidNow)}</p>
                         </div>
-                        <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
-                          <p className="text-[10px] text-[#86868b]">Remaining</p>
-                          <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
+                        <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                          <p className="text-[9px] text-[#86868b]">Due</p>
+                          <p className="text-[12px] font-semibold tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
                         </div>
                       </>
                     ) : isEditing ? (
-                      <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
-                        <p className="text-[10px] text-[#86868b]">Paid</p>
-                        <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#248a3d]">{fmtMoney(existingPaid)}</p>
-                      </div>
+                      <>
+                        <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                          <p className="text-[9px] text-[#86868b]">Paid</p>
+                          <p className="text-[12px] font-semibold tabular-nums text-[#248a3d]">{fmtMoney(existingPaid)}</p>
+                        </div>
+                        <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                          <p className="text-[9px] text-[#86868b]">Due</p>
+                          <p className="text-[12px] font-semibold tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
+                        </div>
+                      </>
                     ) : (
-                      <Field label="Paying now">
-                        <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
-                      </Field>
-                    )}
-                    {!isProjectMode && (
-                      <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
-                        <p className="text-[10px] text-[#86868b]">Due</p>
-                        <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
-                      </div>
+                      <>
+                        <Field label="Paying now">
+                          <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
+                        </Field>
+                        <div className="rounded-[10px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2 py-1.5">
+                          <p className="text-[9px] text-[#86868b]">Due</p>
+                          <p className="text-[12px] font-semibold tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
+                        </div>
+                      </>
                     )}
                   </div>
                 </section>
@@ -2401,6 +2374,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <Field label="Note">
                   <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note" className={inputCls} />
                 </Field>
+                </div>
+                </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 border-t border-black/[0.06] shrink-0 bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20">
@@ -2983,7 +2958,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     {entry.amountDue > 0 && (
                       <button
                         type="button"
-                        className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
+                        className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold bg-[#1d1d1f] text-white hover:bg-black cursor-pointer"
                         onClick={() => openPayModal(entry)}
                       >
                         <Wallet className="h-3 w-3" strokeWidth={1.75} /> Pay due
