@@ -86,15 +86,13 @@ export default function PurchasePage() {
     <ModuleGuard module="purchase">
       <Topbar
         title="Purchase"
-        description={activeScopeName
-          ? `Purchase ledger for ${activeScopeName}`
-          : "Purchase ledger, suppliers, and payment tracking"}
+        description={activeScopeName || "Ledger, suppliers & payments"}
       />
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto w-full">
           <div className="px-4 pt-4 sm:px-6">
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
-              <div className="inline-flex w-full sm:w-auto items-center gap-1 rounded-lg border bg-[hsl(var(--muted))]/20 p-1 overflow-x-auto">
+              <div className="inline-flex w-full sm:w-auto items-center gap-0.5 rounded-[12px] bg-[#f2f2f7] dark:bg-white/10 p-1 overflow-x-auto">
                 {tabs.map(t => {
                   const Icon = t.icon
                   const active = tab === t.key
@@ -102,32 +100,29 @@ export default function PurchasePage() {
                     <button
                       key={t.key}
                       onClick={() => selectTab(t.key)}
-                      className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                      className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-[11px] font-semibold tracking-tight rounded-[9px] transition-colors cursor-pointer whitespace-nowrap ${
                         active
-                          ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
-                          : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                          ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                          : "text-[#6e6e73] hover:text-[#1d1d1f]"
                       }`}
                     >
-                      <Icon className="h-3.5 w-3.5" />
+                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                       {t.label}
                     </button>
                   )
                 })}
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">Purchase ledger</span>
-                <select
-                  value={scopeId}
-                  onChange={e => setScopeId(e.target.value)}
-                  className="h-9 sm:h-8 flex-1 sm:min-w-[160px] rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                >
-                  {allowedScopes.map(id => (
-                    <option key={id} value={id}>
-                      {purchaseScopeLabel(id, allScopes)} ({id})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={scopeId}
+                onChange={e => setScopeId(e.target.value)}
+                className="h-9 sm:h-8 w-full sm:w-auto sm:min-w-[160px] rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+              >
+                {allowedScopes.map(id => (
+                  <option key={id} value={id}>
+                    {purchaseScopeLabel(id, allScopes)} ({id})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

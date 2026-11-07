@@ -1,10 +1,11 @@
 "use client"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip, Building2, Fuel } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, FileSpreadsheet, SlidersHorizontal, Receipt, Paperclip, Building2, Fuel } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -410,94 +411,60 @@ function LedgerFilterSummary({
   }
   petrol: { count: number; total: number; settled: number; open: number; pending: number }
 }) {
-  const row = (
-    label: string,
-    hint: string,
-    s: PurchaseLedgerStats,
-    highlight = false,
-  ) => (
+  const row = (label: string, s: PurchaseLedgerStats, accent = false) => (
     <div
-      className={
-        highlight
-          ? "rounded-md border border-[#1faca6]/30 bg-[#1faca6]/8 px-3 py-2.5"
-          : "rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2.5"
-      }
+      className={`rounded-[12px] px-2.5 py-2 ${
+        accent ? "bg-[#0071e3]/08 border border-[#0071e3]/20" : "bg-[#f2f2f7]/90 dark:bg-white/[0.04]"
+      }`}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">{label}</p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{hint}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
-          <span>
-            <strong className="text-[hsl(var(--foreground))]">{s.count}</strong> shown
-          </span>
-          <span>
-            Total <strong className="text-[#1faca6]">{fmtMoney(s.total)}</strong>
-          </span>
-          <span>
-            Paid <strong className="text-emerald-600">{fmtMoney(s.paid)}</strong>
-          </span>
-          <span>
-            Due <strong className="text-amber-600">{fmtMoney(s.due)}</strong>
-          </span>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+          {label}
+        </p>
+        <span className="text-[10px] text-[#86868b] tabular-nums">{s.count}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[#86868b]">
+        <span>
+          Total <strong className="text-[#0071e3] font-semibold">{fmtMoney(s.total)}</strong>
+        </span>
+        <span>
+          Paid <strong className="text-[#248a3d] font-semibold">{fmtMoney(s.paid)}</strong>
+        </span>
+        <span>
+          Due <strong className="text-[#9a6700] font-semibold">{fmtMoney(s.due)}</strong>
+        </span>
       </div>
     </div>
   )
 
   return (
-    <div className="space-y-2">
-      {row(
-        "Combined total (purchases + rents)",
-        "All ledger entries matching your filters",
-        stats.combined,
-        true,
-      )}
-      {row(
-        "Purchases only",
-        "Entries that are not classified as rent",
-        stats.purchases,
-      )}
-      {row(
-        "Rents only",
-        "Rent entries from Add rents or lines starting with “Rent for …”",
-        stats.rents,
-      )}
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Summary</p>
+      {row("Combined", stats.combined, true)}
+      {row("Purchases", stats.purchases)}
+      {row("Rents", stats.rents)}
       <Link
         href="/petrol"
-        className="rounded-md border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 block hover:bg-amber-500/15 transition-colors"
+        className="rounded-[12px] bg-[#ff9f0a]/12 border border-[#ff9f0a]/25 px-2.5 py-2 block hover:bg-[#ff9f0a]/18 transition-colors"
       >
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">Petrol / fuel</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              Filter by “Petrol / fuel” above · or open full Petrol page
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
-            <span>
-              <strong className="text-[hsl(var(--foreground))]">{petrol.count}</strong> allotments
-            </span>
-            <span>
-              Allotted <strong className="text-[#1faca6]">{fmtMoney(petrol.total)}</strong>
-            </span>
-            <span>
-              Open <strong className="text-amber-600">{petrol.open}</strong>
-            </span>
-            <span>
-              Review <strong className="text-sky-600">{petrol.pending}</strong>
-            </span>
-            <span>
-              Settled <strong className="text-emerald-600">{petrol.settled}</strong>
-            </span>
-          </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+            Petrol
+          </p>
+          <span className="text-[10px] text-[#86868b] tabular-nums">{petrol.count}</span>
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[#86868b]">
+          <span>
+            Allotted <strong className="text-[#0071e3] font-semibold">{fmtMoney(petrol.total)}</strong>
+          </span>
+          <span>
+            Open <strong className="text-[#9a6700] font-semibold">{petrol.open}</strong>
+          </span>
+          <span>
+            Settled <strong className="text-[#248a3d] font-semibold">{petrol.settled}</strong>
+          </span>
         </div>
       </Link>
-      <p className="text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))] px-0.5">
-        Combined total = purchases + rents. Petrol is tracked separately and also counts in Finance → Money out.
-        Use transaction type filter → Petrol / fuel to list allotments here.
-      </p>
     </div>
   )
 }
@@ -603,7 +570,12 @@ function LineItemsEditor({
   )
 }
 
-const filterSelectCls = "h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
+const filterSelectCls =
+  "h-8 w-full rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+const appleField =
+  "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+const applePill =
+  "h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
 
 type RentRow = {
   id: string
@@ -644,7 +616,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [filterDueFrom, setFilterDueFrom] = useState("")
   const [filterDueTo, setFilterDueTo] = useState("")
   const [exporting, setExporting] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
   const [showRentForm, setShowRentForm] = useState(false)
   const [petrolStats, setPetrolStats] = useState({
     count: 0,
@@ -752,6 +727,40 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setProofPreviewUrls(urls)
     return () => urls.forEach(url => URL.revokeObjectURL(url))
   }, [proofFiles])
+
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(360, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
 
   useEffect(() => {
     async function load() {
@@ -1561,190 +1570,170 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   )
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
             Purchase Ledger
-            <span className="text-[hsl(var(--muted-foreground))] font-normal"> · {purchaseScopeLabel(purchaseScopeId)}</span>
+            <span className="text-[#86868b] font-normal"> · {purchaseScopeLabel(purchaseScopeId)}</span>
           </h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            {entries.length} entries · {purchaseScopeLabel(purchaseScopeId)} ({purchaseScopeId})
+          <p className="text-[11px] text-[#86868b] mt-0.5 tabular-nums">
+            {filterTransactionType === "petrol"
+              ? `${filteredPetrol.length} petrol · ${fmtMoney(filteredPetrol.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0))}`
+              : `${filterStats.combined.count} shown · ${fmtMoney(filterStats.combined.total)}`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">From</span>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={e => setFilterDateFrom(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs w-[8.5rem]"
-            />
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={e => setFilterDateTo(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs w-[8.5rem]"
-            />
-          </div>
-          <Button
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs cursor-pointer"
+            className={applePill}
             disabled={filtered.length === 0 || exporting}
             onClick={() => void exportFilteredExcel()}
           >
-            <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
-          </Button>
-          <Button
+            <FileSpreadsheet className="h-3.5 w-3.5" strokeWidth={1.75} /> Excel
+          </button>
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs cursor-pointer"
+            className={applePill}
             disabled={exporting}
             onClick={() => void exportFilteredPdf()}
           >
-            <Download className="h-3.5 w-3.5" /> PDF
-          </Button>
-          <Button
+            <Download className="h-3.5 w-3.5" strokeWidth={1.75} /> PDF
+          </button>
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs cursor-pointer"
+            className={applePill}
             disabled={exporting}
             onClick={() => void exportApprovalPdf()}
           >
-            <FileText className="h-3.5 w-3.5" /> Approval PDF
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" asChild>
-            <Link href="/petrol">
-              <Fuel className="h-3.5 w-3.5" /> Petrol
-            </Link>
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => void openRentForm()}>
-            <Building2 className="h-3.5 w-3.5" /> Add rents
-          </Button>
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => void openNewForm()}>
-            <Plus className="h-3.5 w-3.5" /> New purchase
-          </Button>
+            <FileText className="h-3.5 w-3.5" strokeWidth={1.75} /> Approval
+          </button>
+          <Link href="/petrol" className={applePill}>
+            <Fuel className="h-3.5 w-3.5" strokeWidth={1.75} /> Petrol
+          </Link>
+          <button type="button" className={applePill} onClick={() => void openRentForm()}>
+            <Building2 className="h-3.5 w-3.5" strokeWidth={1.75} /> Rents
+          </button>
+          <button
+            type="button"
+            className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight bg-[#1d1d1f] hover:bg-black text-white cursor-pointer"
+            onClick={() => void openNewForm()}
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} /> New
+          </button>
+          <button
+            ref={filterBtnRef}
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              showFilters
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filters"
+            aria-expanded={showFilters}
+            title="Filters"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {hasActiveFilters && !showFilters && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
+          </button>
         </div>
       </div>
 
-      <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen(open => !open)}
-          className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer ${filtersOpen ? "border-b border-[hsl(var(--border))]/60" : ""}`}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-          <span className="text-xs font-semibold">Filters & summary</span>
-          {hasActiveFilters && (
-            <Badge variant="outline" className="text-[9px] h-5 px-1.5 border-[#1faca6]/40 text-[#1faca6]">
-              Active
-            </Badge>
-          )}
-          <span className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))] hidden sm:inline">
-              {filterTransactionType === "petrol"
-                ? `${filteredPetrol.length} petrol · ${fmtMoney(filteredPetrol.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0))}`
-                : `${filterStats.combined.count} shown · combined ${fmtMoney(filterStats.combined.total)}`}
-            </span>
-            {filtersOpen
-              ? <ChevronUp className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-              : <ChevronDown className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />}
-          </span>
-        </button>
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(22.5rem,calc(100vw-1.5rem))] max-h-[min(78vh,40rem)] overflow-y-auto scrollbar-none overscroll-contain rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2.5"
+            style={{ top: filterPos.top, left: filterPos.left }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                Filters
+              </p>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
 
-        {filtersOpen && (
-        <div className="p-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" strokeWidth={1.75} />
               <input
                 value={filterSearch}
-                onChange={e => setFilterSearch(e.target.value)}
-                placeholder="Search ledger, supplier, project, items..."
-                className={inputCls + " pl-8"}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                placeholder="Search ledger, supplier…"
+                className="w-full h-8 pl-8 pr-2.5 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
               />
             </div>
-            {hasActiveFilters && (
-              <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px] cursor-pointer shrink-0" onClick={clearFilters}>
-                <RotateCcw className="h-3 w-3" /> Clear
-              </Button>
-            )}
-          </div>
 
-          <div className="space-y-3 pt-1 border-t border-[hsl(var(--border))]/60">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
-                <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
-                  <option value="all">All link types</option>
-                  {PURCHASE_LINK_MODES.map(mode => (
-                    <option key={mode.value} value={mode.value}>{mode.label}</option>
-                  ))}
-                </select>
-                <select value={filterTransactionType} onChange={e => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
-                  <option value="all">All transaction types</option>
-                  {PURCHASE_TRANSACTION_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                  <option value="petrol">Petrol / fuel</option>
-                </select>
-                <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " lg:max-w-[180px]"}>
-                  <option value="all">All suppliers</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-                <select value={filterPaymentStatus} onChange={e => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
-                  <option value="all">All payments</option>
-                  <option value="paid">Fully paid</option>
-                  <option value="partial">Partially paid</option>
-                  <option value="due">Has amount due</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0">Date</span>
-                  <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-                  <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-[10px] cursor-pointer shrink-0"
-                    disabled={exporting}
-                    onClick={() => void exportFilteredPdf()}
-                  >
-                    <Download className="h-3 w-3" /> PDF
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-[10px] cursor-pointer shrink-0"
-                    disabled={filtered.length === 0 || exporting}
-                    onClick={() => void exportFilteredExcel()}
-                  >
-                    <FileSpreadsheet className="h-3 w-3" /> Excel
-                  </Button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0">Due</span>
-                  <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-                  <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
-                </div>
-              </div>
-          </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              <select value={filterLinkMode} onChange={(e) => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
+                <option value="all">All link types</option>
+                {PURCHASE_LINK_MODES.map((mode) => (
+                  <option key={mode.value} value={mode.value}>{mode.label}</option>
+                ))}
+              </select>
+              <select value={filterTransactionType} onChange={(e) => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
+                <option value="all">All transaction types</option>
+                {PURCHASE_TRANSACTION_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+                <option value="petrol">Petrol / fuel</option>
+              </select>
+              <select value={filterSupplierId} onChange={(e) => setFilterSupplierId(e.target.value)} className={filterSelectCls}>
+                <option value="all">All suppliers</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <select value={filterPaymentStatus} onChange={(e) => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
+                <option value="all">All payments</option>
+                <option value="paid">Fully paid</option>
+                <option value="partial">Partially paid</option>
+                <option value="due">Has amount due</option>
+              </select>
+            </div>
 
-          <LedgerFilterSummary stats={filterStats} petrol={petrolStats} />
-        </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Date</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={filterSelectCls} />
+                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={filterSelectCls} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Due date</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input type="date" value={filterDueFrom} onChange={(e) => setFilterDueFrom(e.target.value)} className={filterSelectCls} />
+                <input type="date" value={filterDueTo} onChange={(e) => setFilterDueTo(e.target.value)} className={filterSelectCls} />
+              </div>
+            </div>
+
+            <LedgerFilterSummary stats={filterStats} petrol={petrolStats} />
+          </div>,
+          document.body,
         )}
-      </section>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4" onClick={closeForm}>
@@ -2466,71 +2455,123 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         </div>
       )}
 
-      {payEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setPayEntry(null)}>
-          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div>
-                <p className="text-sm font-semibold">Add payment</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{payEntry.ledgerNumber} · Due {fmtMoney(payEntry.amountDue)}</p>
+      {payEntry &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
+            onClick={() => setPayEntry(null)}
+          >
+            <div
+              className="w-full sm:max-w-md rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    Pay due
+                  </p>
+                  <p className="text-[11px] text-[#86868b] mt-0.5 truncate">
+                    {payEntry.ledgerNumber} · Due {fmtMoney(payEntry.amountDue)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                  onClick={() => setPayEntry(null)}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" strokeWidth={2.25} />
+                </button>
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPayEntry(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <form onSubmit={handleAddPayment} className="p-4 space-y-3">
-              {payEntry.linkMode === "project" && payEntry.supplierGroups.length > 0 && (
-                <Field label="Supplier">
-                  <select
-                    value={paySupplierGroupId}
-                    onChange={e => {
-                      const groupId = e.target.value
-                      const group = payEntry.supplierGroups.find(row => row.id === groupId)
-                      setPaySupplierGroupId(groupId)
-                      setPayAmount(String(group ? resolveGroupAmountDue(group) : 0))
-                    }}
-                    className={inputCls}
-                  >
-                    {payEntry.supplierGroups.map(group => (
-                      <option key={group.id} value={group.id}>
-                        {group.supplierName || "Supplier"} · Due {fmtMoney(resolveGroupAmountDue(group))}
-                      </option>
-                    ))}
-                  </select>
+              <form onSubmit={handleAddPayment} className="p-4 space-y-3">
+                {payEntry.linkMode === "project" && payEntry.supplierGroups.length > 0 && (
+                  <Field label="Supplier">
+                    <select
+                      value={paySupplierGroupId}
+                      onChange={(e) => {
+                        const groupId = e.target.value
+                        const group = payEntry.supplierGroups.find((row) => row.id === groupId)
+                        setPaySupplierGroupId(groupId)
+                        setPayAmount(String(group ? resolveGroupAmountDue(group) : 0))
+                      }}
+                      className={appleField}
+                    >
+                      {payEntry.supplierGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.supplierName || "Supplier"} · Due {fmtMoney(resolveGroupAmountDue(group))}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Payment amount">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className={appleField}
+                  />
                 </Field>
-              )}
-              <Field label="Payment amount">
-                <input type="number" min="0" step="any" required value={payAmount} onChange={e => setPayAmount(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Payment date" hint="This date is what Finance → Money out uses for Purchases (ledger)">
-                <input type="date" required value={payDate} onChange={e => setPayDate(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Note">
-                <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="e.g. Second installment" className={inputCls} />
-              </Field>
-              <Field label="Payment proof screenshot">
-                <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30">
-                  <Upload className="h-3.5 w-3.5" /> Upload proof
-                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
-                    const file = e.target.files?.[0] ?? null
-                    setPayProofFile(file)
-                    setPayProofPreview(file?.name ?? "")
-                  }} />
-                </label>
-                {payProofPreview && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 truncate">{payProofPreview}</p>}
-              </Field>
-              <div className="flex gap-2 pt-1">
-                <Button type="submit" size="sm" disabled={paySaving} className="h-8 text-xs flex-1 cursor-pointer">
-                  {paySaving ? "Saving..." : "Record payment"}
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setPayEntry(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <Field label="Payment date">
+                  <input
+                    type="date"
+                    required
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className={appleField}
+                  />
+                </Field>
+                <Field label="Note">
+                  <input
+                    value={payNotes}
+                    onChange={(e) => setPayNotes(e.target.value)}
+                    placeholder="e.g. Second installment"
+                    className={appleField}
+                  />
+                </Field>
+                <Field label="Payment proof">
+                  <label className="inline-flex items-center gap-2 h-9 px-3 rounded-[10px] bg-[#f2f2f7] dark:bg-[hsl(var(--background))] text-[12px] font-medium cursor-pointer hover:bg-black/[0.06]">
+                    <Upload className="h-3.5 w-3.5" strokeWidth={1.75} /> Upload proof
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null
+                        setPayProofFile(file)
+                        setPayProofPreview(file?.name ?? "")
+                      }}
+                    />
+                  </label>
+                  {payProofPreview && (
+                    <p className="text-[11px] text-[#86868b] mt-1 truncate">{payProofPreview}</p>
+                  )}
+                </Field>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={paySaving}
+                    className="h-9 flex-1 rounded-full bg-[#1d1d1f] hover:bg-black text-white text-[12px] font-semibold tracking-tight cursor-pointer disabled:opacity-50"
+                  >
+                    {paySaving ? "Saving…" : "Record payment"}
+                  </button>
+                  <button
+                    type="button"
+                    className="h-9 px-4 rounded-full border border-black/[0.08] text-[12px] font-semibold tracking-tight cursor-pointer hover:bg-black/[0.04]"
+                    onClick={() => setPayEntry(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       <div className="space-y-3 md:hidden">
         {loading && (
@@ -2545,12 +2586,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           <Link
             key={row.id}
             href="/petrol"
-            className="w-full text-left rounded-lg border bg-[hsl(var(--card))] p-3 space-y-1.5 hover:bg-[hsl(var(--muted))]/15 block"
+            className="w-full text-left rounded-[14px] border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] p-3 space-y-1.5 hover:bg-black/[0.02] block"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-semibold">{row.personName}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                <p className="text-[13px] font-semibold tracking-tight">{row.personName}</p>
+                <p className="text-[11px] text-[#86868b] mt-0.5">
                   {row.vehicleName}
                   {row.vehiclePlate ? ` · ${row.vehiclePlate}` : ""}
                 </p>
@@ -2568,7 +2609,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 {row.status === "pending_review" ? "pending review" : row.status}
               </Badge>
             </div>
-            <p className="text-sm font-semibold text-[#1faca6]">{fmtMoney(row.amountPkr)}</p>
+            <p className="text-[13px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(row.amountPkr)}</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
               Allotted {row.allottedAt.slice(0, 10)}
               {row.allottedBy ? ` · ${row.allottedBy}` : ""}
@@ -2588,14 +2629,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             tabIndex={0}
             onClick={() => setDetailEntryId(entry.id)}
             onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setDetailEntryId(entry.id) }}
-            className="w-full text-left rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2 hover:bg-[hsl(var(--muted))]/15 cursor-pointer"
+            className="w-full text-left rounded-[14px] border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] p-3 space-y-2 hover:bg-black/[0.02] cursor-pointer"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-semibold font-mono text-[#1faca6]">{entry.ledgerNumber}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{entry.transactionDate}{entry.dueDate ? ` · Due ${entry.dueDate}` : ""}</p>
+                <p className="text-[13px] font-semibold font-mono tracking-tight text-[#0071e3]">{entry.ledgerNumber}</p>
+                <p className="text-[11px] text-[#86868b] mt-0.5">{entry.transactionDate}{entry.dueDate ? ` · Due ${entry.dueDate}` : ""}</p>
               </div>
-              <Badge variant="outline" className="text-[10px] shrink-0">{formatLinkModeLabel(entry.linkMode)}</Badge>
+              <span className="inline-flex h-5 items-center rounded-full bg-[#f2f2f7] dark:bg-white/10 px-2 text-[10px] font-semibold text-[#6e6e73] shrink-0">
+                {formatLinkModeLabel(entry.linkMode)}
+              </span>
             </div>
             <div className="space-y-0.5">
               <p className="text-xs font-medium truncate">{formatLedgerProject(entry)}</p>
@@ -2647,34 +2690,34 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         ))}
       </div>
 
-      <div className="hidden md:block rounded-lg border overflow-x-auto">
-        <table className="w-full text-xs min-w-[1100px]">
+      <div className="hidden md:block rounded-[16px] border border-black/[0.06] overflow-x-auto bg-white/80 dark:bg-[hsl(var(--card))]">
+        <table className="w-full text-[12px] min-w-[1100px]">
           <thead>
-            <tr className="border-b bg-[hsl(var(--muted))]/40">
+            <tr className="border-b border-black/[0.06] bg-[#f5f5f7]/90 dark:bg-white/[0.03]">
               {[
                 "Ledger No.", "Date", "Project / Supplier", "Supplier(s)", "Items",
                 "Total", "Paid", "Due", "Due Date", "Payments", "",
               ].map(h => (
-                <th key={h} className="h-9 px-2 text-left font-medium text-[hsl(var(--muted-foreground))] whitespace-nowrap">{h}</th>
+                <th key={h} className="h-9 px-2.5 text-left text-[10px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-black/[0.04]">
             {loading && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">Loading...</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-[#86868b]">Loading…</td></tr>
             )}
             {!loading && filterTransactionType === "petrol" && filteredPetrol.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-[#86868b]">
                 No petrol allotments match. Open Petrol to allot fuel.
               </td></tr>
             )}
             {!loading && filterTransactionType === "petrol" && filteredPetrol.map((row) => (
               <tr
                 key={row.id}
-                className="hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
+                className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer"
                 onClick={() => { window.location.href = "/petrol" }}
               >
-                <td className="px-2 py-2 font-medium text-[#1faca6]">PETROL</td>
+                <td className="px-2.5 py-2.5 font-semibold tracking-tight text-[#0071e3]">PETROL</td>
                 <td className="px-2 py-2 whitespace-nowrap">{row.allottedAt.slice(0, 10)}</td>
                 <td className="px-2 py-2">
                   <Badge variant="outline" className="text-[10px] w-fit border-amber-500/40 text-amber-700">
@@ -2707,46 +2750,48 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               </tr>
             ))}
             {!loading && filterTransactionType !== "petrol" && filtered.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
-                {entries.length === 0 ? "No purchase entries yet. Click \"New purchase\" to add one." : "No entries match your filters."}
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-[#86868b]">
+                {entries.length === 0 ? "No purchase entries yet. Click New to add one." : "No entries match your filters."}
               </td></tr>
             )}
             {filterTransactionType !== "petrol" && filtered.map(entry => (
               <tr
                 key={entry.id}
-                className="hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
+                className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer"
                 onClick={() => setDetailEntryId(entry.id)}
               >
-                <td className="px-2 py-2 font-medium text-[#1faca6]">{entry.ledgerNumber}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{entry.transactionDate}</td>
-                <td className="px-2 py-2">
+                <td className="px-2.5 py-2.5 font-semibold tracking-tight text-[#0071e3] font-mono">{entry.ledgerNumber}</td>
+                <td className="px-2.5 py-2.5 whitespace-nowrap text-[#6e6e73]">{entry.transactionDate}</td>
+                <td className="px-2.5 py-2.5">
                   <div className="flex flex-col gap-0.5">
                     <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant="outline" className="text-[10px] w-fit">{formatLinkModeLabel(entry.linkMode)}</Badge>
+                      <span className="inline-flex h-5 items-center rounded-full bg-[#f2f2f7] dark:bg-white/10 px-2 text-[10px] font-semibold text-[#6e6e73]">
+                        {formatLinkModeLabel(entry.linkMode)}
+                      </span>
                       {entry.transactionType === "rent" && (
-                        <Badge variant="outline" className="text-[10px] w-fit border-amber-500/40 text-amber-700 dark:text-amber-300">
+                        <span className="inline-flex h-5 items-center rounded-full bg-[#ff9f0a]/15 px-2 text-[10px] font-semibold text-[#9a6700]">
                           {formatTransactionTypeLabel(entry.transactionType)}
-                        </Badge>
+                        </span>
                       )}
                     </div>
-                    <span>{formatLedgerProject(entry)}</span>
+                    <span className="font-medium tracking-tight">{formatLedgerProject(entry)}</span>
                   </div>
                 </td>
-                <td className="px-2 py-2">{formatLedgerSuppliers(entry)}</td>
-                <td className="px-2 py-2 max-w-[180px]">
+                <td className="px-2.5 py-2.5 tracking-tight">{formatLedgerSuppliers(entry)}</td>
+                <td className="px-2.5 py-2.5 max-w-[180px]">
                   <p className="truncate" title={formatLedgerItemsSummary(entry)}>{formatLedgerItemsSummary(entry)}</p>
                   {entry.supplierGroups.length > 1 && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{entry.supplierGroups.length} suppliers</p>
+                    <p className="text-[10px] text-[#86868b]">{entry.supplierGroups.length} suppliers</p>
                   )}
                   {entry.items.length > 1 && entry.supplierGroups.length <= 1 && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{entry.items.length} items</p>
+                    <p className="text-[10px] text-[#86868b]">{entry.items.length} items</p>
                   )}
                 </td>
-                <td className="px-2 py-2 font-medium">{fmtMoney(entry.totalAmount)}</td>
-                <td className="px-2 py-2 text-emerald-600">{fmtMoney(entry.amountPaid)}</td>
-                <td className="px-2 py-2 text-amber-600 font-medium">{fmtMoney(entry.amountDue)}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{entry.dueDate || "—"}</td>
-                <td className="px-2 py-2">
+                <td className="px-2.5 py-2.5 font-semibold tabular-nums">{fmtMoney(entry.totalAmount)}</td>
+                <td className="px-2.5 py-2.5 text-[#248a3d] tabular-nums">{fmtMoney(entry.amountPaid)}</td>
+                <td className="px-2.5 py-2.5 text-[#9a6700] font-semibold tabular-nums">{fmtMoney(entry.amountDue)}</td>
+                <td className="px-2.5 py-2.5 whitespace-nowrap text-[#6e6e73]">{entry.dueDate || "—"}</td>
+                <td className="px-2.5 py-2.5">
                   <div className="flex flex-col gap-1">
                     {getEntryBillLinks(entry).map(bill => (
                       <a
@@ -2755,48 +2800,52 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         target="_blank"
                         rel="noreferrer"
                         onClick={e => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-[#1faca6] hover:underline w-fit"
+                        className="inline-flex items-center gap-1 text-[#0071e3] hover:underline w-fit"
                       >
-                        <Receipt className="h-3 w-3" />
+                        <Receipt className="h-3 w-3" strokeWidth={1.75} />
                         <span className="truncate max-w-[100px]">{bill.name}</span>
                       </a>
                     ))}
                     {entry.payments.map(p => (
-                      <div key={p.id} className="flex items-center gap-1">
+                      <div key={p.id} className="flex items-center gap-1 tabular-nums">
                         <span>{fmtMoney(p.amount)}</span>
                         {p.proofUrl && (
-                          <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-[#1faca6] hover:underline">
-                            <FileText className="h-3 w-3" />
+                          <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">
+                            <FileText className="h-3 w-3" strokeWidth={1.75} />
                           </a>
                         )}
                       </div>
                     ))}
                     {entry.payments.length === 0 && entry.paymentProofUrl && (
-                      <a href={entry.paymentProofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#1faca6] hover:underline">
-                        <FileText className="h-3 w-3" /> Proof
+                      <a href={entry.paymentProofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0071e3] hover:underline">
+                        <FileText className="h-3 w-3" strokeWidth={1.75} /> Proof
                       </a>
                     )}
                   </div>
                 </td>
-                <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+                <td className="px-2.5 py-2.5" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-0.5">
-                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Export Excel" onClick={() => exportEntryExcel(entry)}>
-                      <FileSpreadsheet className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Export PDF" onClick={() => void exportEntryPdf(entry)}>
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Edit" onClick={() => openEditForm(entry)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <button type="button" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] hover:text-[#1d1d1f] cursor-pointer" title="Export Excel" onClick={() => exportEntryExcel(entry)}>
+                      <FileSpreadsheet className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                    <button type="button" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] hover:text-[#1d1d1f] cursor-pointer" title="Export PDF" onClick={() => void exportEntryPdf(entry)}>
+                      <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                    <button type="button" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.05] hover:text-[#1d1d1f] cursor-pointer" title="Edit" onClick={() => openEditForm(entry)}>
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
                     {entry.amountDue > 0 && (
-                      <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => openPayModal(entry)}>
-                        <Wallet className="h-3 w-3" /> Pay due
-                      </Button>
+                      <button
+                        type="button"
+                        className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
+                        onClick={() => openPayModal(entry)}
+                      >
+                        <Wallet className="h-3 w-3" strokeWidth={1.75} /> Pay due
+                      </button>
                     )}
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 cursor-pointer" onClick={() => void handleDelete(entry.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <button type="button" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer" onClick={() => void handleDelete(entry.id)}>
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
                   </div>
                 </td>
               </tr>
