@@ -1527,36 +1527,50 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     }
   }, [order.id, order.inventoryDeductedAt, hasDispatcher])
 
+  const appleField =
+    "w-full h-10 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+  const appleSheet =
+    "w-full sm:max-w-3xl rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+  const appleBackdrop =
+    "fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4"
+
   return (
     <>
+    {typeof document !== "undefined" &&
+      createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className={appleBackdrop}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+        className={appleSheet}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
+        <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
           <div className="min-w-0 flex-1 pr-2 space-y-1">
-            <p className="text-base sm:text-lg font-bold text-[hsl(var(--primary))] truncate">{order.orderNumber}</p>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] truncate">{order.clientName}</p>
+            <p className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-[#0071e3] truncate">{order.orderNumber}</p>
+            <p className="text-[13px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] truncate">{order.clientName}</p>
             {order.deliveryDate && (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              <p className="text-[11px] text-[#86868b]">
                 Delivery: {new Date(order.deliveryDate).toLocaleDateString()}
               </p>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
+          <button
+            type="button"
+            className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="hidden sm:flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 border-b shrink-0">
+        <div className="hidden sm:flex flex-wrap items-center gap-1.5 px-4 sm:px-6 py-2.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0">
             <Button
               size="sm"
               variant="outline"
-              className="h-8 text-xs min-w-[7rem]"
+              className="h-8 rounded-full text-[11px] px-3 min-w-[7rem] border-black/[0.08]"
               onClick={() => void viewInvoice()}
               disabled={!!invoiceLoading}
             >
@@ -1573,13 +1587,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               )}
             </Button>
           {hasDispatcher && (
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={redownloadDispatchNote}>
+            <Button size="sm" variant="outline" className="h-8 rounded-full text-[11px] px-3 border-black/[0.08]" onClick={redownloadDispatchNote}>
               <Download className="h-3 w-3 mr-1.5" /> Dispatch Note
             </Button>
           )}
           <Button
             size="sm"
-            className="h-8 text-xs bg-green-600 hover:bg-green-700"
+            className="h-8 rounded-full text-[11px] px-3 bg-[#1d1d1f] hover:bg-black text-white"
             onClick={openFulfillPrefilled}
             disabled={updating}
           >
@@ -1590,7 +1604,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 text-xs border-[#1faca6]/40 text-[#1faca6]"
+              className="h-8 rounded-full text-[11px] px-3 border-black/[0.08] text-[#1d1d1f]"
               onClick={() => setShowReplaceDialog(true)}
             >
               <RefreshCw className="h-3 w-3 mr-1.5" />
@@ -1795,11 +1809,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         )}
         </div>
 
-        <div className="flex flex-col gap-2 sm:hidden px-4 py-3 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-col gap-2 sm:hidden px-4 py-3 border-t border-black/[0.06] bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
             size="sm"
             variant="outline"
-            className="h-10 w-full text-xs"
+            className="h-10 w-full rounded-full text-[12px] border-black/[0.08]"
             onClick={() => void viewInvoice()}
             disabled={!!invoiceLoading}
           >
@@ -1816,13 +1830,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             )}
           </Button>
           {hasDispatcher && (
-            <Button size="sm" variant="outline" className="h-10 w-full text-xs" onClick={redownloadDispatchNote}>
+            <Button size="sm" variant="outline" className="h-10 w-full rounded-full text-[12px] border-black/[0.08]" onClick={redownloadDispatchNote}>
               <Download className="h-3.5 w-3.5 mr-1.5" /> Dispatch Note
             </Button>
           )}
           <Button
             size="sm"
-            className="h-10 w-full text-xs bg-green-600 hover:bg-green-700"
+            className="h-10 w-full rounded-full text-[12px] bg-[#1d1d1f] hover:bg-black text-white"
             onClick={openFulfillPrefilled}
             disabled={updating}
           >
@@ -1833,7 +1847,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Button
               size="sm"
               variant="outline"
-              className="h-10 w-full text-xs border-[#1faca6]/40 text-[#1faca6]"
+              className="h-10 w-full rounded-full text-[12px] border-black/[0.08]"
               onClick={() => setShowReplaceDialog(true)}
             >
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
@@ -1842,24 +1856,33 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
+      )}
 
-      {showDeliveryConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowDeliveryConfirm(false)}>
-          <div className="w-full max-w-2xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-green-50 dark:bg-green-950 shrink-0">
+      {showDeliveryConfirm &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-xl p-4" onClick={() => setShowDeliveryConfirm(false)}>
+          <div className="w-full max-w-2xl rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06] shrink-0">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                  <Truck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <div className="h-10 w-10 rounded-full bg-[#30d158]/18 flex items-center justify-center">
+                  <Truck className="h-5 w-5 text-[#248a3d]" />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-green-900 dark:text-green-100">Confirm Delivery</p>
-                  <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">Review stock items and confirm delivery</p>
+                  <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Confirm Delivery</p>
+                  <p className="text-[11px] text-[#86868b] mt-0.5">Review stock items and confirm delivery</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowDeliveryConfirm(false)}>
+              <button
+                type="button"
+                className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                onClick={() => setShowDeliveryConfirm(false)}
+                aria-label="Close"
+              >
                 <X className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -2007,13 +2030,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               )}
             </div>
 
-            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowDeliveryConfirm(false)}>
+            <div className="flex items-center gap-2 px-5 py-3.5 border-t border-black/[0.06] bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20 shrink-0">
+              <Button size="sm" variant="outline" className="h-8 rounded-full text-[11px] px-3 border-black/[0.08]" onClick={() => setShowDeliveryConfirm(false)}>
                 Cancel
               </Button>
               <Button 
                 size="sm" 
-                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto" 
+                className="h-8 rounded-full text-[11px] px-3 bg-[#1d1d1f] hover:bg-black text-white ml-auto" 
                 onClick={() => updateStatus("delivered")} 
                 disabled={updating || loadingStock || (!order.items.every(item => item.isCustom) && stockItems.length === 0)}
               >
@@ -2021,63 +2044,67 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       
       {/* Delivery Animation */}
-      {showDeliveryAnimation && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl h-48 overflow-hidden">
-            {/* Truck Animation */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="animate-[slideRight_3s_ease-in-out]">
-                <Truck className="h-24 w-24 text-green-500" />
+      {showDeliveryAnimation &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-xl">
+          <div className="relative w-full max-w-md mx-4 rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] p-8 overflow-hidden">
+            <div className="flex flex-col items-center justify-center gap-3 animate-[fadeInOut_3s_ease-in-out]">
+              <div className="h-14 w-14 rounded-full bg-[#30d158]/18 flex items-center justify-center">
+                <Truck className="h-7 w-7 text-[#248a3d]" />
               </div>
-            </div>
-            
-            {/* Success Message */}
-            <div className="absolute inset-0 flex items-center justify-center animate-[fadeInOut_3s_ease-in-out]">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white mb-2">Order Delivered!</p>
-                <p className="text-sm text-white/80">Inventory has been updated</p>
-              </div>
+              <p className="text-[17px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Order Delivered</p>
+              <p className="text-[13px] text-[#86868b]">Inventory has been updated</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Fulfillment Dialog */}
-      {showFulfillDialog && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
+      {showFulfillDialog &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={() => !updating && setShowFulfillDialog(false)}>
           <div
-            className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col"
+            className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
               <div>
-                <p className="text-base font-bold">Create dispatch note</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Create dispatch note</p>
+                <p className="text-[11px] text-[#86868b] mt-0.5">
                   {useQrScanDispatch
                     ? "Step 1: dispatcher · Step 2: scan QR codes for order qty"
                     : "Enter dispatcher details and create the dispatch note"}
                 </p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
+              <button
+                type="button"
+                className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                onClick={() => setShowFulfillDialog(false)}
+                aria-label="Close"
+              >
                 <X className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
 
             {draftRestoredNotice && (
-              <div className="px-4 sm:px-6 py-2 border-b shrink-0 bg-amber-500/10">
-                <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+              <div className="px-4 sm:px-5 py-2 border-b border-black/[0.06] shrink-0 bg-[#ff9f0a]/12">
+                <p className="text-[11px] text-[#9a6700] font-medium">
                   Draft restored — previously scanned QR codes were loaded. Continue scanning or create the dispatch note.
                 </p>
               </div>
             )}
 
             {linesNeedSerials && !order.inventoryDeductedAt ? (
-              <div className="px-4 sm:px-6 py-3 border-b shrink-0 bg-[#1faca6]/5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1.5">
+              <div className="px-4 sm:px-5 py-3 border-b border-black/[0.06] shrink-0">
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-1.5">
                   Dispatch method
                 </p>
                 {allowNoScanDispatch ? (
@@ -2085,17 +2112,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                     <button
                       type="button"
                       onClick={() => setSkipScanning(false)}
-                      className={`rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                      className={`rounded-[14px] border px-3 py-2.5 text-left transition-colors cursor-pointer ${
                         !skipScanning
-                          ? "border-[#1faca6] bg-[#1faca6]/10 ring-1 ring-[#1faca6]/40"
-                          : "border-[hsl(var(--border))] hover:border-[#1faca6]/50"
+                          ? "border-[#0071e3]/40 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/25"
+                          : "border-black/[0.08] hover:bg-black/[0.03]"
                       }`}
                     >
-                      <p className="flex items-center gap-2 text-sm font-semibold">
-                        <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
+                      <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        <ScanLine className="h-4 w-4 text-[#0071e3] shrink-0" />
                         With QR scanning
                       </p>
-                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                      <p className="text-[11px] text-[#86868b] mt-1">
                         Scan serials for warranty · then create dispatch note
                       </p>
                     </button>
@@ -2105,28 +2132,28 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                         setSkipScanning(true)
                         setFulfillTab("dispatcher")
                       }}
-                      className={`rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                      className={`rounded-[14px] border px-3 py-2.5 text-left transition-colors cursor-pointer ${
                         skipScanning
-                          ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40"
-                          : "border-[hsl(var(--border))] hover:border-amber-500/50"
+                          ? "border-[#ff9f0a]/50 bg-[#ff9f0a]/10 ring-1 ring-[#ff9f0a]/30"
+                          : "border-black/[0.08] hover:bg-black/[0.03]"
                       }`}
                     >
-                      <p className="flex items-center gap-2 text-sm font-semibold">
-                        <Truck className="h-4 w-4 text-amber-600 shrink-0" />
+                      <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                        <Truck className="h-4 w-4 text-[#9a6700] shrink-0" />
                         Without scanning
                       </p>
-                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                      <p className="text-[11px] text-[#86868b] mt-1">
                         Skip QR scans · inventory qty still deducted · no serials for warranty
                       </p>
                     </button>
                   </div>
                 ) : (
                   <>
-                    <p className="flex items-center gap-2 text-sm font-semibold text-[hsl(var(--foreground))]">
-                      <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
+                    <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      <ScanLine className="h-4 w-4 text-[#0071e3] shrink-0" />
                       With QR scanning
                     </p>
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                    <p className="text-[11px] text-[#86868b] mt-1">
                       Scan serials for warranty · then create dispatch note
                     </p>
                   </>
@@ -2134,86 +2161,84 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </div>
             ) : null}
 
-            <div className="flex items-center gap-1 px-4 sm:px-6 border-b shrink-0 bg-[hsl(var(--muted))]/10">
+            <div className="flex items-center gap-1 px-3 sm:px-4 border-b border-black/[0.06] shrink-0 bg-[#f5f5f7]/80 dark:bg-[hsl(var(--muted))]/10">
               <button
                 type="button"
                 onClick={() => setFulfillTab("dispatcher")}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
                   fulfillTab === "dispatcher"
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    ? "text-[#1d1d1f] dark:text-[hsl(var(--foreground))]"
+                    : "text-[#86868b] hover:text-[#1d1d1f]"
                 }`}
               >
                 <Truck className="h-3.5 w-3.5 shrink-0" />
                 Dispatcher
                 {fulfillTab === "dispatcher" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0071e3]" />
                 )}
               </button>
               {useQrScanDispatch ? (
                 <button
                   type="button"
                   onClick={() => setFulfillTab("products")}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
                     fulfillTab === "products"
-                      ? "text-[hsl(var(--foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                      ? "text-[#1d1d1f] dark:text-[hsl(var(--foreground))]"
+                      : "text-[#86868b] hover:text-[#1d1d1f]"
                   }`}
                 >
                   <Package className="h-3.5 w-3.5 shrink-0" />
                   Scan QR
                   {!serialSelectionValid && (
-                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
+                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff9f0a] px-1 text-[9px] font-bold text-white">
                       !
                     </span>
                   )}
                   {fulfillTab === "products" && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0071e3]" />
                   )}
                 </button>
               ) : null}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none p-4 sm:p-5 space-y-5">
               {fulfillTab === "dispatcher" && (
               <>
-              {/* Dispatcher Information */}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Dispatcher Information</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Dispatcher</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Dispatcher Name *
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      Dispatcher name *
                     </label>
                     <input
                       type="text"
                       value={fulfillDispatcherName}
                       onChange={e => setFulfillDispatcherName(e.target.value)}
                       placeholder="Enter dispatcher name"
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={appleField}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Receiver Information */}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Receiver Information</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Receiver</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Receiver Name
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      Receiver name
                     </label>
                     <input
                       type="text"
                       value={receiverName}
                       onChange={e => setReceiverName(e.target.value)}
                       placeholder="Enter receiver name"
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={appleField}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
                       Receiver CNIC
                     </label>
                     <input
@@ -2221,96 +2246,94 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                       value={receiverCnic}
                       onChange={e => setReceiverCnic(e.target.value)}
                       placeholder="Enter CNIC number"
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={appleField}
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="grid grid-cols-2 gap-3 mt-3">
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Receiver Image
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      Receiver image
                     </label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={e => setReceiverImage(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
                     />
                     {(order.fulfillmentReceiverImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
                     )}
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      CNIC Image
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      CNIC image
                     </label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={e => setReceiverCnicImage(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
                     />
                     {(order.fulfillmentReceiverCnicImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Vehicle Information */}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Vehicle Information</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Vehicle</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Vehicle Number
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      Vehicle number
                     </label>
                     <input
                       type="text"
                       value={vehicleNumber}
                       onChange={e => setVehicleNumber(e.target.value)}
                       placeholder="Enter vehicle number"
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={appleField}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Vehicle Image
+                    <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                      Vehicle image
                     </label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={e => setVehicleImage(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
                     />
                     {(order.fulfillmentVehicleImageUrl || "").trim() && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                      <p className="text-[10px] text-[#86868b] mt-1">Already on file — upload only if replacing.</p>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Product Images */}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Product Images</p>
+                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2.5">Product images</p>
                 <div>
-                  <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                    Upload Product Images
+                  <label className="text-[11px] font-medium text-[#86868b] mb-1.5 block">
+                    Upload product images
                   </label>
                   <input
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={e => setProductImages(Array.from(e.target.files || []))}
-                    className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    className={`${appleField} file:mr-2 file:border-0 file:bg-transparent file:text-[12px] file:font-medium py-2`}
                   />
                   {(order.fulfillmentProductImageUrls?.length ?? 0) > 0 && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                    <p className="text-[10px] text-[#86868b] mt-1">
                       {order.fulfillmentProductImageUrls!.length} product photo(s) already on file. Add more here or leave unchanged.
                     </p>
                   )}
                   {productImages.length > 0 && (
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    <p className="text-[11px] text-[#86868b] mt-1">
                       {productImages.length} image(s) selected
                     </p>
                   )}
@@ -2333,12 +2356,12 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               )}
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border-t border-black/[0.06] bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               {fulfillTab === "products" && useQrScanDispatch ? (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 w-full sm:w-auto text-xs"
+                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
                   onClick={() => setFulfillTab("dispatcher")}
                   disabled={updating}
                 >
@@ -2348,7 +2371,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 w-full sm:w-auto text-xs"
+                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
                   onClick={() => setFulfillTab("products")}
                   disabled={updating || !fulfillDispatcherName.trim()}
                 >
@@ -2357,7 +2380,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               ) : null}
               <Button
                 size="sm"
-                className="h-10 w-full sm:w-auto sm:ml-auto text-xs bg-green-600 hover:bg-green-700"
+                className="h-10 w-full sm:w-auto sm:ml-auto rounded-full text-[12px] bg-[#1d1d1f] hover:bg-black text-white"
                 onClick={handleFulfillOrder}
                 disabled={updating || !canSubmitFulfillment}
               >
@@ -2371,7 +2394,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 w-full sm:w-auto text-xs border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-[#ff9f0a]/40 text-[#9a6700] hover:bg-[#ff9f0a]/10"
                   onClick={saveDraftAndClose}
                   disabled={updating}
                 >
@@ -2381,7 +2404,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-10 w-full sm:w-auto text-xs"
+                className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
                 onClick={() => setShowFulfillDialog(false)}
                 disabled={updating}
               >
@@ -2389,35 +2412,29 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Fulfilling overlay */}
-      {updating && showFulfillDialog && (
-        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-[hsl(var(--card))] rounded-2xl p-10 flex flex-col items-center gap-5 shadow-2xl">
-            <div className="relative h-16 w-16">
-              <svg className="animate-spin h-16 w-16 text-[#1faca6]" fill="none" viewBox="0 0 24 24">
+      {updating && showFulfillDialog &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[130] flex flex-col items-center justify-center bg-black/50 backdrop-blur-xl">
+          <div className="bg-white/95 dark:bg-[hsl(var(--card))] border border-black/[0.06] rounded-[20px] p-10 flex flex-col items-center gap-5 shadow-[0_20px_60px_rgba(0,0,0,0.3)] backdrop-blur-2xl">
+            <div className="relative h-14 w-14">
+              <svg className="animate-spin h-14 w-14 text-[#0071e3]" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
                 <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="h-7 w-7 text-[#1faca6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-                </svg>
-              </div>
             </div>
             <div className="text-center space-y-1">
-              <p className="text-base font-bold text-[hsl(var(--foreground))]">Fulfilling Order...</p>
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">Uploading images and saving records</p>
-            </div>
-            <div className="flex gap-1.5">
-              {[0,1,2].map(i => (
-                <div key={i} className="h-2 w-2 rounded-full bg-[#1faca6] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}/>
-              ))}
+              <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Fulfilling order…</p>
+              <p className="text-[13px] text-[#86868b]">Uploading images and saving records</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <SuccessNotification
