@@ -8,7 +8,7 @@ import { SuppliersTab } from "@/components/purchase/suppliers-tab"
 import { AdvanceAccountsTab } from "@/components/purchase/advance-accounts-tab"
 import { ClientProjectsTab } from "@/components/purchase/client-projects-tab"
 import { ImportedPurchasesTab } from "@/components/purchase/imported-purchases-tab"
-import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship } from "lucide-react"
+import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship, Building2, ChevronDown } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
 import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib/purchase-scopes"
@@ -112,17 +112,21 @@ export default function PurchasePage() {
                   )
                 })}
               </div>
-              <select
-                value={scopeId}
-                onChange={e => setScopeId(e.target.value)}
-                className="h-9 sm:h-8 w-full sm:w-auto sm:min-w-[160px] rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
-              >
-                {allowedScopes.map(id => (
-                  <option key={id} value={id}>
-                    {purchaseScopeLabel(id, allScopes)} ({id})
-                  </option>
-                ))}
-              </select>
+              <div className="relative w-full sm:w-auto sm:min-w-[12.5rem]">
+                <Building2 className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
+                <select
+                  value={scopeId}
+                  onChange={e => setScopeId(e.target.value)}
+                  className="h-9 w-full appearance-none rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-8 pr-8 text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+                >
+                  {allowedScopes.map(id => (
+                    <option key={id} value={id}>
+                      {purchaseScopeLabel(id, allScopes)} ({id})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]" strokeWidth={2.25} />
+              </div>
             </div>
           </div>
 

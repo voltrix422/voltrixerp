@@ -124,8 +124,51 @@
   }
 }
 
+@keyframes appleSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes appleDropPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 113, 227, 0);
+  }
+}
+
+@keyframes appleAttachFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 .dashboard-content-in {
   animation: dashboardContentIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.apple-sheet-in {
+  animation: appleSheetIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.apple-dropzone {
+  animation: appleDropPulse 2.4s ease-in-out infinite;
+}
+
+.apple-dropzone-icon {
+  animation: appleAttachFloat 2.2s ease-in-out infinite;
 }
 
 .animate-promo-marquee {

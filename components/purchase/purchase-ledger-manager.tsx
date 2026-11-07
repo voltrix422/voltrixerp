@@ -1,11 +1,11 @@
 "use client"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type SelectHTMLAttributes } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, FileSpreadsheet, SlidersHorizontal, Receipt, Paperclip, Building2, Fuel } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, FileSpreadsheet, SlidersHorizontal, Receipt, Paperclip, Building2, Fuel, ChevronDown, CalendarDays } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -75,7 +75,7 @@ import { listFuelAllotments, type FuelAllotment } from "@/lib/fuel-petrol"
 import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 
 const inputCls =
-  "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
+  "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
 
 function todayPkIso() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" })
@@ -83,14 +83,14 @@ function todayPkIso() {
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
   <div className="space-y-1 min-w-0">
-    <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">{label}</label>
+    <label className="text-[10px] font-semibold tracking-tight text-[#86868b]">{label}</label>
     {children}
-    {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">{hint}</p>}
+    {hint ? <p className="text-[10px] text-[#aeaeb2] leading-tight">{hint}</p> : null}
   </div>
 )
 
 const DottedRule = () => (
-  <div className="border-t border-dotted border-[hsl(var(--border))]" aria-hidden />
+  <div className="border-t border-black/[0.06]" aria-hidden />
 )
 
 function collectGroupProofAttachments(
@@ -218,28 +218,44 @@ function AttachmentList({
   emptyLabel: string
 }) {
   if (items.length === 0) {
-    return <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
+    return <p className="text-[11px] text-[#aeaeb2] px-0.5">{emptyLabel}</p>
   }
   return (
     <ul className="space-y-1.5">
-      {items.map(item => (
-        <li key={item.key} className="rounded-md border bg-[hsl(var(--muted))]/10 px-2 py-1.5 space-y-1">
+      {items.map((item) => (
+        <li
+          key={item.key}
+          className="rounded-[12px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-2.5 py-2 space-y-1.5 transition-all duration-200"
+        >
           <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-3 w-3 text-[#1faca6] shrink-0" />
+            <FileText className="h-3.5 w-3.5 text-[#0071e3] shrink-0" strokeWidth={1.75} />
             {item.href ? (
-              <a href={item.href} target="_blank" rel="noreferrer" className="text-[10px] text-[#1faca6] hover:underline truncate flex-1">
+              <a
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-[#0071e3] hover:underline truncate flex-1 font-medium"
+              >
                 {item.name}
               </a>
             ) : (
-              <span className="text-[10px] truncate flex-1">{item.name}</span>
+              <span className="text-[11px] truncate flex-1 font-medium tracking-tight">{item.name}</span>
             )}
-            <button type="button" className="text-[10px] text-red-500 hover:underline shrink-0" onClick={() => onRemove(item.key)}>
+            <button
+              type="button"
+              className="h-6 px-2 rounded-full text-[10px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/10 shrink-0 cursor-pointer"
+              onClick={() => onRemove(item.key)}
+            >
               Remove
             </button>
           </div>
           {item.previewUrl && isImageBillUrl(item.previewUrl) && (
             <a href={item.previewUrl} target="_blank" rel="noreferrer" className="block">
-              <img src={item.previewUrl} alt={item.name} className="max-h-24 w-full rounded border object-contain bg-white" />
+              <img
+                src={item.previewUrl}
+                alt={item.name}
+                className="max-h-24 w-full rounded-[10px] border border-black/[0.06] object-contain bg-white"
+              />
             </a>
           )}
         </li>
@@ -261,22 +277,51 @@ function MultiFileDropzone({
   accentClass: string
   onAddFiles: (files: File[]) => void
 }) {
+  const [dragging, setDragging] = useState(false)
+
   return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold tracking-tight text-[#86868b] flex items-center gap-1.5">
         {icon}
         {label}
-      </label>
-      <label className={`flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 ${accentClass} transition-colors`}>
-        <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-        <span className="text-[10px] font-medium text-center">{hint}</span>
-        <span className="text-[9px] text-[hsl(var(--muted-foreground))]">Multiple files allowed</span>
+      </p>
+      <label
+        className={`apple-dropzone group relative flex flex-col items-center justify-center gap-1.5 min-h-[88px] rounded-[14px] border border-dashed px-3 py-3.5 cursor-pointer transition-all duration-300 ${
+          dragging
+            ? "border-[#0071e3] bg-[#0071e3]/10 scale-[1.01]"
+            : `border-black/[0.12] bg-[#f2f2f7]/70 dark:bg-white/[0.03] hover:border-[#0071e3]/45 hover:bg-[#0071e3]/06 ${accentClass}`
+        }`}
+        onDragEnter={(e) => {
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          const files = Array.from(e.dataTransfer.files || []).filter(
+            (f) => f.type.startsWith("image/") || f.type === "application/pdf" || /\.pdf$/i.test(f.name),
+          )
+          if (files.length) onAddFiles(files)
+        }}
+      >
+        <span className="apple-dropzone-icon h-9 w-9 rounded-full bg-white dark:bg-white/10 border border-black/[0.06] inline-flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-300">
+          <Upload className="h-4 w-4 text-[#0071e3]" strokeWidth={1.75} />
+        </span>
+        <span className="text-[12px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] text-center">
+          {dragging ? "Drop files" : hint}
+        </span>
+        <span className="text-[10px] text-[#86868b]">Images or PDF · multiple</span>
         <input
           type="file"
           accept="image/*,.pdf"
           multiple
           className="hidden"
-          onChange={e => {
+          onChange={(e) => {
             const files = Array.from(e.target.files || [])
             if (files.length) onAddFiles(files)
             e.target.value = ""
@@ -327,17 +372,17 @@ function SupplierGroupAttachments({
   }, [pendingProofFiles])
 
   return (
-    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5 space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+    <div className="rounded-[14px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] px-3 py-3 space-y-2.5">
+      <p className="text-[11px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
         Attachments
       </p>
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="space-y-2">
           <MultiFileDropzone
             label="Purchase bill"
-            icon={<Receipt className="h-3.5 w-3.5 text-[#1faca6]" />}
-            hint="Click to add bill(s)"
-            accentClass="hover:border-[#1faca6]/40"
+            icon={<Receipt className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />}
+            hint="Add bill(s)"
+            accentClass=""
             onAddFiles={onAddBillFiles}
           />
           <AttachmentList
@@ -365,19 +410,19 @@ function SupplierGroupAttachments({
         <div className="space-y-2">
           <MultiFileDropzone
             label="Payment proof"
-            icon={<Wallet className="h-3.5 w-3.5 text-emerald-600" />}
-            hint="Click to add proof(s)"
-            accentClass="hover:border-emerald-500/40"
+            icon={<Wallet className="h-3.5 w-3.5 text-[#248a3d]" strokeWidth={1.75} />}
+            hint="Add proof(s)"
+            accentClass=""
             onAddFiles={onAddProofFiles}
           />
           <AttachmentList
-            emptyLabel="No payment proofs attached"
-            onRemove={key => {
+            emptyLabel="No payment proofs"
+            onRemove={(key) => {
               if (key.startsWith("pending:")) onRemovePendingProof(Number(key.slice(8)))
               else onRemoveExistingProof(key)
             }}
             items={[
-              ...existingProofs.map(item => ({
+              ...existingProofs.map((item) => ({
                 key: item.url,
                 name: item.name,
                 href: item.url,
@@ -517,65 +562,147 @@ function LineItemsEditor({
   onChange: (items: PurchaseLedgerItem[]) => void
 }) {
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-[hsl(var(--muted))]/25">
-        <p className="text-xs font-semibold">Items</p>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => onChange([...items, newLedgerItem()])}>
-          <Plus className="h-3 w-3" /> Add item
-        </Button>
+    <div className="rounded-[14px] border border-black/[0.06] overflow-hidden bg-white/70 dark:bg-white/[0.02]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-black/[0.06] bg-[#fafafa]/90">
+        <p className="text-[12px] font-semibold tracking-tight">Items</p>
+        <button
+          type="button"
+          className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] hover:bg-black/[0.04] cursor-pointer"
+          onClick={() => onChange([...items, newLedgerItem()])}
+        >
+          <Plus className="h-3 w-3" strokeWidth={2} /> Add
+        </button>
       </div>
-      <div className="hidden md:grid grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
+      <div className="hidden md:grid grid-cols-[minmax(0,1fr)_72px_96px_104px_36px] gap-2 px-3 py-1.5 text-[10px] font-semibold tracking-tight text-[#86868b] border-b border-black/[0.04]">
         <span>Product</span>
         <span>Qty</span>
-        <span>Unit price</span>
-        <span>Line total</span>
+        <span>Unit</span>
+        <span>Total</span>
         <span />
       </div>
-      <div className="divide-y">
+      <div className="divide-y divide-black/[0.04]">
         {items.map((item, index) => (
-          <div key={item.id} className="px-3 py-3 space-y-2 md:space-y-0 md:grid md:grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] md:gap-3 md:items-end">
+          <div
+            key={item.id}
+            className="px-3 py-2.5 space-y-2 md:space-y-0 md:grid md:grid-cols-[minmax(0,1fr)_72px_96px_104px_36px] md:gap-2 md:items-center"
+          >
             <div className="min-w-0">
-              <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Product</label>
-              <input required value={item.productName} onChange={e => onChange(items.map(row => row.id === item.id ? { ...row, productName: e.target.value } : row))} placeholder={`Item ${index + 1}`} className={inputCls} />
+              <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Product</label>
+              <input
+                required
+                value={item.productName}
+                onChange={(e) =>
+                  onChange(items.map((row) => (row.id === item.id ? { ...row, productName: e.target.value } : row)))
+                }
+                placeholder={`Item ${index + 1}`}
+                className={inputCls}
+              />
             </div>
             <div className="grid grid-cols-3 gap-2 md:contents">
               <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Qty</label>
-                <input type="number" min="0" step="any" value={item.quantity || ""} onChange={e => onChange(updateItemField(items, item.id, "quantity", e.target.value))} className={inputCls} inputMode="decimal" />
+                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Qty</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.quantity || ""}
+                  onChange={(e) => onChange(updateItemField(items, item.id, "quantity", e.target.value))}
+                  className={inputCls}
+                  inputMode="decimal"
+                />
               </div>
               <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Unit price</label>
-                <input type="number" min="0" step="any" value={item.unitPrice || ""} onChange={e => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))} className={inputCls} inputMode="decimal" />
+                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Unit</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.unitPrice || ""}
+                  onChange={(e) => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))}
+                  className={inputCls}
+                  inputMode="decimal"
+                />
               </div>
               <div className="min-w-0">
-                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Total</label>
-                <input type="number" min="0" step="any" value={item.lineTotal || ""} onChange={e => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))} className={inputCls} inputMode="decimal" />
+                <label className="md:hidden text-[10px] font-semibold text-[#86868b] mb-1 block">Total</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.lineTotal || ""}
+                  onChange={(e) => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))}
+                  className={inputCls}
+                  inputMode="decimal"
+                />
               </div>
             </div>
             <div className="flex justify-end md:justify-center">
               {items.length > 1 ? (
-                <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-500 shrink-0" onClick={() => onChange(items.filter(row => row.id !== item.id))}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              ) : <span className="hidden md:block w-8" />}
+                <button
+                  type="button"
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 cursor-pointer"
+                  onClick={() => onChange(items.filter((row) => row.id !== item.id))}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+              ) : (
+                <span className="hidden md:block w-8" />
+              )}
             </div>
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-end gap-2 px-3 py-2 border-t bg-[hsl(var(--muted))]/10">
-        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Subtotal</span>
-        <span className="text-sm font-semibold text-[#1faca6]">{fmtMoney(sumItemTotals(items))}</span>
+      <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-black/[0.06] bg-[#fafafa]/80">
+        <span className="text-[10px] font-semibold text-[#86868b]">Subtotal</span>
+        <span className="text-[13px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(sumItemTotals(items))}</span>
       </div>
     </div>
   )
 }
 
 const filterSelectCls =
-  "h-8 w-full rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+  "h-9 w-full appearance-none rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-3 pr-8 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+const filterDateCls =
+  "h-9 w-full rounded-[11px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-9 pr-3 text-[12px] font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 [color-scheme:light] dark:[color-scheme:dark]"
 const appleField =
   "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+const appleSelect =
+  "w-full h-9 appearance-none rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-3 pr-8 text-[13px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
 const applePill =
   "h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+
+function AppleSelect({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative min-w-0">
+      <select className={className} {...props}>
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]"
+        strokeWidth={2.25}
+      />
+    </div>
+  )
+}
+
+function AppleDateInput({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="relative min-w-0">
+      <CalendarDays
+        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]"
+        strokeWidth={1.75}
+      />
+      <input type="date" className={className} {...props} />
+    </div>
+  )
+}
 
 type RentRow = {
   id: string
@@ -1687,46 +1814,46 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             </div>
 
             <div className="grid grid-cols-1 gap-1.5">
-              <select value={filterLinkMode} onChange={(e) => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
+              <AppleSelect value={filterLinkMode} onChange={(e) => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
                 <option value="all">All link types</option>
                 {PURCHASE_LINK_MODES.map((mode) => (
                   <option key={mode.value} value={mode.value}>{mode.label}</option>
                 ))}
-              </select>
-              <select value={filterTransactionType} onChange={(e) => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
+              </AppleSelect>
+              <AppleSelect value={filterTransactionType} onChange={(e) => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
                 <option value="all">All transaction types</option>
                 {PURCHASE_TRANSACTION_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
                 <option value="petrol">Petrol / fuel</option>
-              </select>
-              <select value={filterSupplierId} onChange={(e) => setFilterSupplierId(e.target.value)} className={filterSelectCls}>
+              </AppleSelect>
+              <AppleSelect value={filterSupplierId} onChange={(e) => setFilterSupplierId(e.target.value)} className={filterSelectCls}>
                 <option value="all">All suppliers</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
-              </select>
-              <select value={filterPaymentStatus} onChange={(e) => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
+              </AppleSelect>
+              <AppleSelect value={filterPaymentStatus} onChange={(e) => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
                 <option value="all">All payments</option>
                 <option value="paid">Fully paid</option>
                 <option value="partial">Partially paid</option>
                 <option value="due">Has amount due</option>
-              </select>
+              </AppleSelect>
             </div>
 
             <div className="space-y-1">
               <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Date</p>
               <div className="grid grid-cols-2 gap-1.5">
-                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={filterSelectCls} />
-                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={filterSelectCls} />
+                <AppleDateInput value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={filterDateCls} />
+                <AppleDateInput value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={filterDateCls} />
               </div>
             </div>
 
             <div className="space-y-1">
               <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Due date</p>
               <div className="grid grid-cols-2 gap-1.5">
-                <input type="date" value={filterDueFrom} onChange={(e) => setFilterDueFrom(e.target.value)} className={filterSelectCls} />
-                <input type="date" value={filterDueTo} onChange={(e) => setFilterDueTo(e.target.value)} className={filterSelectCls} />
+                <AppleDateInput value={filterDueFrom} onChange={(e) => setFilterDueFrom(e.target.value)} className={filterDateCls} />
+                <AppleDateInput value={filterDueTo} onChange={(e) => setFilterDueTo(e.target.value)} className={filterDateCls} />
               </div>
             </div>
 
@@ -1735,45 +1862,65 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           document.body,
         )}
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4" onClick={closeForm}>
-          <div className="w-full sm:max-w-6xl max-h-[96vh] sm:max-h-[94vh] flex flex-col rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
+      {showForm &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={closeForm}>
+          <div className="apple-sheet-in w-full sm:max-w-5xl max-h-[96vh] sm:max-h-[94vh] flex flex-col rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-black/[0.06] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
               <div className="min-w-0 pr-2">
-                <p className="text-sm font-semibold">{isEditing ? "Edit purchase entry" : "New purchase entry"}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                  {isEditing
-                    ? "Update entry details · bills & payment proofs · payments kept as recorded"
-                    : "Multiple items · partial payments · bill & payment proof · auto totals"}
+                <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                  {isEditing ? "Edit purchase" : "New purchase"}
+                </p>
+                <p className="text-[11px] text-[#86868b] truncate mt-0.5">
+                  {isEditing ? "Bills & proofs · payments kept as recorded" : "Items · tax · attachments · auto totals"}
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={closeForm}>
-                <X className="h-4 w-4" />
-              </Button>
+              <button
+                type="button"
+                className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                onClick={closeForm}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" strokeWidth={2.25} />
+              </button>
             </div>
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain">
-                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <Field label="Ledger No." hint="Auto-generated">
-                    <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
+              <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain scrollbar-none">
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <Field label="Ledger No.">
+                    <input readOnly value={ledgerNumber} className={`${inputCls} text-[#0071e3] font-semibold font-mono`} />
                   </Field>
-                  <Field label="Date" hint="Today">
-                    <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
+                  <Field label="Date">
+                    <AppleDateInput
+                      required
+                      value={transactionDate}
+                      onChange={(e) => setTransactionDate(e.target.value)}
+                      className={`${appleField} pl-9`}
+                    />
                   </Field>
                   <Field label="Link type">
-                    <select value={linkMode} onChange={e => onLinkModeChange(e.target.value as PurchaseLinkMode)} className={inputCls}>
-                      {PURCHASE_LINK_MODES.map(mode => (
+                    <AppleSelect
+                      value={linkMode}
+                      onChange={(e) => onLinkModeChange(e.target.value as PurchaseLinkMode)}
+                      className={appleSelect}
+                    >
+                      {PURCHASE_LINK_MODES.map((mode) => (
                         <option key={mode.value} value={mode.value}>{mode.label}</option>
                       ))}
-                    </select>
+                    </AppleSelect>
                   </Field>
                   <Field label="Transaction type">
-                    <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
-                      {PURCHASE_TRANSACTION_TYPES.map(t => (
+                    <AppleSelect
+                      value={transactionType}
+                      onChange={(e) => setTransactionType(e.target.value as PurchaseTransactionType)}
+                      className={appleSelect}
+                    >
+                      {PURCHASE_TRANSACTION_TYPES.map((t) => (
                         <option key={t.value} value={t.value}>{t.label}</option>
                       ))}
-                    </select>
+                    </AppleSelect>
                   </Field>
                 </section>
 
@@ -1808,7 +1955,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   )}
 
                   {activeGroups.map((group, groupIndex) => (
-                    <section key={group.id} className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
+                    <section key={group.id} className="rounded-[14px] border border-black/[0.06] bg-[#fafafa]/80 dark:bg-white/[0.02] p-3 space-y-3">
                       {linkMode === "project" && (
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1851,16 +1998,20 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           onAccountDetailsChange={details => updateSupplierGroup(group.id, { accountDetails: details })}
                           compact
                         />
-                        <Field label="Date" hint="Supplier purchase / payment date">
-                          <input
-                            type="date"
+                        <Field label="Date">
+                          <AppleDateInput
                             value={group.date || transactionDate}
-                            onChange={e => updateSupplierGroup(group.id, { date: e.target.value })}
-                            className={inputCls}
+                            onChange={(e) => updateSupplierGroup(group.id, { date: e.target.value })}
+                            className={`${appleField} pl-9`}
                           />
                         </Field>
-                        <Field label="Account details" hint="From supplier bank info">
-                          <input value={group.accountDetails} onChange={e => updateSupplierGroup(group.id, { accountDetails: e.target.value })} placeholder="Bank account / IBAN" className={inputCls} />
+                        <Field label="Account details">
+                          <input
+                            value={group.accountDetails}
+                            onChange={(e) => updateSupplierGroup(group.id, { accountDetails: e.target.value })}
+                            placeholder="Bank / IBAN"
+                            className={inputCls}
+                          />
                         </Field>
                       </div>
 
@@ -2016,13 +2167,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   ))}
                 </div>
 
-                <div className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-3 space-y-2.5">
+                <div className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-3.5 py-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Items subtotal</span>
-                    <span className="text-sm font-semibold tabular-nums">{fmtMoney(itemsSubtotal)}</span>
+                    <span className="text-[11px] text-[#86868b]">Items subtotal</span>
+                    <span className="text-[13px] font-semibold tabular-nums">{fmtMoney(itemsSubtotal)}</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <Field label="Tax %" hint="e.g. 18 for GST">
+                    <Field label="Tax %">
                       <input
                         type="number"
                         min="0"
@@ -2043,7 +2194,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         inputMode="decimal"
                       />
                     </Field>
-                    <Field label="Tax amount (PKR)" hint="Added to grand total">
+                    <Field label="Tax amount">
                       <input
                         type="number"
                         min="0"
@@ -2072,10 +2223,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     </p>
                   )}
                   {!isProjectMode && (
-                    <Field
-                      label="Supplier discount (PKR)"
-                      hint="Reduces amount due — not counted as payment sent"
-                    >
+                    <Field label="Supplier discount">
                       <input
                         type="number"
                         min="0"
@@ -2114,40 +2262,37 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center justify-between gap-2 border-t pt-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  <div className="flex items-center justify-between gap-2 border-t border-black/[0.06] pt-2">
+                    <span className="text-[11px] font-semibold tracking-tight">
                       {linkMode === "project" ? "Project total" : "Grand total"}
                     </span>
-                    <span className="text-base font-semibold text-[#1faca6] tabular-nums">{fmtMoney(grandTotal)}</span>
+                    <span className="text-[16px] font-semibold text-[#0071e3] tabular-nums">{fmtMoney(grandTotal)}</span>
                   </div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Grand total = items + tax − supplier discount
-                  </p>
                 </div>
 
                 {!isProjectMode && (
-                <section className="rounded-lg border border-[#1faca6]/25 bg-[#1faca6]/5 px-3 py-3 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-[#1faca6] shrink-0" />
+                <section className="rounded-[16px] border border-[#0071e3]/20 bg-[#0071e3]/[0.04] px-3.5 py-3.5 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-8 w-8 rounded-full bg-[#0071e3]/12 inline-flex items-center justify-center">
+                      <Paperclip className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
+                    </span>
                     <div>
-                      <p className="text-xs font-semibold">Attachments</p>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                        Attach multiple purchase bills and payment proofs
-                      </p>
+                      <p className="text-[13px] font-semibold tracking-tight">Attachments</p>
+                      <p className="text-[11px] text-[#86868b]">Bills and payment proofs</p>
                     </div>
                   </div>
 
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                    <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
+                    <div className="rounded-[14px] border border-black/[0.06] bg-white/80 dark:bg-white/[0.03] p-3 space-y-2">
                       <MultiFileDropzone
                         label="Purchase bill"
-                        icon={<Receipt className="h-3.5 w-3.5 text-[#1faca6]" />}
-                        hint="Click to add bill(s)"
-                        accentClass="hover:border-[#1faca6]/40"
+                        icon={<Receipt className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />}
+                        hint="Add bill(s)"
+                        accentClass=""
                         onAddFiles={files => setBillFiles(prev => [...prev, ...files])}
                       />
                       <AttachmentList
-                        emptyLabel="No bills attached"
+                        emptyLabel="No bills yet"
                         onRemove={key => {
                           if (key.startsWith("pending:")) {
                             const index = Number(key.slice(8))
@@ -2172,16 +2317,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       />
                     </div>
 
-                    <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
+                    <div className="rounded-[14px] border border-black/[0.06] bg-white/80 dark:bg-white/[0.03] p-3 space-y-2">
                       <MultiFileDropzone
                         label="Payment proof"
-                        icon={<Wallet className="h-3.5 w-3.5 text-emerald-600" />}
-                        hint="Click to add proof(s)"
-                        accentClass="hover:border-emerald-500/40"
+                        icon={<Wallet className="h-3.5 w-3.5 text-[#248a3d]" strokeWidth={1.75} />}
+                        hint="Add proof(s)"
+                        accentClass=""
                         onAddFiles={files => setProofFiles(prev => [...prev, ...files])}
                       />
                       <AttachmentList
-                        emptyLabel="No payment proofs attached"
+                        emptyLabel="No proofs yet"
                         onRemove={key => {
                           if (key.startsWith("pending:")) {
                             const index = Number(key.slice(8))
@@ -2214,68 +2359,66 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 </section>
                 )}
 
-                <section className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
-                    {isProjectMode ? "Project payment summary" : "Payment"}
+                <section className="rounded-[14px] border border-black/[0.06] bg-[#f5f5f7]/80 dark:bg-white/[0.03] px-3.5 py-3">
+                  <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-2">
+                    {isProjectMode ? "Project payment" : "Payment"}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                    <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{isProjectMode ? "Project total" : "Grand total"}</p>
-                      <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(grandTotal)}</p>
+                    <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
+                      <p className="text-[10px] text-[#86868b]">{isProjectMode ? "Project total" : "Grand total"}</p>
+                      <p className="text-[13px] font-semibold mt-0.5 tabular-nums">{fmtMoney(grandTotal)}</p>
                     </div>
                     {isProjectMode ? (
                       <>
-                        <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total paid</p>
-                          <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(totalPaidNow)}</p>
+                        <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
+                          <p className="text-[10px] text-[#86868b]">Paid</p>
+                          <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#248a3d]">{fmtMoney(totalPaidNow)}</p>
                         </div>
-                        <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total remaining</p>
-                          <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                        <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
+                          <p className="text-[10px] text-[#86868b]">Remaining</p>
+                          <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
                         </div>
                       </>
                     ) : isEditing ? (
-                      <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
-                        <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(existingPaid)}</p>
+                      <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
+                        <p className="text-[10px] text-[#86868b]">Paid</p>
+                        <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#248a3d]">{fmtMoney(existingPaid)}</p>
                       </div>
                     ) : (
-                      <div className="min-w-0">
-                        <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">Paying now</label>
+                      <Field label="Paying now">
                         <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
-                        <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">e.g. 50,000</p>
-                      </div>
+                      </Field>
                     )}
                     {!isProjectMode && (
-                      <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
-                        <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                      <div className="rounded-[12px] bg-white/80 dark:bg-white/[0.04] border border-black/[0.04] px-2.5 py-2">
+                        <p className="text-[10px] text-[#86868b]">Due</p>
+                        <p className="text-[13px] font-semibold mt-0.5 tabular-nums text-[#9a6700]">{fmtMoney(amountDueNow)}</p>
                       </div>
                     )}
                   </div>
-                  {isEditing && !isProjectMode && (
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-2">
-                      Use Pay due from the ledger to add more payments.
-                    </p>
-                  )}
                 </section>
 
                 <Field label="Note">
-                  <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." className={inputCls} />
+                  <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note" className={inputCls} />
                 </Field>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10 safe-area-pb">
-                <Button type="button" variant="outline" size="sm" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto" onClick={closeForm}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 border-t border-black/[0.06] shrink-0 bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20">
+                <button type="button" className={`${applePill} h-9 w-full sm:w-auto justify-center`} onClick={closeForm}>
                   Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={saving} className="h-10 sm:h-8 text-xs w-full sm:w-auto sm:min-w-[120px] cursor-pointer">
-                  {saving ? "Saving..." : isEditing ? "Save changes" : "Save entry"}
-                </Button>
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="h-9 w-full sm:w-auto sm:min-w-[7.5rem] rounded-full bg-[#1d1d1f] hover:bg-black text-white text-[12px] font-semibold tracking-tight cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : isEditing ? "Save changes" : "Save entry"}
+                </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {detailEntry && (
@@ -2690,19 +2833,22 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         ))}
       </div>
 
-      <div className="hidden md:block rounded-[16px] border border-black/[0.06] overflow-x-auto bg-white/80 dark:bg-[hsl(var(--card))]">
-        <table className="w-full text-[12px] min-w-[1100px]">
-          <thead>
-            <tr className="border-b border-black/[0.06] bg-[#f5f5f7]/90 dark:bg-white/[0.03]">
+      <div className="hidden md:block rounded-[16px] border border-black/[0.06] overflow-hidden bg-white/90 dark:bg-[hsl(var(--card))] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[12px] min-w-[1100px] border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr className="border-b border-black/[0.06] bg-[#f5f5f7] dark:bg-[hsl(var(--muted))]">
               {[
                 "Ledger No.", "Date", "Project / Supplier", "Supplier(s)", "Items",
                 "Total", "Paid", "Due", "Due Date", "Payments", "",
               ].map(h => (
-                <th key={h} className="h-9 px-2.5 text-left text-[10px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap">{h}</th>
+                <th key={h || "actions"} className="h-10 px-3 text-left text-[10px] font-semibold tracking-tight text-[#86868b] whitespace-nowrap first:pl-4 last:pr-4">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/[0.04]">
+          <tbody className="divide-y divide-black/[0.045]">
             {loading && (
               <tr><td colSpan={11} className="px-3 py-8 text-center text-[#86868b]">Loading…</td></tr>
             )}
@@ -2760,9 +2906,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03] cursor-pointer"
                 onClick={() => setDetailEntryId(entry.id)}
               >
-                <td className="px-2.5 py-2.5 font-semibold tracking-tight text-[#0071e3] font-mono">{entry.ledgerNumber}</td>
-                <td className="px-2.5 py-2.5 whitespace-nowrap text-[#6e6e73]">{entry.transactionDate}</td>
-                <td className="px-2.5 py-2.5">
+                <td className="px-3 py-3 first:pl-4 font-semibold tracking-tight text-[#0071e3] font-mono">{entry.ledgerNumber}</td>
+                <td className="px-3 py-3 whitespace-nowrap text-[#6e6e73]">{entry.transactionDate}</td>
+                <td className="px-3 py-3">
                   <div className="flex flex-col gap-0.5">
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="inline-flex h-5 items-center rounded-full bg-[#f2f2f7] dark:bg-white/10 px-2 text-[10px] font-semibold text-[#6e6e73]">
@@ -2852,6 +2998,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
