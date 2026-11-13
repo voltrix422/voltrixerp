@@ -5,7 +5,10 @@ import { useAuth } from "@/components/auth-provider"
 import { Upload, X, FileText, Trash2, Wallet, SlidersHorizontal, Search } from "lucide-react"
 import { getPettyCashAllocations, getPettyCashReceipts, type PettyCashAllocation } from "@/lib/petty-cash"
 import { FinanceLoans, buildLoanProfiles, isLoanCategory } from "@/components/finance/finance-loans"
+import { ChinaMoneyDashboard } from "@/components/china-money/china-money-dashboard"
 import { cn } from "@/lib/utils"
+
+type RecordsSubTab = "records" | "china"
 
 interface FinanceRecord {
   id: string
@@ -103,6 +106,7 @@ export function FinanceManager({
   const filterBtnRef = useRef<HTMLButtonElement>(null)
   const filtersRef = useRef<HTMLDivElement>(null)
   const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const [recordsTab, setRecordsTab] = useState<RecordsSubTab>("records")
 
   // form
   const [title, setTitle] = useState("")
@@ -374,6 +378,40 @@ export function FinanceManager({
 
   return (
     <div className="space-y-3">
+      <div className="inline-flex items-center rounded-[10px] bg-black/[0.06] dark:bg-white/10 p-[3px]">
+        {(
+          [
+            { id: "records" as const, label: "Records" },
+            { id: "china" as const, label: "Money to China" },
+          ] as const
+        ).map((tab) => {
+          const selected = recordsTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setRecordsTab(tab.id)}
+              className={cn(
+                "px-3.5 py-1.5 text-[12px] font-medium rounded-[8px] transition-all duration-200 cursor-pointer",
+                selected
+                  ? "bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] shadow-sm"
+                  : "text-[#6e6e73] dark:text-[hsl(var(--muted-foreground))] hover:text-[#1d1d1f] dark:hover:text-[hsl(var(--foreground))]",
+              )}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {recordsTab === "china" ? (
+        <div className="rounded-[18px] border border-black/[0.04] dark:border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-3 sm:p-4">
+          <ChinaMoneyDashboard embedded />
+        </div>
+      ) : null}
+
+      {recordsTab === "records" ? (
+      <>
       <section className="rounded-[18px] bg-white dark:bg-[hsl(var(--card))] border border-black/[0.04] dark:border-[hsl(var(--border))] overflow-visible relative z-20">
         <div className="flex items-center justify-end px-3 pt-2.5">
           <button
@@ -860,6 +898,8 @@ export function FinanceManager({
           </div>,
           document.body,
         )}
+      </>
+      ) : null}
     </div>
   )
 }

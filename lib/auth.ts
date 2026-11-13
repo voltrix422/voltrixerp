@@ -135,9 +135,18 @@ export function isChinaMoneyUser(role: UserRole | string | undefined | null) {
   return normalized === "china_money_admin" || normalized === "china_money_view"
 }
 
+/** Who may create/delete China money transfers (portal admin + ERP staff; not view-only). */
 export function canManageChinaMoney(role: UserRole | string | undefined | null) {
   const normalized = normalizeRole(role)
-  return normalized === "china_money_admin" || normalized === "superadmin" || normalized === "admin"
+  if (normalized === "china_money_view" || normalized === "investor" || normalized === "view_only") {
+    return false
+  }
+  if (normalized === "china_money_admin") return true
+  if (normalized === "superadmin" || normalized === "admin") return true
+  if (normalized === "user" || normalized === "sales_agent" || normalized === "sales_manager") {
+    return true
+  }
+  return false
 }
 
 export function isViewOnlyUser(role: UserRole | string | undefined | null) {

@@ -30,7 +30,7 @@ function fmtMoney(amount: number, currency: string) {
   }
 }
 
-export function ChinaMoneyDashboard() {
+export function ChinaMoneyDashboard({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth()
   const { toast } = useToast()
   const canEdit = canManageChinaMoney(user?.role)
@@ -170,9 +170,15 @@ export function ChinaMoneyDashboard() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-[20px] font-semibold tracking-tight text-[#1d1d1f]">Money sent to China</h1>
+          {embedded ? (
+            <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              Money to China
+            </h2>
+          ) : (
+            <h1 className="text-[20px] font-semibold tracking-tight text-[#1d1d1f]">Money sent to China</h1>
+          )}
           <p className="text-[12px] text-[#86868b]">
-            {canEdit ? "Admin — add transfers with proof" : "View only"}
+            {canEdit ? "Add transfers with proof" : "View only"}
             {totals.length > 0
               ? ` · ${totals.map(([c, a]) => fmtMoney(a, c)).join(" · ")}`
               : ""}
