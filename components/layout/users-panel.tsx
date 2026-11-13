@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
 import { investorCrm2SalesForInvestPeriod } from "@/lib/investor-fake-crm"
 import {
@@ -305,7 +305,22 @@ function UserRow({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 pt-0.5">
-          <Badge variant={roleHasAllModules(u.role) ? "default" : isInvestorUser(u.role) ? "default" : isViewOnlyUser(u.role) ? "outline" : "secondary"} className={`text-[10px] ${isInvestorUser(u.role) ? "bg-[#1a9f9a] hover:bg-[#1a9f9a]" : ""}`}>
+          <Badge
+            variant={
+              roleHasAllModules(u.role) || isInvestorUser(u.role) || isChinaMoneyUser(u.role)
+                ? "default"
+                : isViewOnlyUser(u.role)
+                  ? "outline"
+                  : "secondary"
+            }
+            className={`text-[10px] ${
+              isInvestorUser(u.role)
+                ? "bg-[#1a9f9a] hover:bg-[#1a9f9a]"
+                : isChinaMoneyUser(u.role)
+                  ? "bg-[#ff9f0a] hover:bg-[#ff9f0a] text-[#1d1d1f]"
+                  : ""
+            }`}
+          >
             {ROLE_LABELS[u.role] ?? u.role}
           </Badge>
           {editing ? (
@@ -323,7 +338,7 @@ function UserRow({
           )}
         </div>
       </div>
-      {!isInvestorUser(draft.role) && (
+      {!isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && (
         <div className="pt-1 border-t border-dashed">
           <NotificationEmailsEditor
             emails={draft.notificationEmails ?? []}
@@ -334,6 +349,12 @@ function UserRow({
             readOnly={!editing}
           />
         </div>
+      )}
+      {isChinaMoneyUser(draft.role) && (
+        <p className="text-[10px] text-[#b25000] pt-1 border-t border-dashed">
+          Signs in at /money-to-china/login — Money to China portal only
+          {draft.role === "china_money_view" ? " (view only)" : " (can add transfers + proofs)"}.
+        </p>
       )}
       {isInvestorUser(draft.role) && (
         <InvestorTermsFields
@@ -374,7 +395,12 @@ function UserRow({
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
-          {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && (
+          {isChinaMoneyUser(draft.role) && (
+            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              Portal: https://voltrixbatteries.com/money-to-china/login — no ERP modules.
+            </p>
+          )}
+          {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && (
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
             </p>
@@ -395,6 +421,10 @@ function UserRow({
         ) : isInvestorUser(draft.role) ? (
           <span className="text-[10px] text-[#1a9f9a]">
             Login: {draft.email} + password at /login
+          </span>
+        ) : isChinaMoneyUser(draft.role) ? (
+          <span className="text-[10px] text-[#b25000]">
+            Login: {draft.email} at /money-to-china/login
           </span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
@@ -470,10 +500,17 @@ function AddUserForm({
 
   return (
     <form onSubmit={submit} className="border rounded-lg p-3 space-y-2 bg-[hsl(var(--muted))]/30 text-xs">
-      <p className="font-semibold text-xs">{isInvestorUser(role) ? "New investor" : "New User"}</p>
+      <p className="font-semibold text-xs">
+        {isInvestorUser(role) ? "New investor" : isChinaMoneyUser(role) ? "New Money to China user" : "New User"}
+      </p>
       {isInvestorUser(role) && (
         <p className="text-[10px] text-[#1a9f9a]">
           They sign in at /login with this email and password — same as staff. They only see the investor portal.
+        </p>
+      )}
+      {isChinaMoneyUser(role) && (
+        <p className="text-[10px] text-[#b25000]">
+          They sign in at /money-to-china/login. Admin can add transfers + proofs; View can only browse.
         </p>
       )}
       <input required placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
@@ -497,6 +534,7 @@ function AddUserForm({
             if (roleHasAllModules(next)) setModules([...ALL_MODULES])
             else if (next === "sales_agent") setModules(["crm"])
             else if (next === "investor") setModules(["dashboard", "crm"])
+            else if (next === "china_money_admin" || next === "china_money_view") setModules([])
           }}
           className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
         >
@@ -504,6 +542,11 @@ function AddUserForm({
             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
           ))}
         </select>
+        {isChinaMoneyUser(role) && (
+          <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            Portal link: /money-to-china/login — no staff ERP access.
+          </p>
+        )}
         {isInvestorUser(role) && (
           <>
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -526,13 +569,13 @@ function AddUserForm({
             />
           </>
         )}
-        {isViewOnlyUser(role) && !isInvestorUser(role) && (
+        {isViewOnlyUser(role) && !isInvestorUser(role) && !isChinaMoneyUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
             Assign the pages this user can view. They will not be able to change anything in the ERP.
           </p>
         )}
       </div>
-      {!isInvestorUser(role) && (
+      {!isInvestorUser(role) && !isChinaMoneyUser(role) && (
         <NotificationEmailsEditor
           emails={notificationEmails}
           enabled={emailNotificationsEnabled}
@@ -554,6 +597,10 @@ function AddUserForm({
       ) : isInvestorUser(role) ? (
         <p className="text-[10px] text-[#1a9f9a]">
           Investor login: /login (opens investor portal)
+        </p>
+      ) : isChinaMoneyUser(role) ? (
+        <p className="text-[10px] text-[#b25000]">
+          Money to China login: /money-to-china/login
         </p>
       ) : (
       <div className="flex flex-wrap gap-1">
@@ -633,7 +680,7 @@ export function UsersManager() {
           <div>
             <h2 className="text-base font-semibold">User Accounts</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Staff ERP users, plus investors who sign in at /login with the email and password you set
+              Staff ERP, investors (/login), and Money to China roles (/money-to-china/login)
             </p>
           </div>
           <div className="flex items-center gap-2">

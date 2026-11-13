@@ -6,7 +6,16 @@ import {
 
 export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "pos_admin" | "users" | "dispatch_no_scan"
 
-export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only" | "investor"
+export type UserRole =
+  | "superadmin"
+  | "admin"
+  | "user"
+  | "sales_agent"
+  | "sales_manager"
+  | "view_only"
+  | "investor"
+  | "china_money_admin"
+  | "china_money_view"
 
 export interface User {
   id: string
@@ -52,6 +61,23 @@ function normalizeRole(rawRole: unknown): UserRole {
   if (value === "salesmanager" || value === "sales_manager") return "sales_manager"
   if (value === "viewonly" || value === "view_only") return "view_only"
   if (value === "investor") return "investor"
+  if (
+    value === "china_money_admin" ||
+    value === "moneysenttochina_admin" ||
+    value === "money_to_china_admin" ||
+    value === "china_admin"
+  ) {
+    return "china_money_admin"
+  }
+  if (
+    value === "china_money_view" ||
+    value === "moneysenttochina_view" ||
+    value === "money_to_china_view" ||
+    value === "china_view" ||
+    value === "china_money_view_only"
+  ) {
+    return "china_money_view"
+  }
   if (value === "admin") return "admin"
   return "user"
 }
@@ -78,7 +104,15 @@ export const MODULE_LABELS: Record<Module, string> = {
 }
 
 /** Roles that superadmin can assign when creating/editing users. */
-export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent", "view_only", "investor"]
+export const ASSIGNABLE_ROLES: UserRole[] = [
+  "user",
+  "admin",
+  "sales_agent",
+  "view_only",
+  "investor",
+  "china_money_admin",
+  "china_money_view",
+]
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: "Super Admin",
@@ -88,15 +122,31 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   sales_manager: "Sales Manager",
   view_only: "View Only",
   investor: "Investor",
+  china_money_admin: "Money to China (Admin)",
+  china_money_view: "Money to China (View)",
 }
 
 export function isInvestorUser(role: UserRole | string | undefined | null) {
   return normalizeRole(role) === "investor"
 }
 
+export function isChinaMoneyUser(role: UserRole | string | undefined | null) {
+  const normalized = normalizeRole(role)
+  return normalized === "china_money_admin" || normalized === "china_money_view"
+}
+
+export function canManageChinaMoney(role: UserRole | string | undefined | null) {
+  const normalized = normalizeRole(role)
+  return normalized === "china_money_admin" || normalized === "superadmin" || normalized === "admin"
+}
+
 export function isViewOnlyUser(role: UserRole | string | undefined | null) {
   const normalized = normalizeRole(role)
-  return normalized === "view_only" || normalized === "investor"
+  return (
+    normalized === "view_only" ||
+    normalized === "investor" ||
+    normalized === "china_money_view"
+  )
 }
 
 export function canWriteErp(user?: { role?: string } | null) {
@@ -135,6 +185,7 @@ export function hasModuleAccess(
 ): boolean {
   if (!user) return false
   if (isInvestorUser(user.role)) return module === "dashboard" || module === "crm"
+  if (isChinaMoneyUser(user.role)) return false
   if (module === "users") {
     return isSuperadmin(user.role) || (user.modules?.includes("users") ?? false)
   }
@@ -144,6 +195,7 @@ export function hasModuleAccess(
 export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
   if (roleHasAllModules(role)) return [...ALL_MODULES]
   if (role === "investor") return ["dashboard", "crm"]
+  if (role === "china_money_admin" || role === "china_money_view") return []
   if (role === "sales_agent" && selected.length === 0) return ["crm"]
   return selected
 }
@@ -191,6 +243,7 @@ export function clearSession() {
 export function homePathForUser(user: { role?: string; modules?: string[] } | null | undefined) {
   if (!user) return "/dashboard"
   if (isInvestorUser(user.role)) return "/investor"
+  if (isChinaMoneyUser(user.role)) return "/money-to-china"
   if (isErpAdmin(user.role)) return "/dashboard"
   if (user.role === "sales_agent" || user.role === "sales_manager") return "/crm/sales-agents"
   if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"

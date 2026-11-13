@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser, isInvestorUser, homePathForUser } from "@/lib/auth"
+import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, isErpAdmin, homePathForUser } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -57,7 +57,15 @@ const PUBLIC_PATH_PREFIXES = [
 ]
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === "/login" || pathname === "/pos/login" || pathname === "/investor/login" || pathname === "/") return true
+  if (
+    pathname === "/login" ||
+    pathname === "/pos/login" ||
+    pathname === "/investor/login" ||
+    pathname === "/money-to-china/login" ||
+    pathname === "/"
+  ) {
+    return true
+  }
   if (pathname.startsWith("/pos")) return pathname === "/pos/login"
   return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
 }
@@ -65,6 +73,11 @@ function isPublicPath(pathname: string): boolean {
 function isInvestorPortalPath(pathname: string): boolean {
   if (pathname === "/investor/login") return false
   return pathname === "/investor" || pathname.startsWith("/investor/")
+}
+
+function isChinaMoneyPortalPath(pathname: string): boolean {
+  if (pathname === "/money-to-china/login") return false
+  return pathname === "/money-to-china" || pathname.startsWith("/money-to-china/")
 }
 
 export { isPublicPath }
@@ -108,6 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (pathname.startsWith("/pos")) {
         router.replace("/pos/login")
+      } else if (pathname.startsWith("/money-to-china")) {
+        router.replace("/money-to-china/login")
       } else {
         router.replace("/login")
       }
@@ -116,6 +131,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (user && pathname) {
       const investor = isInvestorUser(user.role)
+      const chinaMoney = isChinaMoneyUser(user.role)
+
       if (investor && pathname === "/investor/login") {
         router.replace("/investor")
         return
@@ -125,6 +142,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       if (!investor && isInvestorPortalPath(pathname)) {
+        router.replace(homePathForUser(user))
+        return
+      }
+
+      if (chinaMoney && pathname === "/money-to-china/login") {
+        router.replace("/money-to-china")
+        return
+      }
+      if (chinaMoney && !isPublicPath(pathname) && !isChinaMoneyPortalPath(pathname)) {
+        router.replace("/money-to-china")
+        return
+      }
+      // Dedicated china-money users only; ERP admins may also open the portal.
+      if (!chinaMoney && !isErpAdmin(user.role) && isChinaMoneyPortalPath(pathname)) {
         router.replace(homePathForUser(user))
       }
     }

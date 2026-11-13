@@ -1858,3 +1858,24 @@ model ErpInstallerCashbackRequest {
   @@index([cnic])
   @@map("erp_installer_cashback_requests")
 }
+
+/** Money remitted / transferred to China — tracked with payment proofs. */
+model ChinaMoneyTransfer {
+  id            String   @id @default(cuid())
+  amount        Float
+  currency      String   @default("USD")
+  sentAt        String   @map("sent_at")
+  method        String   @default("")
+  reference     String   @default("")
+  beneficiary   String   @default("")
+  notes         String   @default("")
+  proofUrls     Json     @default("[]") @map("proof_urls")
+  createdBy     String   @default("") @map("created_by")
+  createdById   String   @default("") @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([sentAt])
+  @@index([createdAt])
+  @@map("erp_china_money_transfers")
+}

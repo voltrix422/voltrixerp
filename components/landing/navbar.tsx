@@ -27,6 +27,7 @@ const navLinks: NavLink[] = [
   { label: "Blog", href: "/blog" },
   { label: "Warranty", href: "/warranty" },
   { label: "Cashback", href: "/installer-cashback", accent: true },
+  { label: "Money to China", short: "China $", href: "/money-to-china/login" },
   { label: "ERP", href: "/login" },
 ]
 
