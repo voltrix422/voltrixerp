@@ -5,12 +5,15 @@ import { createPortal } from "react-dom"
 import {
   ArrowLeft,
   CalendarClock,
+  CalendarDays,
   CheckSquare,
+  ChevronDown,
   ChevronRight,
   Download,
   Loader2,
   Paperclip,
   Plus,
+  SlidersHorizontal,
   Trash2,
   Upload,
   X,
@@ -32,7 +35,6 @@ import {
   listTodos,
   rejectTodo,
   setTodoReminder,
-  statusLabel,
   type Todo,
   type TodoCadence,
   type TodoStatus,
@@ -47,11 +49,25 @@ function fmtWhen(iso: string | null) {
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
 }
 
+function fmtShort(iso: string | null) {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString([], { month: "short", day: "numeric" })
+}
+
 function statusClass(status: string) {
   if (status === "done") return "bg-emerald-500/12 text-emerald-700"
   if (status === "pending_approval") return "bg-violet-500/12 text-violet-800"
   if (status === "in_progress") return "bg-sky-500/12 text-sky-800"
   return "bg-amber-500/12 text-amber-800"
+}
+
+function shortStatus(status: string) {
+  if (status === "in_progress") return "Progress"
+  if (status === "pending_approval") return "Pending"
+  if (status === "done") return "Done"
+  return "Open"
 }
 
 const appleField =
@@ -60,6 +76,41 @@ const appleTextarea =
   "w-full rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 py-2 text-[12px] tracking-tight resize-none focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
 const appleSelect =
   "w-full h-8 appearance-none rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-2.5 pr-7 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
+const appleDateField =
+  "w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-8 pr-2.5 text-[12px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 [color-scheme:light] dark:[color-scheme:dark]"
+
+function AppleSelect({
+  className,
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative min-w-0">
+      <select className={className} {...props}>
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]"
+        strokeWidth={2.25}
+      />
+    </div>
+  )
+}
+
+function AppleDateInput({
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="relative min-w-0">
+      <CalendarDays
+        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#86868b]"
+        strokeWidth={1.75}
+      />
+      <input type="date" className={className} {...props} />
+    </div>
+  )
+}
 
 function draftStatus(row: Todo): TodoStatus {
   if (row.status === "done" || row.status === "pending_approval" || row.status === "open" || row.status === "in_progress") {
@@ -111,7 +162,7 @@ function inDateRange(todo: Todo, from: string, to: string) {
   return true
 }
 
-type PeriodTab = "today" | "all" | "done"
+type PeriodTab = "today" | "all" | "archive"
 
 type LocalFile = { file: File; preview: string }
 
@@ -130,7 +181,7 @@ function FileUploader({
       {files.map((f, i) => (
         <div
           key={f.preview}
-          className="relative h-11 w-11 rounded-[8px] overflow-hidden border border-black/[0.06] bg-[#f2f2f7] flex items-center justify-center"
+          className="relative h-9 w-9 rounded-[8px] overflow-hidden border border-black/[0.06] bg-[#f2f2f7] flex items-center justify-center"
         >
           {f.file.type.startsWith("image/") ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -150,7 +201,7 @@ function FileUploader({
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        className="h-11 w-11 rounded-[8px] border border-dashed border-black/[0.12] flex items-center justify-center text-[#86868b] hover:bg-black/[0.03] cursor-pointer"
+        className="h-9 w-9 rounded-[8px] border border-dashed border-black/[0.12] flex items-center justify-center text-[#86868b] hover:bg-black/[0.03] cursor-pointer"
         aria-label="Add attachment"
       >
         <Upload className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -180,6 +231,10 @@ export function TodosDashboard() {
   const [filterUserId, setFilterUserId] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const filtersRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
@@ -267,34 +322,58 @@ export function TodosDashboard() {
     }
   }, [load])
 
+  useEffect(() => {
+    if (!showFilters) {
+      setFilterPos(null)
+      return
+    }
+    function place() {
+      const btn = filterBtnRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const panelW = Math.min(320, window.innerWidth - 24)
+      const left = Math.min(Math.max(12, r.right - panelW), window.innerWidth - panelW - 12)
+      const top = Math.min(r.bottom + 8, window.innerHeight - 24)
+      setFilterPos({ top, left })
+    }
+    place()
+    window.addEventListener("resize", place)
+    window.addEventListener("scroll", place, true)
+    return () => {
+      window.removeEventListener("resize", place)
+      window.removeEventListener("scroll", place, true)
+    }
+  }, [showFilters])
+
+  useEffect(() => {
+    if (!showFilters) return
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node
+      if (filtersRef.current?.contains(t) || filterBtnRef.current?.contains(t)) return
+      setShowFilters(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [showFilters])
+
   const todayKey = ymdLocal(new Date())
 
   const filteredTodos = useMemo(() => {
     return todos.filter((t) => {
       if (filterUserId !== "all" && t.assigneeUserId !== filterUserId) return false
 
-      if (period === "done" && t.status !== "done") return false
-      if (period !== "done" && period === "today" && t.status === "done" && todoDayKey(t) !== todayKey) {
-        // hide older completed from Today unless date range includes them
-        if (!(dateFrom || dateTo)) return false
+      // Done lives only in Archive
+      if (period === "archive") {
+        if (t.status !== "done") return false
+        if (dateFrom || dateTo) return inDateRange(t, dateFrom, dateTo)
+        return true
       }
+      if (t.status === "done") return false
 
-      if (dateFrom || dateTo) {
-        return inDateRange(t, dateFrom, dateTo) && (period !== "done" || t.status === "done")
-      }
+      if (dateFrom || dateTo) return inDateRange(t, dateFrom, dateTo)
 
       if (period === "today") {
-        if (isRecurringCadence(t.cadence)) {
-          if (t.status === "done") {
-            const doneKey = t.completedAt ? ymdLocal(new Date(t.completedAt)) : todoDayKey(t)
-            return doneKey === todayKey
-          }
-          return true
-        }
-        if (t.status === "done") {
-          return todoDayKey(t) === todayKey
-        }
-        // Assigned today, due today, overdue, or no due date — all stay on Today
+        if (isRecurringCadence(t.cadence)) return true
         if (assignedDayKey(t) === todayKey) return true
         const day = todoDayKey(t)
         if (day === todayKey) return true
@@ -391,6 +470,8 @@ export function TodosDashboard() {
     const done = filteredTodos.filter((t) => t.status === "done").length
     return { count: filteredTodos.length, open, progress, pending, done }
   }, [filteredTodos])
+
+  const archiveCount = useMemo(() => todos.filter((t) => t.status === "done").length, [todos])
 
   /** Full bird's-eye set: respects person + date filters, includes every status (not Today/Done tabs). */
   const exportTodos = useMemo(() => {
@@ -710,10 +791,19 @@ export function TodosDashboard() {
     }
   }
 
-  function cadenceLine(row: Todo) {
-    const reminder = formatReminderTime(row.reminderTime)
-    return `${cadenceLabel(row.cadence)}${reminder ? ` · ${reminder}` : ""}${row.dueAt ? ` · ${fmtWhen(row.dueAt)}` : ""}`
+  function listMeta(row: Todo) {
+    const bits: string[] = []
+    if (isRecurringCadence(row.cadence)) {
+      bits.push(cadenceLabel(row.cadence).replace(" (recurring)", ""))
+      const reminder = formatReminderTime(row.reminderTime)
+      if (reminder) bits.push(reminder)
+    }
+    const due = fmtShort(row.dueAt)
+    if (due) bits.push(due)
+    return bits.join(" · ")
   }
+
+  const hasActiveFilters = Boolean(dateFrom || dateTo || filterUserId !== "all")
 
   function renderFlags(todo: Todo) {
     const chips: { key: string; label: string; className: string }[] = []
@@ -752,50 +842,47 @@ export function TodosDashboard() {
   function renderAdminReview(todo: Todo) {
     if (!isAdmin || todo.status === "done") return null
     return (
-      <div className="rounded-[12px] border border-[#0071e3]/20 bg-[#0071e3]/[0.04] px-3 py-2.5 space-y-2">
+      <div className="space-y-1.5">
         {todo.status === "pending_approval" && (
-          <>
-            <textarea
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
-              rows={2}
-              className={appleTextarea}
-              placeholder="Note (optional)"
+              className={`${appleField} flex-1 min-w-[8rem]`}
+              placeholder="Note"
             />
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
-                disabled={saving}
-                onClick={() => void submitApprove(todo)}
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
-                disabled={saving}
-                onClick={() => void submitReject(todo)}
-              >
-                Send back
-              </button>
-            </div>
-          </>
+            <button
+              type="button"
+              className="h-7 inline-flex items-center rounded-full px-2.5 text-[10px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
+              disabled={saving}
+              onClick={() => void submitApprove(todo)}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="h-7 inline-flex items-center rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+              disabled={saving}
+              onClick={() => void submitReject(todo)}
+            >
+              Back
+            </button>
+          </div>
         )}
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             type="datetime-local"
             value={extendDraft}
             onChange={(e) => setExtendDraft(e.target.value)}
-            className={`${appleField} min-w-[11rem] flex-1`}
+            className={`${appleField} min-w-[10rem] flex-1`}
           />
           <button
             type="button"
-            className="h-8 inline-flex items-center gap-1 rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+            className="h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
             disabled={saving}
             onClick={() => void submitExtend(todo)}
           >
-            <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <CalendarClock className="h-3 w-3" strokeWidth={1.75} />
             Extend
           </button>
         </div>
@@ -826,7 +913,7 @@ export function TodosDashboard() {
         />
         <button
           type="button"
-          className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+          className="h-7 inline-flex items-center rounded-full px-2.5 text-[10px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
           disabled={saving}
           onClick={() => void saveReminder(todo)}
         >
@@ -836,52 +923,64 @@ export function TodosDashboard() {
     )
   }
 
-  function renderActivity(todo: Todo) {
-    if (todo.updates.length === 0) {
-      return <p className="text-[11px] text-[#86868b]">No activity</p>
-    }
+  function renderDetailBody(todo: Todo) {
     return (
-      <div className="space-y-1.5 max-h-[220px] overflow-y-auto scrollbar-none pr-0.5">
-        {todo.updates.map((u) => (
-          <div
-            key={u.id}
-            className="rounded-[10px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] px-2.5 py-2 space-y-1.5"
-          >
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span
-                className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(u.status)}`}
-              >
-                {statusLabel(u.status)}
-              </span>
-              <span className="text-[10px] text-[#86868b]">
-                {fmtWhen(u.createdAt)}
-                {u.createdBy ? ` · ${u.createdBy}` : ""}
-              </span>
+      <div className="space-y-2">
+        {todo.description ? (
+          <p className="text-[12px] text-[#6e6e73] leading-snug line-clamp-3 whitespace-pre-wrap">
+            {todo.description}
+          </p>
+        ) : null}
+        {renderFlags(todo)}
+        {renderReminder(todo)}
+        {renderAdminReview(todo)}
+        {renderUpdateForm(todo)}
+        {renderActivity(todo)}
+      </div>
+    )
+  }
+
+  function renderActivity(todo: Todo) {
+    const useful = todo.updates.filter((u) => u.message?.trim() || u.attachmentUrls.length > 0)
+    if (useful.length === 0) return null
+    return (
+      <div className="space-y-1 max-h-[140px] overflow-y-auto scrollbar-none">
+        {useful.slice(0, 8).map((u) => (
+          <div key={u.id} className="flex gap-2 min-w-0">
+            <span className="text-[10px] text-[#aeaeb2] tabular-nums shrink-0 pt-0.5 w-[3.25rem]">
+              {fmtShort(u.createdAt) || "—"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] leading-snug text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                {u.createdBy ? (
+                  <span className="font-semibold text-[#6e6e73]">{u.createdBy} </span>
+                ) : null}
+                {u.message?.trim() || "Attachment"}
+              </p>
+              {u.attachmentUrls.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {u.attachmentUrls.map((url) => {
+                    const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
+                    return (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="h-9 w-9 rounded-[7px] border border-black/[0.06] overflow-hidden flex items-center justify-center bg-[#f2f2f7]"
+                      >
+                        {isImg ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Paperclip className="h-3 w-3 text-[#86868b]" />
+                        )}
+                      </a>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-            {u.message ? <p className="text-[12px] whitespace-pre-wrap leading-snug">{u.message}</p> : null}
-            {u.attachmentUrls.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {u.attachmentUrls.map((url) => {
-                  const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
-                  return (
-                    <a
-                      key={url}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="h-12 w-12 rounded-[8px] border border-black/[0.06] overflow-hidden flex items-center justify-center bg-[#f2f2f7]"
-                    >
-                      {isImg ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <Paperclip className="h-3.5 w-3.5 text-[#86868b]" />
-                      )}
-                    </a>
-                  )
-                })}
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -891,9 +990,9 @@ export function TodosDashboard() {
   function renderUpdateForm(todo: Todo) {
     if (!canUpdate(todo) || todo.status === "done") return null
     return (
-      <form onSubmit={submitUpdate} className="rounded-[12px] border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] p-2.5 space-y-2">
-        <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-2">
-          <select
+      <form onSubmit={submitUpdate} className="space-y-1.5">
+        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-1.5">
+          <AppleSelect
             value={updateForm.status}
             onChange={(e) =>
               setUpdateForm((f) => ({
@@ -904,32 +1003,33 @@ export function TodosDashboard() {
             className={appleSelect}
           >
             {statusOptions(Boolean(isAdmin))}
-          </select>
-          <textarea
+          </AppleSelect>
+          <input
             value={updateForm.message}
             onChange={(e) => setUpdateForm((f) => ({ ...f, message: e.target.value }))}
-            rows={2}
-            className={appleTextarea}
+            className={appleField}
             placeholder="Note…"
           />
         </div>
-        <FileUploader
-          files={attachFiles}
-          onAdd={(list) => addFiles(list, setAttachFiles)}
-          onRemove={(i) => removeFile(i, setAttachFiles)}
-        />
-        <button
-          type="submit"
-          disabled={saving}
-          className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckSquare className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          {updateForm.status === "pending_approval"
-            ? "Submit"
-            : updateForm.status === "done"
-              ? "Done"
-              : "Save"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <FileUploader
+            files={attachFiles}
+            onAdd={(list) => addFiles(list, setAttachFiles)}
+            onRemove={(i) => removeFile(i, setAttachFiles)}
+          />
+          <button
+            type="submit"
+            disabled={saving}
+            className="ml-auto h-7 inline-flex items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {updateForm.status === "pending_approval"
+              ? "Submit"
+              : updateForm.status === "done"
+                ? "Done"
+                : "Save"}
+          </button>
+        </div>
       </form>
     )
   }
@@ -941,22 +1041,75 @@ export function TodosDashboard() {
   const segIdle = "text-[#6e6e73] hover:text-[#1d1d1f]"
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div className="inline-flex items-center gap-2 min-w-0">
-          <span className="h-8 w-8 rounded-[10px] bg-[#0071e3]/10 inline-flex items-center justify-center shrink-0">
-            <CheckSquare className="h-4 w-4 text-[#0071e3]" strokeWidth={1.75} />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="inline-flex items-center gap-1.5 min-w-0 mr-1">
+          <span className="h-7 w-7 rounded-[9px] bg-[#0071e3]/10 inline-flex items-center justify-center shrink-0">
+            <CheckSquare className="h-3.5 w-3.5 text-[#0071e3]" strokeWidth={1.75} />
           </span>
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
+          <div className="min-w-0 leading-tight">
+            <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
               To-do
-            </h2>
-            <p className="text-[11px] text-[#86868b] tabular-nums">
-              {stats.count} · {stats.open} open · {stats.pending} pending · {stats.done} done
+            </p>
+            <p className="text-[10px] text-[#86868b] tabular-nums">
+              {period === "archive"
+                ? `${stats.count} archived`
+                : `${stats.count} · ${stats.open + stats.progress} active`}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+
+        <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
+          {(
+            [
+              { id: "today" as const, label: "Today" },
+              { id: "all" as const, label: "All" },
+              { id: "archive" as const, label: "Archive" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setPeriod(tab.id)}
+              className={`px-2.5 py-1 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                period === tab.id ? segActive : segIdle
+              }`}
+            >
+              {tab.label}
+              {tab.id === "archive" && archiveCount > 0 ? (
+                <span className="ml-1 text-[10px] tabular-nums opacity-70">{archiveCount}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {isAdmin && (
+          <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
+            <button
+              type="button"
+              onClick={() => setView("all")}
+              className={`px-2.5 py-1 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                view === "all" ? segActive : segIdle
+              }`}
+            >
+              Team
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setView("mine")
+                setFilterUserId("all")
+              }}
+              className={`px-2.5 py-1 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                view === "mine" ? segActive : segIdle
+              }`}
+            >
+              Mine
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1 ml-auto">
           {isAdmin && (
             <>
               <button
@@ -970,197 +1123,176 @@ export function TodosDashboard() {
               </button>
               <button
                 type="button"
-                className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight bg-[#1d1d1f] hover:bg-black text-white cursor-pointer"
+                className="h-8 inline-flex items-center gap-1 rounded-full px-3 text-[11px] font-semibold tracking-tight bg-[#1d1d1f] hover:bg-black text-white cursor-pointer"
                 onClick={() => setShowCreate(true)}
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
               </button>
             </>
           )}
+          <button
+            ref={filterBtnRef}
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`relative h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              showFilters
+                ? "bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]"
+                : "text-[#86868b] hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-[#1d1d1f]"
+            }`}
+            aria-label="Filters"
+            aria-expanded={showFilters}
+            title="Filters"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {hasActiveFilters && !showFilters && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#007aff]" />
+            )}
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
-          {(
-            [
-              { id: "today" as const, label: "Today" },
-              { id: "all" as const, label: "All" },
-              { id: "done" as const, label: "Done" },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPeriod(tab.id)}
-              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
-                period === tab.id ? segActive : segIdle
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {isAdmin && (
-          <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("all")}
-              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
-                view === "all" ? segActive : segIdle
-              }`}
-            >
-              Team
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setView("mine")
-                setFilterUserId("all")
-              }}
-              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
-                view === "mine" ? segActive : segIdle
-              }`}
-            >
-              Mine
-            </button>
-          </div>
-        )}
-        {isAdmin && view === "all" && (
-          <select
-            value={filterUserId}
-            onChange={(e) => setFilterUserId(e.target.value)}
-            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[11px] font-semibold tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 min-w-[9rem]"
+      {showFilters &&
+        filterPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={filtersRef}
+            className="fixed z-[95] w-[min(20rem,calc(100vw-1.5rem))] rounded-[18px] border border-black/[0.06] bg-white/92 dark:bg-[hsl(var(--card))]/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-3 space-y-2"
+            style={{ top: filterPos.top, left: filterPos.left }}
           >
-            <option value="all">Everyone</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold tracking-tight">Filters</p>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFrom("")
+                      setDateTo("")
+                      setFilterUserId("all")
+                    }}
+                    className="text-[11px] font-semibold text-[#0071e3] cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+            </div>
+            {isAdmin && view === "all" && (
+              <AppleSelect
+                value={filterUserId}
+                onChange={(e) => setFilterUserId(e.target.value)}
+                className={appleSelect}
+              >
+                <option value="all">Everyone</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </AppleSelect>
+            )}
+            <div className="grid grid-cols-2 gap-1.5">
+              <AppleDateInput
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className={appleDateField}
+              />
+              <AppleDateInput
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className={appleDateField}
+              />
+            </div>
+          </div>,
+          document.body,
         )}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
-          />
-          <span className="text-[10px] text-[#aeaeb2]">–</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
-          />
-          {(dateFrom || dateTo || filterUserId !== "all") && (
-            <button
-              type="button"
-              className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-[#0071e3] cursor-pointer hover:bg-[#0071e3]/08"
-              onClick={() => {
-                setDateFrom("")
-                setDateTo("")
-                setFilterUserId("all")
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-[#86868b]">
+        <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#86868b]">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
       ) : filteredTodos.length === 0 ? (
-        <div className="rounded-[16px] border border-dashed border-black/[0.08] py-16 text-center text-[13px] text-[#86868b]">
-          No to-dos
+        <div className="rounded-[14px] border border-dashed border-black/[0.08] py-12 text-center text-[13px] text-[#86868b]">
+          {period === "archive" ? "Archive empty" : "No to-dos"}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-3 min-h-[58vh]">
-          <div className={`space-y-1.5 ${mobileDetail ? "hidden lg:block" : "block"}`}>
-            {teamMode ? (
-              <>
-                {peopleGroups.map((person) => {
-                  const active = selectedPersonId === person.userId
-                  return (
-                    <button
-                      key={person.userId}
-                      type="button"
-                      onClick={() => openPerson(person.userId)}
-                      className={`w-full text-left rounded-[14px] border px-3 py-2.5 transition-colors cursor-pointer ${
-                        active
-                          ? "border-[#0071e3]/35 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/20"
-                          : "border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-semibold tracking-tight truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                            {person.name}
-                          </p>
-                          <p className="text-[11px] text-[#86868b] tabular-nums mt-0.5">
-                            {person.items.length}
-                            <span className="text-amber-700"> · {person.open}</span>
-                            {person.pending > 0 ? (
-                              <span className="text-violet-700"> · {person.pending}</span>
-                            ) : null}
-                            <span className="text-emerald-700"> · {person.done}</span>
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
-                      </div>
-                    </button>
-                  )
-                })}
-              </>
-            ) : (
-              <>
-                {filteredTodos.map((row) => {
-                  const active = selectedId === row.id
-                  return (
-                    <button
-                      key={row.id}
-                      type="button"
-                      onClick={() => openTodo(row)}
-                      className={`w-full text-left rounded-[14px] border px-3 py-2.5 transition-colors cursor-pointer ${
-                        active
-                          ? "border-[#0071e3]/35 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/20"
-                          : "border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-[13px] font-semibold tracking-tight truncate">{row.title}</p>
-                            <span
-                              className={`shrink-0 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
-                            >
-                              {statusLabel(row.status)}
-                            </span>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] gap-2.5 min-h-[52vh]">
+          <div
+            className={`rounded-[14px] border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] overflow-hidden ${
+              mobileDetail ? "hidden lg:block" : "block"
+            }`}
+          >
+            <div className="max-h-[calc(100vh-11rem)] overflow-y-auto scrollbar-none divide-y divide-black/[0.05]">
+              {teamMode
+                ? peopleGroups.map((person) => {
+                    const active = selectedPersonId === person.userId
+                    return (
+                      <button
+                        key={person.userId}
+                        type="button"
+                        onClick={() => openPerson(person.userId)}
+                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
+                          active ? "bg-[#0071e3]/08" : "hover:bg-black/[0.02]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12px] font-semibold tracking-tight truncate">{person.name}</p>
+                            <p className="text-[10px] text-[#86868b] tabular-nums">
+                              {person.items.length}
+                              {person.pending > 0 ? ` · ${person.pending} pending` : ""}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-[#86868b] mt-0.5 truncate">{cadenceLine(row)}</p>
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
                         </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
-                      </div>
-                    </button>
-                  )
-                })}
-              </>
-            )}
+                      </button>
+                    )
+                  })
+                : filteredTodos.map((row) => {
+                    const active = selectedId === row.id
+                    const meta = listMeta(row)
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        onClick={() => openTodo(row)}
+                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
+                          active ? "bg-[#0071e3]/08" : "hover:bg-black/[0.02]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-[12px] font-semibold tracking-tight truncate flex-1">{row.title}</p>
+                          <span
+                            className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
+                          >
+                            {shortStatus(row.status)}
+                          </span>
+                        </div>
+                        {meta ? <p className="text-[10px] text-[#86868b] mt-0.5 truncate">{meta}</p> : null}
+                      </button>
+                    )
+                  })}
+            </div>
           </div>
 
           <div
-            className={`rounded-[16px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] p-3 sm:p-4 ${
+            className={`rounded-[14px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] p-3 ${
               mobileDetail ? "block" : "hidden lg:block"
             }`}
           >
             {mobileDetail && (
               <button
                 type="button"
-                className="mb-2 h-8 inline-flex items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-[#0071e3] hover:bg-[#0071e3]/08 lg:hidden cursor-pointer"
+                className="mb-2 h-7 inline-flex items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-[#0071e3] hover:bg-[#0071e3]/08 lg:hidden cursor-pointer"
                 onClick={() => setMobileDetail(false)}
               >
                 <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} /> List
@@ -1168,67 +1300,48 @@ export function TodosDashboard() {
             )}
 
             {teamMode && selectedPerson ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                    {selectedPerson.name}
-                  </h2>
-                  <span className="text-[11px] text-[#86868b] tabular-nums shrink-0">
-                    {selectedPerson.items.length}
-                  </span>
+                  <h2 className="text-[14px] font-semibold tracking-tight">{selectedPerson.name}</h2>
+                  <span className="text-[10px] text-[#86868b] tabular-nums">{selectedPerson.items.length}</span>
                 </div>
-
-                <div className="space-y-1.5 max-h-[calc(100vh-14rem)] overflow-y-auto scrollbar-none">
+                <div className="space-y-1 max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-none">
                   {selectedPerson.items.map((row) => {
                     const active = selected?.id === row.id
+                    const meta = listMeta(row)
                     return (
                       <div
                         key={row.id}
-                        className={`rounded-[12px] border overflow-hidden bg-white/95 dark:bg-[hsl(var(--card))] ${
-                          active
-                            ? "border-[#0071e3]/35 ring-1 ring-[#0071e3]/20"
-                            : "border-black/[0.06]"
+                        className={`rounded-[10px] border overflow-hidden bg-white/95 dark:bg-[hsl(var(--card))] ${
+                          active ? "border-[#0071e3]/35 ring-1 ring-[#0071e3]/15" : "border-black/[0.06]"
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedId(row.id)
-                            setUpdateForm({
-                              message: "",
-                              status: draftStatus(row),
-                            })
+                            setUpdateForm({ message: "", status: draftStatus(row) })
                             attachFiles.forEach((f) => {
                               if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
                             })
                             setAttachFiles([])
                           }}
-                          className="w-full text-left px-3 py-2.5 hover:bg-black/[0.02] cursor-pointer"
+                          className="w-full text-left px-2.5 py-2 hover:bg-black/[0.02] cursor-pointer"
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-[13px] font-semibold tracking-tight truncate">{row.title}</p>
-                            <span
-                              className={`shrink-0 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
-                            >
-                              {statusLabel(row.status)}
+                            <p className="text-[12px] font-semibold tracking-tight truncate flex-1">{row.title}</p>
+                            <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}>
+                              {shortStatus(row.status)}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#86868b] mt-0.5 truncate">{cadenceLine(row)}</p>
+                          {meta ? <p className="text-[10px] text-[#86868b] mt-0.5 truncate">{meta}</p> : null}
                         </button>
-
                         {active && selected && (
-                          <div className="border-t border-black/[0.06] px-3 py-2.5 space-y-2 bg-[#f5f5f7]/70 dark:bg-white/[0.02]">
-                            <div className="flex items-center justify-between gap-2">
-                              {selected.description ? (
-                                <p className="text-[12px] text-[#6e6e73] line-clamp-2 min-w-0">
-                                  {selected.description}
-                                </p>
-                              ) : (
-                                <span />
-                              )}
+                          <div className="border-t border-black/[0.06] px-2.5 py-2 space-y-2 bg-[#f5f5f7]/70 dark:bg-white/[0.02]">
+                            <div className="flex justify-end">
                               <button
                                 type="button"
-                                className="h-7 shrink-0 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold text-red-600 hover:bg-red-500/10 cursor-pointer"
+                                className="h-6 w-6 inline-flex items-center justify-center rounded-full text-red-600 hover:bg-red-500/10 cursor-pointer"
                                 onClick={() => {
                                   if (!confirm("Delete this to-do?")) return
                                   void deleteTodo(selected.id)
@@ -1245,12 +1358,7 @@ export function TodosDashboard() {
                                 <Trash2 className="h-3 w-3" strokeWidth={1.75} />
                               </button>
                             </div>
-
-                            {renderFlags(selected)}
-                            {renderReminder(selected)}
-                            {renderAdminReview(selected)}
-                            {renderUpdateForm(selected)}
-                            {renderActivity(selected)}
+                            {renderDetailBody(selected)}
                           </div>
                         )}
                       </div>
@@ -1259,30 +1367,23 @@ export function TodosDashboard() {
                 </div>
               </div>
             ) : selected ? (
-              <div className="space-y-2.5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <h2 className="text-[15px] font-semibold tracking-tight">{selected.title}</h2>
-                      <span
-                        className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(selected.status)}`}
-                      >
-                        {statusLabel(selected.status)}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h2 className="text-[14px] font-semibold tracking-tight truncate">{selected.title}</h2>
+                      <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(selected.status)}`}>
+                        {shortStatus(selected.status)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#86868b] mt-0.5 truncate">
-                      {selected.assigneeName} · {cadenceLine(selected)}
+                    <p className="text-[10px] text-[#86868b] mt-0.5 truncate">
+                      {[selected.assigneeName, listMeta(selected)].filter(Boolean).join(" · ")}
                     </p>
-                    {selected.description ? (
-                      <p className="text-[12px] mt-2 rounded-[10px] bg-[#f2f2f7] dark:bg-white/[0.04] px-2.5 py-2 whitespace-pre-wrap leading-snug">
-                        {selected.description}
-                      </p>
-                    ) : null}
                   </div>
                   {isAdmin && (
                     <button
                       type="button"
-                      className="h-7 shrink-0 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold text-red-600 hover:bg-red-500/10 cursor-pointer"
+                      className="h-6 w-6 shrink-0 inline-flex items-center justify-center rounded-full text-red-600 hover:bg-red-500/10 cursor-pointer"
                       onClick={() => {
                         if (!confirm("Delete this to-do?")) return
                         void deleteTodo(selected.id)
@@ -1304,15 +1405,10 @@ export function TodosDashboard() {
                     </button>
                   )}
                 </div>
-
-                {renderFlags(selected)}
-                {renderReminder(selected)}
-                {renderAdminReview(selected)}
-                {renderUpdateForm(selected)}
-                {renderActivity(selected)}
+                {renderDetailBody(selected)}
               </div>
             ) : (
-              <div className="flex h-full min-h-[36vh] items-center justify-center text-[13px] text-[#86868b]">
+              <div className="flex h-full min-h-[28vh] items-center justify-center text-[13px] text-[#86868b]">
                 Select a task
               </div>
             )}
@@ -1359,7 +1455,7 @@ export function TodosDashboard() {
                   placeholder="Details"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <select
+                  <AppleSelect
                     value={form.cadence}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, cadence: e.target.value as TodoCadence }))
@@ -1371,7 +1467,7 @@ export function TodosDashboard() {
                         {o.label}
                       </option>
                     ))}
-                  </select>
+                  </AppleSelect>
                   <input
                     type="datetime-local"
                     value={form.dueAt}
@@ -1389,7 +1485,7 @@ export function TodosDashboard() {
                     required
                   />
                 )}
-                <select
+                <AppleSelect
                   value={form.assigneeUserId}
                   onChange={(e) => setForm((f) => ({ ...f, assigneeUserId: e.target.value }))}
                   className={appleSelect}
@@ -1401,7 +1497,7 @@ export function TodosDashboard() {
                       {u.name}
                     </option>
                   ))}
-                </select>
+                </AppleSelect>
               </div>
               <div className="shrink-0 border-t border-black/[0.06] px-4 py-3 flex items-center justify-end gap-1.5">
                 <button
