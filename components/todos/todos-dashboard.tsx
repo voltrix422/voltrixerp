@@ -153,6 +153,14 @@ function readTodoQueryId() {
   return new URLSearchParams(window.location.search).get("todo")?.trim() || ""
 }
 
+function clearTodoQueryId() {
+  if (typeof window === "undefined") return
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has("todo")) return
+  url.searchParams.delete("todo")
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+}
+
 function inDateRange(todo: Todo, from: string, to: string) {
   if (!from && !to) return true
   const key = todoDayKey(todo)
@@ -242,8 +250,15 @@ export function TodosDashboard() {
   const [users, setUsers] = useState<User[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
+  /** User-chosen task — silent refresh / filter sync must never yank this. */
+  const pinnedIdRef = useRef<string | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+
+  function pinTodo(id: string | null) {
+    pinnedIdRef.current = id
+    setSelectedId(id)
+  }
 
   const [form, setForm] = useState({
     title: "",
@@ -273,11 +288,27 @@ export function TodosDashboard() {
       ])
       setTodos(rows)
       setUsers(userRows)
-      const wantId = opts?.selectId || readTodoQueryId()
+
+      // Explicit select (notification / deep link) only when provided by caller
+      // or once on a non-silent load from ?todo= — then clear the query so
+      // focus/poll refreshes cannot steal the open task again.
+      let wantId = opts?.selectId?.trim() || ""
+      if (!wantId && !opts?.silent) {
+        wantId = readTodoQueryId()
+        if (wantId) clearTodoQueryId()
+      }
+
       setSelectedId((prev) => {
-        if (wantId && rows.some((t) => t.id === wantId)) return wantId
+        if (wantId && rows.some((t) => t.id === wantId)) {
+          pinnedIdRef.current = wantId
+          return wantId
+        }
+        const pinned = pinnedIdRef.current
+        if (pinned && rows.some((t) => t.id === pinned)) return pinned
         if (prev && rows.some((t) => t.id === prev)) return prev
-        return rows[0]?.id ?? null
+        // Never jump to rows[0] on silent refresh — that auto-opens another task.
+        if (opts?.silent) return prev
+        return null
       })
       if (wantId) {
         const hit = rows.find((t) => t.id === wantId)
@@ -305,7 +336,7 @@ export function TodosDashboard() {
 
   useEffect(() => {
     const onRefresh = () => {
-      void load({ silent: true, selectId: readTodoQueryId() })
+      void load({ silent: true })
     }
     const onVisible = () => {
       if (document.visibilityState === "visible") onRefresh()
@@ -422,18 +453,11 @@ export function TodosDashboard() {
   const teamMode = Boolean(isAdmin && view === "all")
 
   const selected = useMemo(() => {
-    // Always prefer the explicitly opened task from the full list so silent
-    // refresh / Today filters cannot yank the open detail closed.
-    if (selectedId) {
-      return todos.find((t) => t.id === selectedId) ?? null
-    }
-    if (teamMode && selectedPersonId) {
-      const person = peopleGroups.find((p) => p.userId === selectedPersonId)
-      return person?.items[0] ?? null
-    }
-    if (teamMode) return peopleGroups[0]?.items[0] ?? null
-    return filteredTodos[0] ?? null
-  }, [teamMode, selectedPersonId, peopleGroups, selectedId, filteredTodos, todos])
+    // Only the explicitly pinned/selected task — never fall back to items[0]
+    // (that made another task appear "open" on its own).
+    if (!selectedId) return null
+    return todos.find((t) => t.id === selectedId) ?? null
+  }, [selectedId, todos])
 
   const selectedPerson = useMemo(() => {
     if (!teamMode) return null
@@ -515,27 +539,32 @@ export function TodosDashboard() {
   }
 
   useEffect(() => {
-    // Keep a user-opened task pinned even if the active filter hides it.
-    if (selectedId && todos.some((t) => t.id === selectedId)) {
+    const pinned = pinnedIdRef.current
+    const activeId =
+      (selectedId && todos.some((t) => t.id === selectedId) && selectedId) ||
+      (pinned && todos.some((t) => t.id === pinned) && pinned) ||
+      null
+
+    if (activeId) {
+      if (selectedId !== activeId) setSelectedId(activeId)
       if (teamMode) {
-        const row = todos.find((t) => t.id === selectedId)
+        const row = todos.find((t) => t.id === activeId)
         if (row?.assigneeUserId && row.assigneeUserId !== selectedPersonId) {
           setSelectedPersonId(row.assigneeUserId)
         }
       }
       return
     }
-    if (teamMode) {
-      const person =
-        (selectedPersonId && peopleGroups.find((p) => p.userId === selectedPersonId)) ||
-        peopleGroups[0] ||
-        null
-      setSelectedPersonId(person?.userId ?? null)
-      setSelectedId(person?.items[0]?.id ?? null)
-      return
+
+    // Invalid / cleared selection — do NOT auto-open the first task.
+    if (selectedId) {
+      pinnedIdRef.current = null
+      setSelectedId(null)
     }
-    setSelectedId(filteredTodos[0]?.id ?? null)
-  }, [teamMode, peopleGroups, selectedPersonId, filteredTodos, selectedId, todos])
+    if (teamMode && !selectedPersonId && peopleGroups[0]) {
+      setSelectedPersonId(peopleGroups[0].userId)
+    }
+  }, [teamMode, peopleGroups, selectedPersonId, selectedId, todos])
 
   useEffect(() => {
     setReminderDraft(selected?.reminderTime || "")
@@ -546,11 +575,17 @@ export function TodosDashboard() {
   function openPerson(userId: string) {
     const person = peopleGroups.find((p) => p.userId === userId)
     setSelectedPersonId(userId)
-    setSelectedId(person?.items[0]?.id ?? null)
+    // Keep current pin if it belongs to this person; otherwise open first item.
+    const keep =
+      pinnedIdRef.current && person?.items.some((t) => t.id === pinnedIdRef.current)
+        ? pinnedIdRef.current
+        : person?.items[0]?.id ?? null
+    pinTodo(keep)
     setMobileDetail(true)
+    const keepRow = person?.items.find((t) => t.id === keep) ?? person?.items[0]
     setUpdateForm({
       message: "",
-      status: person?.items[0] ? draftStatus(person.items[0]) : "in_progress",
+      status: keepRow ? draftStatus(keepRow) : "in_progress",
     })
     attachFiles.forEach((f) => {
       if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -577,7 +612,8 @@ export function TodosDashboard() {
   }
 
   function openTodo(row: Todo) {
-    setSelectedId(row.id)
+    pinTodo(row.id)
+    if (row.assigneeUserId) setSelectedPersonId(row.assigneeUserId)
     setMobileDetail(true)
     setUpdateForm({
       message: "",
@@ -614,7 +650,7 @@ export function TodosDashboard() {
       setForm({ title: "", description: "", cadence: "daily", dueAt: "", reminderTime: "09:00", assigneeUserId: "" })
       await load()
       setSelectedPersonId(assignee.id)
-      setSelectedId(created.id)
+      pinTodo(created.id)
       setMobileDetail(true)
     } catch (err) {
       toast({
@@ -1319,7 +1355,7 @@ export function TodosDashboard() {
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedId(row.id)
+                            pinTodo(row.id)
                             setUpdateForm({ message: "", status: draftStatus(row) })
                             attachFiles.forEach((f) => {
                               if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -1388,7 +1424,7 @@ export function TodosDashboard() {
                         if (!confirm("Delete this to-do?")) return
                         void deleteTodo(selected.id)
                           .then(() => {
-                            setSelectedId(null)
+                            pinTodo(null)
                             setMobileDetail(false)
                             return load()
                           })
