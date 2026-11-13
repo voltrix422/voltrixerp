@@ -21,10 +21,6 @@ async function loadActor(userId: unknown) {
   })
 }
 
-function canView(role: string | undefined | null) {
-  return isChinaMoneyUser(role) || isErpAdmin(role)
-}
-
 function canWrite(role: string | undefined | null) {
   return canManageChinaMoney(role)
 }
