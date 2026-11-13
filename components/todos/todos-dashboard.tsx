@@ -57,10 +57,11 @@ function fmtShort(iso: string | null) {
 }
 
 function statusClass(status: string) {
-  if (status === "done") return "bg-emerald-500/12 text-emerald-700"
-  if (status === "pending_approval") return "bg-violet-500/12 text-violet-800"
-  if (status === "in_progress") return "bg-sky-500/12 text-sky-800"
-  return "bg-amber-500/12 text-amber-800"
+  if (status === "done") return "bg-emerald-500/15 text-emerald-700"
+  if (status === "pending_approval") return "bg-violet-500/15 text-violet-800"
+  if (status === "in_progress") return "bg-sky-500/15 text-sky-800"
+  // Open — distinct warm orange so active work stands out
+  return "bg-[#ff9f0a]/22 text-[#b25000]"
 }
 
 function shortStatus(status: string) {
@@ -68,6 +69,47 @@ function shortStatus(status: string) {
   if (status === "pending_approval") return "Pending"
   if (status === "done") return "Done"
   return "Open"
+}
+
+/** Row / card surface tint by status (open = warm orange). */
+function statusSurface(status: string, selected: boolean) {
+  if (status === "open") {
+    return selected
+      ? "bg-[#ff9f0a]/16 border-[#ff9f0a]/45 ring-1 ring-[#ff9f0a]/25"
+      : "bg-[#ff9f0a]/[0.08] border-[#ff9f0a]/25 hover:bg-[#ff9f0a]/14"
+  }
+  if (status === "in_progress") {
+    return selected
+      ? "bg-sky-500/12 border-sky-400/40 ring-1 ring-sky-400/20"
+      : "bg-sky-500/[0.04] border-black/[0.06] hover:bg-sky-500/[0.08]"
+  }
+  if (status === "pending_approval") {
+    return selected
+      ? "bg-violet-500/12 border-violet-400/40 ring-1 ring-violet-400/20"
+      : "bg-violet-500/[0.04] border-black/[0.06] hover:bg-violet-500/[0.08]"
+  }
+  if (status === "done") {
+    return selected
+      ? "bg-emerald-500/12 border-emerald-400/40 ring-1 ring-emerald-400/20"
+      : "bg-emerald-500/[0.04] border-black/[0.06] hover:bg-emerald-500/[0.07]"
+  }
+  return selected
+    ? "bg-[#0071e3]/08 border-[#0071e3]/35 ring-1 ring-[#0071e3]/15"
+    : "border-black/[0.06] hover:bg-black/[0.02]"
+}
+
+function personSurface(hasOpen: boolean, hasPending: boolean, selected: boolean) {
+  if (hasOpen) {
+    return selected
+      ? "bg-[#ff9f0a]/16 border-l-[3px] border-l-[#ff9f0a]"
+      : "bg-[#ff9f0a]/[0.07] border-l-[3px] border-l-[#ff9f0a]/80 hover:bg-[#ff9f0a]/12"
+  }
+  if (hasPending) {
+    return selected
+      ? "bg-violet-500/12 border-l-[3px] border-l-violet-500"
+      : "bg-violet-500/[0.05] border-l-[3px] border-l-violet-400/70 hover:bg-violet-500/[0.09]"
+  }
+  return selected ? "bg-[#0071e3]/08" : "hover:bg-black/[0.02]"
 }
 
 const appleField =
@@ -1271,24 +1313,44 @@ export function TodosDashboard() {
               {teamMode
                 ? peopleGroups.map((person) => {
                     const active = selectedPersonId === person.userId
+                    const hasOpen = person.open > 0
                     return (
                       <button
                         key={person.userId}
                         type="button"
                         onClick={() => openPerson(person.userId)}
-                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
-                          active ? "bg-[#0071e3]/08" : "hover:bg-black/[0.02]"
-                        }`}
+                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${personSurface(
+                          hasOpen,
+                          person.pending > 0,
+                          active,
+                        )}`}
                       >
                         <div className="flex items-center gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[12px] font-semibold tracking-tight truncate">{person.name}</p>
+                            <p
+                              className={`text-[12px] font-semibold tracking-tight truncate ${
+                                hasOpen ? "text-[#b25000]" : ""
+                              }`}
+                            >
+                              {person.name}
+                            </p>
                             <p className="text-[10px] text-[#86868b] tabular-nums">
                               {person.items.length}
-                              {person.pending > 0 ? ` · ${person.pending} pending` : ""}
+                              {hasOpen ? (
+                                <span className="text-[#c65c00] font-semibold"> · {person.open} open</span>
+                              ) : null}
+                              {person.pending > 0 ? (
+                                <span className="text-violet-700"> · {person.pending} pending</span>
+                              ) : null}
                             </p>
                           </div>
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
+                          {hasOpen ? (
+                            <span className="h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full bg-[#ff9f0a]/25 text-[10px] font-bold text-[#b25000] tabular-nums">
+                              {person.open}
+                            </span>
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
+                          )}
                         </div>
                       </button>
                     )
@@ -1301,12 +1363,19 @@ export function TodosDashboard() {
                         key={row.id}
                         type="button"
                         onClick={() => openTodo(row)}
-                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
-                          active ? "bg-[#0071e3]/08" : "hover:bg-black/[0.02]"
-                        }`}
+                        className={`w-full text-left px-3 py-2 border-y border-transparent transition-colors cursor-pointer ${statusSurface(
+                          row.status,
+                          active,
+                        )}`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <p className="text-[12px] font-semibold tracking-tight truncate flex-1">{row.title}</p>
+                          <p
+                            className={`text-[12px] font-semibold tracking-tight truncate flex-1 ${
+                              row.status === "open" ? "text-[#b25000]" : ""
+                            }`}
+                          >
+                            {row.title}
+                          </p>
                           <span
                             className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
                           >
@@ -1348,9 +1417,7 @@ export function TodosDashboard() {
                     return (
                       <div
                         key={row.id}
-                        className={`rounded-[10px] border overflow-hidden bg-white/95 dark:bg-[hsl(var(--card))] ${
-                          active ? "border-[#0071e3]/35 ring-1 ring-[#0071e3]/15" : "border-black/[0.06]"
-                        }`}
+                        className={`rounded-[10px] border overflow-hidden ${statusSurface(row.status, active)}`}
                       >
                         <button
                           type="button"
@@ -1362,10 +1429,16 @@ export function TodosDashboard() {
                             })
                             setAttachFiles([])
                           }}
-                          className="w-full text-left px-2.5 py-2 hover:bg-black/[0.02] cursor-pointer"
+                          className="w-full text-left px-2.5 py-2 cursor-pointer"
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-[12px] font-semibold tracking-tight truncate flex-1">{row.title}</p>
+                            <p
+                              className={`text-[12px] font-semibold tracking-tight truncate flex-1 ${
+                                row.status === "open" ? "text-[#b25000]" : ""
+                              }`}
+                            >
+                              {row.title}
+                            </p>
                             <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}>
                               {shortStatus(row.status)}
                             </span>
@@ -1373,7 +1446,13 @@ export function TodosDashboard() {
                           {meta ? <p className="text-[10px] text-[#86868b] mt-0.5 truncate">{meta}</p> : null}
                         </button>
                         {active && selected && (
-                          <div className="border-t border-black/[0.06] px-2.5 py-2 space-y-2 bg-[#f5f5f7]/70 dark:bg-white/[0.02]">
+                          <div
+                            className={`border-t px-2.5 py-2 space-y-2 ${
+                              selected.status === "open"
+                                ? "border-[#ff9f0a]/25 bg-[#ff9f0a]/[0.06]"
+                                : "border-black/[0.06] bg-[#f5f5f7]/70 dark:bg-white/[0.02]"
+                            }`}
+                          >
                             <div className="flex justify-end">
                               <button
                                 type="button"
