@@ -1,12 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import { createPortal } from "react-dom"
 import {
   ArrowLeft,
   CalendarClock,
   CheckSquare,
   ChevronRight,
-  ClipboardList,
   Download,
   Loader2,
   Paperclip,
@@ -15,7 +15,6 @@ import {
   Upload,
   X,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { getUsers, roleHasAllModules, type User } from "@/lib/auth"
@@ -49,11 +48,18 @@ function fmtWhen(iso: string | null) {
 }
 
 function statusClass(status: string) {
-  if (status === "done") return "bg-emerald-500/15 text-emerald-700"
-  if (status === "pending_approval") return "bg-violet-500/15 text-violet-800"
-  if (status === "in_progress") return "bg-sky-500/15 text-sky-800"
-  return "bg-amber-500/15 text-amber-800"
+  if (status === "done") return "bg-emerald-500/12 text-emerald-700"
+  if (status === "pending_approval") return "bg-violet-500/12 text-violet-800"
+  if (status === "in_progress") return "bg-sky-500/12 text-sky-800"
+  return "bg-amber-500/12 text-amber-800"
 }
+
+const appleField =
+  "w-full h-8 rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+const appleTextarea =
+  "w-full rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 py-2 text-[12px] tracking-tight resize-none focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+const appleSelect =
+  "w-full h-8 appearance-none rounded-[9px] border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] pl-2.5 pr-7 text-[12px] tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 cursor-pointer"
 
 function draftStatus(row: Todo): TodoStatus {
   if (row.status === "done" || row.status === "pending_approval" || row.status === "open" || row.status === "in_progress") {
@@ -120,51 +126,46 @@ function FileUploader({
 }) {
   const ref = useRef<HTMLInputElement>(null)
   return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-        Supporting attachments
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {files.map((f, i) => (
-          <div
-            key={f.preview}
-            className="relative h-14 w-14 rounded-lg overflow-hidden border bg-[hsl(var(--muted))]/20 flex items-center justify-center"
-          >
-            {f.file.type.startsWith("image/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={f.preview} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <Paperclip className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            )}
-            <button
-              type="button"
-              onClick={() => onRemove(i)}
-              className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => ref.current?.click()}
-          className="h-14 w-14 rounded-lg border border-dashed flex flex-col items-center justify-center gap-0.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30"
+    <div className="flex flex-wrap gap-1.5">
+      {files.map((f, i) => (
+        <div
+          key={f.preview}
+          className="relative h-11 w-11 rounded-[8px] overflow-hidden border border-black/[0.06] bg-[#f2f2f7] flex items-center justify-center"
         >
-          <Upload className="h-4 w-4" />
-          <span className="text-[9px]">Add</span>
-        </button>
-        <input
-          ref={ref}
-          type="file"
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            onAdd(e.target.files)
-            e.target.value = ""
-          }}
-        />
-      </div>
+          {f.file.type.startsWith("image/") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={f.preview} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Paperclip className="h-3.5 w-3.5 text-[#86868b]" />
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(i)}
+            className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/55 text-white flex items-center justify-center cursor-pointer"
+          >
+            <X className="h-2.5 w-2.5" strokeWidth={2.5} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        className="h-11 w-11 rounded-[8px] border border-dashed border-black/[0.12] flex items-center justify-center text-[#86868b] hover:bg-black/[0.03] cursor-pointer"
+        aria-label="Add attachment"
+      >
+        <Upload className="h-3.5 w-3.5" strokeWidth={1.75} />
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          onAdd(e.target.files)
+          e.target.value = ""
+        }}
+      />
     </div>
   )
 }
@@ -257,7 +258,7 @@ export function TodosDashboard() {
     window.addEventListener("focus", onRefresh)
     window.addEventListener("voltrix-todos-refresh", onRefresh)
     document.addEventListener("visibilitychange", onVisible)
-    const interval = window.setInterval(onRefresh, 12000)
+    const interval = window.setInterval(onRefresh, 45000)
     return () => {
       window.removeEventListener("focus", onRefresh)
       window.removeEventListener("voltrix-todos-refresh", onRefresh)
@@ -341,28 +342,47 @@ export function TodosDashboard() {
 
   const teamMode = Boolean(isAdmin && view === "all")
 
+  const selected = useMemo(() => {
+    // Always prefer the explicitly opened task from the full list so silent
+    // refresh / Today filters cannot yank the open detail closed.
+    if (selectedId) {
+      return todos.find((t) => t.id === selectedId) ?? null
+    }
+    if (teamMode && selectedPersonId) {
+      const person = peopleGroups.find((p) => p.userId === selectedPersonId)
+      return person?.items[0] ?? null
+    }
+    if (teamMode) return peopleGroups[0]?.items[0] ?? null
+    return filteredTodos[0] ?? null
+  }, [teamMode, selectedPersonId, peopleGroups, selectedId, filteredTodos, todos])
+
   const selectedPerson = useMemo(() => {
     if (!teamMode) return null
-    if (selectedPersonId) {
-      return peopleGroups.find((p) => p.userId === selectedPersonId) ?? null
-    }
-    return peopleGroups[0] ?? null
-  }, [teamMode, selectedPersonId, peopleGroups])
-
-  const selected = useMemo(() => {
-    if (teamMode && selectedPerson) {
-      return (
-        selectedPerson.items.find((t) => t.id === selectedId) ??
-        selectedPerson.items[0] ??
-        null
-      )
-    }
-    return (
-      filteredTodos.find((t) => t.id === selectedId) ??
-      todos.find((t) => t.id === selectedId) ??
+    const fromGroups =
+      (selectedPersonId && peopleGroups.find((p) => p.userId === selectedPersonId)) ||
+      (!selectedPersonId ? peopleGroups[0] : null) ||
       null
-    )
-  }, [teamMode, selectedPerson, selectedId, filteredTodos, todos])
+    if (fromGroups) {
+      // Keep a pinned open task visible even if the active tab filters it out.
+      if (selected && selected.assigneeUserId === fromGroups.userId) {
+        if (!fromGroups.items.some((t) => t.id === selected.id)) {
+          return { ...fromGroups, items: [selected, ...fromGroups.items] }
+        }
+      }
+      return fromGroups
+    }
+    if (selected && selected.assigneeUserId) {
+      return {
+        userId: selected.assigneeUserId,
+        name: selected.assigneeName,
+        items: [selected],
+        open: selected.status === "done" || selected.status === "pending_approval" ? 0 : 1,
+        pending: selected.status === "pending_approval" ? 1 : 0,
+        done: selected.status === "done" ? 1 : 0,
+      }
+    }
+    return null
+  }, [teamMode, selectedPersonId, peopleGroups, selected])
 
   const stats = useMemo(() => {
     const open = filteredTodos.filter((t) => t.status === "open").length
@@ -414,21 +434,27 @@ export function TodosDashboard() {
   }
 
   useEffect(() => {
-    if (teamMode) {
-      if (selectedPersonId && peopleGroups.some((p) => p.userId === selectedPersonId)) {
-        const person = peopleGroups.find((p) => p.userId === selectedPersonId)
-        if (person && selectedId && person.items.some((t) => t.id === selectedId)) return
-        setSelectedId(person?.items[0]?.id ?? null)
-        return
+    // Keep a user-opened task pinned even if the active filter hides it.
+    if (selectedId && todos.some((t) => t.id === selectedId)) {
+      if (teamMode) {
+        const row = todos.find((t) => t.id === selectedId)
+        if (row?.assigneeUserId && row.assigneeUserId !== selectedPersonId) {
+          setSelectedPersonId(row.assigneeUserId)
+        }
       }
-      const first = peopleGroups[0]
-      setSelectedPersonId(first?.userId ?? null)
-      setSelectedId(first?.items[0]?.id ?? null)
       return
     }
-    if (selectedId && filteredTodos.some((t) => t.id === selectedId)) return
+    if (teamMode) {
+      const person =
+        (selectedPersonId && peopleGroups.find((p) => p.userId === selectedPersonId)) ||
+        peopleGroups[0] ||
+        null
+      setSelectedPersonId(person?.userId ?? null)
+      setSelectedId(person?.items[0]?.id ?? null)
+      return
+    }
     setSelectedId(filteredTodos[0]?.id ?? null)
-  }, [teamMode, peopleGroups, selectedPersonId, filteredTodos, selectedId])
+  }, [teamMode, peopleGroups, selectedPersonId, filteredTodos, selectedId, todos])
 
   useEffect(() => {
     setReminderDraft(selected?.reminderTime || "")
@@ -686,29 +712,39 @@ export function TodosDashboard() {
 
   function cadenceLine(row: Todo) {
     const reminder = formatReminderTime(row.reminderTime)
-    return `${cadenceLabel(row.cadence)}${reminder ? ` · reminder ${reminder}` : ""}${row.dueAt ? ` · due ${fmtWhen(row.dueAt)}` : ""}`
+    return `${cadenceLabel(row.cadence)}${reminder ? ` · ${reminder}` : ""}${row.dueAt ? ` · ${fmtWhen(row.dueAt)}` : ""}`
   }
 
   function renderFlags(todo: Todo) {
+    const chips: { key: string; label: string; className: string }[] = []
+    if (todo.status === "pending_approval") {
+      chips.push({
+        key: "pending",
+        label: todo.submittedAt ? `Pending · ${fmtWhen(todo.submittedAt)}` : "Pending approval",
+        className: "bg-violet-500/12 text-violet-800",
+      })
+    }
+    if (todo.latePenaltyPoints > 0) {
+      chips.push({
+        key: "late",
+        label: `Late −${todo.latePenaltyPoints}`,
+        className: "bg-amber-500/12 text-amber-900",
+      })
+    }
+    if (isOverdue(todo) && todo.status !== "pending_approval") {
+      chips.push({ key: "overdue", label: "Overdue", className: "bg-red-500/12 text-red-800" })
+    }
+    if (!chips.length) return null
     return (
-      <div className="space-y-1.5">
-        {todo.status === "pending_approval" && (
-          <p className="text-[11px] rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-violet-900">
-            Submitted for admin approval
-            {todo.submittedAt ? ` · ${fmtWhen(todo.submittedAt)}` : ""}.
-          </p>
-        )}
-        {todo.latePenaltyPoints > 0 && (
-          <p className="text-[11px] rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
-            Late submission — {todo.latePenaltyPoints} HRM performance point
-            {todo.latePenaltyPoints === 1 ? "" : "s"} deducted.
-          </p>
-        )}
-        {isOverdue(todo) && todo.status !== "pending_approval" && (
-          <p className="text-[11px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-900">
-            Overdue — submitting now deducts HRM points unless an admin extends the due date.
-          </p>
-        )}
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map((c) => (
+          <span
+            key={c.key}
+            className={`h-6 inline-flex items-center rounded-full px-2 text-[10px] font-semibold tracking-tight ${c.className}`}
+          >
+            {c.label}
+          </span>
+        ))}
       </div>
     )
   }
@@ -716,67 +752,53 @@ export function TodosDashboard() {
   function renderAdminReview(todo: Todo) {
     if (!isAdmin || todo.status === "done") return null
     return (
-      <div className="rounded-xl border border-[#1faca6]/30 bg-[#1faca6]/5 px-3 py-3 space-y-2.5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#17857f]">
-          Admin review
-        </p>
+      <div className="rounded-[12px] border border-[#0071e3]/20 bg-[#0071e3]/[0.04] px-3 py-2.5 space-y-2">
         {todo.status === "pending_approval" && (
           <>
             <textarea
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
               rows={2}
-              className="w-full rounded-md border px-3 py-2 text-sm resize-none"
-              placeholder="Approval or send-back note (optional)…"
+              className={appleTextarea}
+              placeholder="Note (optional)"
             />
-            <div className="flex flex-wrap gap-2">
-              <Button
+            <div className="flex flex-wrap gap-1.5">
+              <button
                 type="button"
-                size="sm"
-                className="h-9 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+                className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
                 disabled={saving}
                 onClick={() => void submitApprove(todo)}
               >
                 Approve
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                size="sm"
-                variant="outline"
-                className="h-9 text-xs"
+                className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
                 disabled={saving}
                 onClick={() => void submitReject(todo)}
               >
                 Send back
-              </Button>
+              </button>
             </div>
           </>
         )}
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[180px] flex-1">
-            <label className="text-[11px] font-medium">Extend due date</label>
-            <input
-              type="datetime-local"
-              value={extendDraft}
-              onChange={(e) => setExtendDraft(e.target.value)}
-              className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
-            />
-          </div>
-          <Button
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            type="datetime-local"
+            value={extendDraft}
+            onChange={(e) => setExtendDraft(e.target.value)}
+            className={`${appleField} min-w-[11rem] flex-1`}
+          />
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 text-xs gap-1"
+            className="h-8 inline-flex items-center gap-1 rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
             disabled={saving}
             onClick={() => void submitExtend(todo)}
           >
-            <CalendarClock className="h-3.5 w-3.5" />
+            <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.75} />
             Extend
-          </Button>
+          </button>
         </div>
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Extending past the submit time waives an already-applied late penalty.
-        </p>
       </div>
     )
   }
@@ -795,73 +817,171 @@ export function TodosDashboard() {
   function renderReminder(todo: Todo) {
     if (!isRecurringCadence(todo.cadence) || !canUpdate(todo)) return null
     return (
-      <div className="rounded-xl border px-3 py-2.5 space-y-1.5">
-        <p className="text-[11px] font-medium">Reminder time (Pakistan)</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="time"
-            value={reminderDraft}
-            onChange={(e) => setReminderDraft(e.target.value)}
-            className="h-9 rounded-md border px-3 text-sm"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 text-xs"
-            disabled={saving}
-            onClick={() => void saveReminder(todo)}
-          >
-            Save reminder
-          </Button>
-        </div>
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          ERP notifies the assignee at this time each {todo.cadence === "daily" ? "day" : todo.cadence === "weekly" ? "week" : "month"} until the task is marked done.
-        </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
+          type="time"
+          value={reminderDraft}
+          onChange={(e) => setReminderDraft(e.target.value)}
+          className={`${appleField} w-auto`}
+        />
+        <button
+          type="button"
+          className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+          disabled={saving}
+          onClick={() => void saveReminder(todo)}
+        >
+          Reminder
+        </button>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-[#1faca6]">
-            <ClipboardList className="h-5 w-5" />
-            <p className="text-xs font-semibold uppercase tracking-wide">To-do list</p>
+  function renderActivity(todo: Todo) {
+    if (todo.updates.length === 0) {
+      return <p className="text-[11px] text-[#86868b]">No activity</p>
+    }
+    return (
+      <div className="space-y-1.5 max-h-[220px] overflow-y-auto scrollbar-none pr-0.5">
+        {todo.updates.map((u) => (
+          <div
+            key={u.id}
+            className="rounded-[10px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] px-2.5 py-2 space-y-1.5"
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span
+                className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(u.status)}`}
+              >
+                {statusLabel(u.status)}
+              </span>
+              <span className="text-[10px] text-[#86868b]">
+                {fmtWhen(u.createdAt)}
+                {u.createdBy ? ` · ${u.createdBy}` : ""}
+              </span>
+            </div>
+            {u.message ? <p className="text-[12px] whitespace-pre-wrap leading-snug">{u.message}</p> : null}
+            {u.attachmentUrls.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {u.attachmentUrls.map((url) => {
+                  const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
+                  return (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-12 w-12 rounded-[8px] border border-black/[0.06] overflow-hidden flex items-center justify-center bg-[#f2f2f7]"
+                    >
+                      {isImg ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Paperclip className="h-3.5 w-3.5 text-[#86868b]" />
+                      )}
+                    </a>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
-            {isAdmin
-              ? "Assign tasks, approve submissions, and extend due dates. Late submits deduct HRM performance points unless you grant an extension."
-              : "Your assigned tasks. Submit for admin approval. Late submits automatically deduct HRM performance points."}
-          </p>
+        ))}
+      </div>
+    )
+  }
+
+  function renderUpdateForm(todo: Todo) {
+    if (!canUpdate(todo) || todo.status === "done") return null
+    return (
+      <form onSubmit={submitUpdate} className="rounded-[12px] border border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] p-2.5 space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-2">
+          <select
+            value={updateForm.status}
+            onChange={(e) =>
+              setUpdateForm((f) => ({
+                ...f,
+                status: e.target.value as TodoStatus,
+              }))
+            }
+            className={appleSelect}
+          >
+            {statusOptions(Boolean(isAdmin))}
+          </select>
+          <textarea
+            value={updateForm.message}
+            onChange={(e) => setUpdateForm((f) => ({ ...f, message: e.target.value }))}
+            rows={2}
+            className={appleTextarea}
+            placeholder="Note…"
+          />
         </div>
-        <div className="flex flex-wrap gap-2 text-[11px]">
-          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
-            <span className="text-[hsl(var(--muted-foreground))]">Total </span>
-            <strong>{stats.count}</strong>
+        <FileUploader
+          files={attachFiles}
+          onAdd={(list) => addFiles(list, setAttachFiles)}
+          onRemove={(i) => removeFile(i, setAttachFiles)}
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckSquare className="h-3.5 w-3.5" strokeWidth={1.75} />}
+          {updateForm.status === "pending_approval"
+            ? "Submit"
+            : updateForm.status === "done"
+              ? "Done"
+              : "Save"}
+        </button>
+      </form>
+    )
+  }
+
+  const applePill =
+    "h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] text-[#1d1d1f] dark:text-[hsl(var(--foreground))] hover:bg-black/[0.04] disabled:opacity-40 cursor-pointer"
+  const segActive =
+    "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+  const segIdle = "text-[#6e6e73] hover:text-[#1d1d1f]"
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="inline-flex items-center gap-2 min-w-0">
+          <span className="h-8 w-8 rounded-[10px] bg-[#0071e3]/10 inline-flex items-center justify-center shrink-0">
+            <CheckSquare className="h-4 w-4 text-[#0071e3]" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))] leading-tight">
+              To-do
+            </h2>
+            <p className="text-[11px] text-[#86868b] tabular-nums">
+              {stats.count} · {stats.open} open · {stats.pending} pending · {stats.done} done
+            </p>
           </div>
-          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
-            <span className="text-[hsl(var(--muted-foreground))]">Open </span>
-            <strong className="text-amber-700">{stats.open}</strong>
-          </div>
-          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
-            <span className="text-[hsl(var(--muted-foreground))]">In progress </span>
-            <strong className="text-sky-700">{stats.progress}</strong>
-          </div>
-          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
-            <span className="text-[hsl(var(--muted-foreground))]">Pending </span>
-            <strong className="text-violet-700">{stats.pending}</strong>
-          </div>
-          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
-            <span className="text-[hsl(var(--muted-foreground))]">Done </span>
-            <strong className="text-emerald-700">{stats.done}</strong>
-          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                className={applePill}
+                disabled={exportingPdf || loading}
+                onClick={() => void handleExportPdf()}
+              >
+                {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                PDF
+              </button>
+              <button
+                type="button"
+                className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold tracking-tight bg-[#1d1d1f] hover:bg-black text-white cursor-pointer"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border overflow-hidden text-xs">
+        <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
           {(
             [
               { id: "today" as const, label: "Today" },
@@ -873,8 +993,8 @@ export function TodosDashboard() {
               key={tab.id}
               type="button"
               onClick={() => setPeriod(tab.id)}
-              className={`px-3 py-2 ${
-                period === tab.id ? "bg-[#1faca6] text-white" : "bg-[hsl(var(--card))]"
+              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                period === tab.id ? segActive : segIdle
               }`}
             >
               {tab.label}
@@ -882,11 +1002,13 @@ export function TodosDashboard() {
           ))}
         </div>
         {isAdmin && (
-          <div className="inline-flex rounded-lg border overflow-hidden text-xs">
+          <div className="inline-flex items-center gap-0.5 rounded-full bg-[#e8e8ed] dark:bg-white/10 p-0.5">
             <button
               type="button"
               onClick={() => setView("all")}
-              className={`px-3 py-2 ${view === "all" ? "bg-[hsl(var(--muted))]" : "bg-[hsl(var(--card))]"}`}
+              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                view === "all" ? segActive : segIdle
+              }`}
             >
               Team
             </button>
@@ -896,7 +1018,9 @@ export function TodosDashboard() {
                 setView("mine")
                 setFilterUserId("all")
               }}
-              className={`px-3 py-2 ${view === "mine" ? "bg-[hsl(var(--muted))]" : "bg-[hsl(var(--card))]"}`}
+              className={`px-3 py-1.5 text-[11px] font-semibold tracking-tight rounded-full transition-colors cursor-pointer ${
+                view === "mine" ? segActive : segIdle
+              }`}
             >
               Mine
             </button>
@@ -906,9 +1030,9 @@ export function TodosDashboard() {
           <select
             value={filterUserId}
             onChange={(e) => setFilterUserId(e.target.value)}
-            className="h-9 rounded-lg border bg-[hsl(var(--card))] px-2 text-xs min-w-[160px]"
+            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-3 text-[11px] font-semibold tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25 min-w-[9rem]"
           >
-            <option value="all">All users</option>
+            <option value="all">Everyone</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
@@ -916,83 +1040,49 @@ export function TodosDashboard() {
             ))}
           </select>
         )}
-        {isAdmin && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 text-xs gap-1"
-              disabled={exportingPdf || loading}
-              onClick={() => void handleExportPdf()}
-              title="Download PDF overview of people, statuses, overdue, and pending approvals"
+        <div className="flex items-center gap-1.5 ml-auto">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+          />
+          <span className="text-[10px] text-[#aeaeb2]">–</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 rounded-full border-0 bg-[#f2f2f7] dark:bg-[hsl(var(--background))] px-2.5 text-[11px] font-medium tracking-tight focus:outline-none focus:ring-2 focus:ring-[#0071e3]/25"
+          />
+          {(dateFrom || dateTo || filterUserId !== "all") && (
+            <button
+              type="button"
+              className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-[#0071e3] cursor-pointer hover:bg-[#0071e3]/08"
+              onClick={() => {
+                setDateFrom("")
+                setDateTo("")
+                setFilterUserId("all")
+              }}
             >
-              {exportingPdf ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              {exportingPdf ? "Exporting…" : "Export PDF"}
-            </Button>
-            <Button
-              size="sm"
-              className="h-9 text-xs gap-1 bg-[#1faca6] hover:bg-[#17857f] text-white"
-              onClick={() => setShowCreate(true)}
-            >
-              <Plus className="h-3.5 w-3.5" /> Assign to-do
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-[hsl(var(--card))] px-3 py-2.5">
-        <span className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Date range</span>
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="h-8 rounded-md border px-2 text-xs"
-        />
-        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="h-8 rounded-md border px-2 text-xs"
-        />
-        {(dateFrom || dateTo || filterUserId !== "all") && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-8 text-[10px]"
-            onClick={() => {
-              setDateFrom("")
-              setDateTo("")
-              setFilterUserId("all")
-            }}
-          >
-            Clear filters
-          </Button>
-        )}
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-24 text-sm text-[hsl(var(--muted-foreground))]">
+        <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-[#86868b]">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
       ) : filteredTodos.length === 0 ? (
-        <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-16">
-          {period === "today" ? "No to-dos for this date filter." : "No to-dos match these filters."}
-        </p>
+        <div className="rounded-[16px] border border-dashed border-black/[0.08] py-16 text-center text-[13px] text-[#86868b]">
+          No to-dos
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)] gap-4 min-h-[60vh]">
-          <div className={`space-y-2 ${mobileDetail ? "hidden lg:block" : "block"}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-3 min-h-[58vh]">
+          <div className={`space-y-1.5 ${mobileDetail ? "hidden lg:block" : "block"}`}>
             {teamMode ? (
               <>
-                <p className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-                  People · {period === "today" ? "today" : period}
-                  {dateFrom || dateTo ? " · date filter" : ""} — tap a name · {peopleGroups.length}
-                </p>
                 {peopleGroups.map((person) => {
                   const active = selectedPersonId === person.userId
                   return (
@@ -1000,30 +1090,27 @@ export function TodosDashboard() {
                       key={person.userId}
                       type="button"
                       onClick={() => openPerson(person.userId)}
-                      className={`w-full text-left rounded-xl border px-3.5 py-3 transition-colors ${
+                      className={`w-full text-left rounded-[14px] border px-3 py-2.5 transition-colors cursor-pointer ${
                         active
-                          ? "border-[#1faca6] bg-[#1faca6]/8 ring-1 ring-[#1faca6]/30"
-                          : "hover:bg-[hsl(var(--muted))]/25"
+                          ? "border-[#0071e3]/35 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/20"
+                          : "border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]"
                       }`}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold truncate">{person.name}</p>
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {person.items.length} to-do{person.items.length === 1 ? "" : "s"}
-                            {" · "}
-                            <span className="text-amber-700">{person.open} open</span>
+                          <p className="text-[13px] font-semibold tracking-tight truncate text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                            {person.name}
+                          </p>
+                          <p className="text-[11px] text-[#86868b] tabular-nums mt-0.5">
+                            {person.items.length}
+                            <span className="text-amber-700"> · {person.open}</span>
                             {person.pending > 0 ? (
-                              <>
-                                {" · "}
-                                <span className="text-violet-700">{person.pending} pending</span>
-                              </>
+                              <span className="text-violet-700"> · {person.pending}</span>
                             ) : null}
-                            {" · "}
-                            <span className="text-emerald-700">{person.done} done</span>
+                            <span className="text-emerald-700"> · {person.done}</span>
                           </p>
                         </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-1" />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
                       </div>
                     </button>
                   )
@@ -1031,9 +1118,6 @@ export function TodosDashboard() {
               </>
             ) : (
               <>
-                <p className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-                  Your to-dos — tap to open · {filteredTodos.length}
-                </p>
                 {filteredTodos.map((row) => {
                   const active = selectedId === row.id
                   return (
@@ -1041,27 +1125,25 @@ export function TodosDashboard() {
                       key={row.id}
                       type="button"
                       onClick={() => openTodo(row)}
-                      className={`w-full text-left rounded-xl border px-3.5 py-3 transition-colors ${
+                      className={`w-full text-left rounded-[14px] border px-3 py-2.5 transition-colors cursor-pointer ${
                         active
-                          ? "border-[#1faca6] bg-[#1faca6]/8 ring-1 ring-[#1faca6]/30"
-                          : "hover:bg-[hsl(var(--muted))]/25"
+                          ? "border-[#0071e3]/35 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/20"
+                          : "border-black/[0.06] bg-white/90 dark:bg-[hsl(var(--card))] hover:bg-black/[0.02]"
                       }`}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold truncate">{row.title}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-[13px] font-semibold tracking-tight truncate">{row.title}</p>
                             <span
-                              className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusClass(row.status)}`}
+                              className={`shrink-0 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
                             >
                               {statusLabel(row.status)}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {cadenceLine(row)}
-                          </p>
+                          <p className="text-[11px] text-[#86868b] mt-0.5 truncate">{cadenceLine(row)}</p>
                         </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-1" />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c7c7cc]" strokeWidth={1.75} />
                       </div>
                     </button>
                   )
@@ -1071,42 +1153,41 @@ export function TodosDashboard() {
           </div>
 
           <div
-            className={`rounded-2xl border bg-[hsl(var(--background))] p-4 sm:p-6 ${
+            className={`rounded-[16px] border border-black/[0.06] bg-[#fafafa]/90 dark:bg-white/[0.02] p-3 sm:p-4 ${
               mobileDetail ? "block" : "hidden lg:block"
             }`}
           >
             {mobileDetail && (
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                className="mb-3 h-8 text-xs gap-1 lg:hidden -ml-2"
+                className="mb-2 h-8 inline-flex items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-[#0071e3] hover:bg-[#0071e3]/08 lg:hidden cursor-pointer"
                 onClick={() => setMobileDetail(false)}
               >
-                <ArrowLeft className="h-3.5 w-3.5" /> Back to list
-              </Button>
+                <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} /> List
+              </button>
             )}
 
             {teamMode && selectedPerson ? (
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-lg font-semibold">{selectedPerson.name}</h2>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">
-                    {selectedPerson.items.length} to-do
-                    {selectedPerson.items.length === 1 ? "" : "s"}
-                    {period === "today" ? " for today" : period === "done" ? " done" : ""}
-                    {dateFrom || dateTo ? " in selected date range" : ""}
-                  </p>
+              <div className="space-y-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                    {selectedPerson.name}
+                  </h2>
+                  <span className="text-[11px] text-[#86868b] tabular-nums shrink-0">
+                    {selectedPerson.items.length}
+                  </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-1.5 max-h-[calc(100vh-14rem)] overflow-y-auto scrollbar-none">
                   {selectedPerson.items.map((row) => {
                     const active = selected?.id === row.id
                     return (
                       <div
                         key={row.id}
-                        className={`rounded-xl border overflow-hidden ${
-                          active ? "border-[#1faca6] ring-1 ring-[#1faca6]/25" : ""
+                        className={`rounded-[12px] border overflow-hidden bg-white/95 dark:bg-[hsl(var(--card))] ${
+                          active
+                            ? "border-[#0071e3]/35 ring-1 ring-[#0071e3]/20"
+                            : "border-black/[0.06]"
                         }`}
                       >
                         <button
@@ -1122,35 +1203,32 @@ export function TodosDashboard() {
                             })
                             setAttachFiles([])
                           }}
-                          className="w-full text-left px-3.5 py-3 hover:bg-[hsl(var(--muted))]/20"
+                          className="w-full text-left px-3 py-2.5 hover:bg-black/[0.02] cursor-pointer"
                         >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold">{row.title}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-[13px] font-semibold tracking-tight truncate">{row.title}</p>
                             <span
-                              className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusClass(row.status)}`}
+                              className={`shrink-0 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(row.status)}`}
                             >
                               {statusLabel(row.status)}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {cadenceLine(row)}
-                            {" · "}assigned {fmtWhen(row.assignedAt)}
-                            {row.assignedBy ? ` · ${row.assignedBy}` : ""}
-                          </p>
-                          {row.description ? (
-                            <p className="text-[12px] mt-1.5 text-[hsl(var(--muted-foreground))] line-clamp-2">
-                              {row.description}
-                            </p>
-                          ) : null}
+                          <p className="text-[11px] text-[#86868b] mt-0.5 truncate">{cadenceLine(row)}</p>
                         </button>
 
                         {active && selected && (
-                          <div className="border-t px-3.5 py-3 space-y-3 bg-[hsl(var(--card))]">
-                            <div className="flex justify-end">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 text-xs text-red-600"
+                          <div className="border-t border-black/[0.06] px-3 py-2.5 space-y-2 bg-[#f5f5f7]/70 dark:bg-white/[0.02]">
+                            <div className="flex items-center justify-between gap-2">
+                              {selected.description ? (
+                                <p className="text-[12px] text-[#6e6e73] line-clamp-2 min-w-0">
+                                  {selected.description}
+                                </p>
+                              ) : (
+                                <span />
+                              )}
+                              <button
+                                type="button"
+                                className="h-7 shrink-0 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold text-red-600 hover:bg-red-500/10 cursor-pointer"
                                 onClick={() => {
                                   if (!confirm("Delete this to-do?")) return
                                   void deleteTodo(selected.id)
@@ -1164,122 +1242,15 @@ export function TodosDashboard() {
                                     )
                                 }}
                               >
-                                <Trash2 className="h-3.5 w-3.5" /> Delete
-                              </Button>
+                                <Trash2 className="h-3 w-3" strokeWidth={1.75} />
+                              </button>
                             </div>
 
                             {renderFlags(selected)}
                             {renderReminder(selected)}
                             {renderAdminReview(selected)}
-
-                            {canUpdate(selected) && selected.status !== "done" && (
-                              <form onSubmit={submitUpdate} className="space-y-3">
-                                <p className="text-sm font-semibold">Update this to-do</p>
-                                <div>
-                                  <label className="text-[11px] font-medium">Status</label>
-                                  <select
-                                    value={updateForm.status}
-                                    onChange={(e) =>
-                                      setUpdateForm((f) => ({
-                                        ...f,
-                                        status: e.target.value as TodoStatus,
-                                      }))
-                                    }
-                                    className="mt-1 w-full h-10 rounded-md border px-3 text-sm"
-                                  >
-                                    {statusOptions(Boolean(isAdmin))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-medium">Progress note</label>
-                                  <textarea
-                                    value={updateForm.message}
-                                    onChange={(e) =>
-                                      setUpdateForm((f) => ({ ...f, message: e.target.value }))
-                                    }
-                                    rows={3}
-                                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm resize-none"
-                                    placeholder="What did you do / what’s left…"
-                                  />
-                                </div>
-                                <FileUploader
-                                  files={attachFiles}
-                                  onAdd={(list) => addFiles(list, setAttachFiles)}
-                                  onRemove={(i) => removeFile(i, setAttachFiles)}
-                                />
-                                <Button
-                                  type="submit"
-                                  disabled={saving}
-                                  className="h-10 bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5"
-                                >
-                                  {saving ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <CheckSquare className="h-4 w-4" />
-                                  )}
-                                  {updateForm.status === "pending_approval"
-                                    ? "Submit for approval"
-                                    : updateForm.status === "done"
-                                      ? "Mark done"
-                                      : "Save update"}
-                                </Button>
-                              </form>
-                            )}
-
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold">Activity & attachments</p>
-                              {selected.updates.length === 0 ? (
-                                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                                  No updates yet.
-                                </p>
-                              ) : (
-                                selected.updates.map((u) => (
-                                  <div key={u.id} className="rounded-lg border px-3 py-2 space-y-2">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span
-                                        className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusClass(u.status)}`}
-                                      >
-                                        {statusLabel(u.status)}
-                                      </span>
-                                      <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                                        {fmtWhen(u.createdAt)}
-                                        {u.createdBy ? ` · ${u.createdBy}` : ""}
-                                      </span>
-                                    </div>
-                                    {u.message ? (
-                                      <p className="text-sm whitespace-pre-wrap">{u.message}</p>
-                                    ) : null}
-                                    {u.attachmentUrls.length > 0 && (
-                                      <div className="flex flex-wrap gap-2">
-                                        {u.attachmentUrls.map((url) => {
-                                          const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
-                                          return (
-                                            <a
-                                              key={url}
-                                              href={url}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="h-14 w-14 rounded-lg border overflow-hidden flex items-center justify-center bg-[hsl(var(--muted))]/20"
-                                            >
-                                              {isImg ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
-                                                <img
-                                                  src={url}
-                                                  alt=""
-                                                  className="h-full w-full object-cover"
-                                                />
-                                              ) : (
-                                                <Paperclip className="h-4 w-4" />
-                                              )}
-                                            </a>
-                                          )
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))
-                              )}
-                            </div>
+                            {renderUpdateForm(selected)}
+                            {renderActivity(selected)}
                           </div>
                         )}
                       </div>
@@ -1288,35 +1259,30 @@ export function TodosDashboard() {
                 </div>
               </div>
             ) : selected ? (
-              <div className="space-y-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold">{selected.title}</h2>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h2 className="text-[15px] font-semibold tracking-tight">{selected.title}</h2>
                       <span
-                        className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${statusClass(selected.status)}`}
+                        className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${statusClass(selected.status)}`}
                       >
                         {statusLabel(selected.status)}
                       </span>
                     </div>
-                    <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                      For <strong>{selected.assigneeName}</strong> · {cadenceLine(selected)}
-                    </p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                      Assigned {fmtWhen(selected.assignedAt)}
-                      {selected.assignedBy ? ` by ${selected.assignedBy}` : ""}
+                    <p className="text-[11px] text-[#86868b] mt-0.5 truncate">
+                      {selected.assigneeName} · {cadenceLine(selected)}
                     </p>
                     {selected.description ? (
-                      <p className="text-sm mt-3 rounded-lg bg-[hsl(var(--muted))]/30 px-3 py-2 whitespace-pre-wrap">
+                      <p className="text-[12px] mt-2 rounded-[10px] bg-[#f2f2f7] dark:bg-white/[0.04] px-2.5 py-2 whitespace-pre-wrap leading-snug">
                         {selected.description}
                       </p>
                     ) : null}
                   </div>
                   {isAdmin && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 text-xs text-red-600"
+                    <button
+                      type="button"
+                      className="h-7 shrink-0 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-semibold text-red-600 hover:bg-red-500/10 cursor-pointer"
                       onClick={() => {
                         if (!confirm("Delete this to-do?")) return
                         void deleteTodo(selected.id)
@@ -1334,238 +1300,130 @@ export function TodosDashboard() {
                           )
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" /> Delete
-                    </Button>
+                      <Trash2 className="h-3 w-3" strokeWidth={1.75} />
+                    </button>
                   )}
                 </div>
 
                 {renderFlags(selected)}
                 {renderReminder(selected)}
                 {renderAdminReview(selected)}
-
-                {canUpdate(selected) && selected.status !== "done" && (
-                  <form
-                    onSubmit={submitUpdate}
-                    className="rounded-xl border bg-[hsl(var(--card))] p-4 space-y-3"
-                  >
-                    <p className="text-sm font-semibold">Update this to-do</p>
-                    <div>
-                      <label className="text-[11px] font-medium">Status</label>
-                      <select
-                        value={updateForm.status}
-                        onChange={(e) =>
-                          setUpdateForm((f) => ({
-                            ...f,
-                            status: e.target.value as TodoStatus,
-                          }))
-                        }
-                        className="mt-1 w-full h-10 rounded-md border px-3 text-sm"
-                      >
-                        {statusOptions(Boolean(isAdmin))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium">Progress note</label>
-                      <textarea
-                        value={updateForm.message}
-                        onChange={(e) => setUpdateForm((f) => ({ ...f, message: e.target.value }))}
-                        rows={3}
-                        className="mt-1 w-full rounded-md border px-3 py-2 text-sm resize-none"
-                        placeholder="What did you do / what’s left…"
-                      />
-                    </div>
-                    <FileUploader
-                      files={attachFiles}
-                      onAdd={(list) => addFiles(list, setAttachFiles)}
-                      onRemove={(i) => removeFile(i, setAttachFiles)}
-                    />
-                    <Button
-                      type="submit"
-                      disabled={saving}
-                      className="h-10 bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5"
-                    >
-                      {saving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckSquare className="h-4 w-4" />
-                      )}
-                      {updateForm.status === "pending_approval"
-                        ? "Submit for approval"
-                        : updateForm.status === "done"
-                          ? "Mark done"
-                          : "Save update"}
-                    </Button>
-                  </form>
-                )}
-
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold">Activity & attachments</p>
-                  {selected.updates.length === 0 ? (
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      No updates yet.
-                    </p>
-                  ) : (
-                    selected.updates.map((u) => (
-                      <div key={u.id} className="rounded-xl border px-3 py-3 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusClass(u.status)}`}
-                          >
-                            {statusLabel(u.status)}
-                          </span>
-                          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                            {fmtWhen(u.createdAt)}
-                            {u.createdBy ? ` · ${u.createdBy}` : ""}
-                          </span>
-                        </div>
-                        {u.message ? (
-                          <p className="text-sm whitespace-pre-wrap">{u.message}</p>
-                        ) : null}
-                        {u.attachmentUrls.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {u.attachmentUrls.map((url) => {
-                              const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
-                              return (
-                                <a
-                                  key={url}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="h-16 w-16 rounded-lg border overflow-hidden flex items-center justify-center bg-[hsl(var(--muted))]/20"
-                                >
-                                  {isImg ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={url} alt="" className="h-full w-full object-cover" />
-                                  ) : (
-                                    <Paperclip className="h-4 w-4" />
-                                  )}
-                                </a>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
+                {renderUpdateForm(selected)}
+                {renderActivity(selected)}
               </div>
             ) : (
-              <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-                Select a person to see their to-dos.
+              <div className="flex h-full min-h-[36vh] items-center justify-center text-[13px] text-[#86868b]">
+                Select a task
               </div>
             )}
           </div>
         </div>
       )}
 
-      {showCreate && (
-        <div
-          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
-          onClick={() => setShowCreate(false)}
-        >
-          <form
-            onSubmit={submitCreate}
-            className="w-full sm:max-w-md rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] p-4 space-y-3 max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
+      {showCreate &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-md p-0 sm:p-3"
+            onClick={() => setShowCreate(false)}
           >
-            <p className="text-sm font-semibold">Assign to-do</p>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] -mt-1">
-              Use Daily / Weekly / Monthly for recurring work. Set a reminder time so the employee is notified in ERP.
-            </p>
-            <div>
-              <label className="text-[11px] font-medium">Title *</label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
-                required
-                placeholder="e.g. Call suppliers for weekly rates"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-medium">Details</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={3}
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm resize-none"
-                placeholder="What they should do…"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-medium">Repeat *</label>
-                <select
-                  value={form.cadence}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, cadence: e.target.value as TodoCadence }))
-                  }
-                  className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
+            <form
+              onSubmit={submitCreate}
+              className="apple-sheet-in w-full sm:max-w-md max-h-[92vh] rounded-t-[18px] sm:rounded-[18px] border border-black/[0.06] bg-white dark:bg-[hsl(var(--card))] shadow-[0_16px_48px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-black/[0.06] shrink-0">
+                <p className="text-[15px] font-semibold tracking-tight">Assign</p>
+                <button
+                  type="button"
+                  className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                  onClick={() => setShowCreate(false)}
+                  aria-label="Close"
                 >
-                  {TODO_CADENCE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none p-4 space-y-2.5">
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  className={appleField}
+                  required
+                  placeholder="Title"
+                />
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                  className={appleTextarea}
+                  placeholder="Details"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={form.cadence}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, cadence: e.target.value as TodoCadence }))
+                    }
+                    className={appleSelect}
+                  >
+                    {TODO_CADENCE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="datetime-local"
+                    value={form.dueAt}
+                    onChange={(e) => setForm((f) => ({ ...f, dueAt: e.target.value }))}
+                    className={appleField}
+                    placeholder="Due"
+                  />
+                </div>
+                {form.cadence !== "once" && (
+                  <input
+                    type="time"
+                    value={form.reminderTime}
+                    onChange={(e) => setForm((f) => ({ ...f, reminderTime: e.target.value }))}
+                    className={appleField}
+                    required
+                  />
+                )}
+                <select
+                  value={form.assigneeUserId}
+                  onChange={(e) => setForm((f) => ({ ...f, assigneeUserId: e.target.value }))}
+                  className={appleSelect}
+                  required
+                >
+                  <option value="">Assignee</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
                     </option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-[11px] font-medium">Due (optional)</label>
-                <input
-                  type="datetime-local"
-                  value={form.dueAt}
-                  onChange={(e) => setForm((f) => ({ ...f, dueAt: e.target.value }))}
-                  className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
-                />
+              <div className="shrink-0 border-t border-black/[0.06] px-4 py-3 flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  className="h-8 inline-flex items-center rounded-full px-3 text-[11px] font-semibold border border-black/[0.08] bg-white hover:bg-black/[0.04] cursor-pointer"
+                  onClick={() => setShowCreate(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold bg-[#1d1d1f] text-white hover:bg-black disabled:opacity-40 cursor-pointer"
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Assign
+                </button>
               </div>
-            </div>
-            {form.cadence !== "once" && (
-              <div>
-                <label className="text-[11px] font-medium">Reminder time *</label>
-                <input
-                  type="time"
-                  value={form.reminderTime}
-                  onChange={(e) => setForm((f) => ({ ...f, reminderTime: e.target.value }))}
-                  className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
-                  required
-                />
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                  Pakistan time. The assignee gets a notification at this time each {form.cadence === "daily" ? "day" : form.cadence === "weekly" ? "week" : "month"}.
-                </p>
-              </div>
-            )}
-            <div>
-              <label className="text-[11px] font-medium">Assign to *</label>
-              <select
-                value={form.assigneeUserId}
-                onChange={(e) => setForm((f) => ({ ...f, assigneeUserId: e.target.value }))}
-                className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
-                required
-              >
-                <option value="">Select user…</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                    {u.email ? ` · ${u.email}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                type="submit"
-                disabled={saving}
-                className="h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : form.cadence === "once" ? "Assign" : "Assign recurring"}
-              </Button>
-              <Button type="button" variant="outline" className="h-9" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
+            </form>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

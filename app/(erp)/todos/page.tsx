@@ -11,12 +11,9 @@ export default function TodosPage() {
 
   return (
     <>
-      <Topbar
-        title="To-do"
-        description="Recurring daily / weekly / monthly tasks with reminder notifications"
-      />
+      <Topbar title="To-do" description="Reminders" />
       <div className="flex-1 overflow-auto">
-        <div className="p-4 sm:p-6 max-w-7xl">
+        <div className="p-3 sm:p-4 max-w-[1400px] mx-auto w-full">
           <TodosDashboard />
         </div>
       </div>
