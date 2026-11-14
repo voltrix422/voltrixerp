@@ -82,7 +82,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {dialog && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={handleCancel}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={handleCancel}>
           <div className="w-full max-w-sm rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
