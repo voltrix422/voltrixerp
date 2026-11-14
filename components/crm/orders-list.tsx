@@ -1517,6 +1517,7 @@ function OrderDetail({
   const [showPayment, setShowPayment] = useState(false)
   const [showReturn, setShowReturn] = useState(false)
   const [showReturnPayment, setShowReturnPayment] = useState(false)
+  const [editReturnPayment, setEditReturnPayment] = useState<NonNullable<Order["returnPayments"]>[number] | null>(null)
   const [showCashback, setShowCashback] = useState(false)
   const [showFreeItem, setShowFreeItem] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -1821,7 +1822,11 @@ function OrderDetail({
         <ReturnPaymentCapture
           order={detailOrder}
           currentUser={currentUser}
-          onClose={() => setShowReturnPayment(false)}
+          editPayment={editReturnPayment}
+          onClose={() => {
+            setShowReturnPayment(false)
+            setEditReturnPayment(null)
+          }}
           onUpdate={o => {
             setDetailOrder(o)
             setStatus(o.status)
@@ -1979,7 +1984,10 @@ function OrderDetail({
                   <Button
                     size="sm"
                     className="h-8 text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
-                    onClick={() => setShowReturnPayment(true)}
+                    onClick={() => {
+                      setEditReturnPayment(null)
+                      setShowReturnPayment(true)
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Add return payment
@@ -2086,6 +2094,19 @@ function OrderDetail({
                               {proofs.length > 1 ? `Proof ${idx + 1}` : "View Proof"}
                             </a>
                           ))}
+                          {canManageReturnPayments && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditReturnPayment(p)
+                                setShowReturnPayment(true)
+                              }}
+                              className="p-1 rounded text-orange-800 hover:bg-orange-100 dark:hover:bg-orange-950/40 cursor-pointer"
+                              title="Edit refund / add proof"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {canDeleteRefund && (
                             <button
                               type="button"
@@ -2372,7 +2393,14 @@ function OrderDetail({
             </button>
           )}
           {canManageReturnPayments && (
-            <button type="button" className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1" onClick={() => setShowReturnPayment(true)}>
+            <button
+              type="button"
+              className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1"
+              onClick={() => {
+                setEditReturnPayment(null)
+                setShowReturnPayment(true)
+              }}
+            >
               <Plus className="h-3.5 w-3.5" /> Return payment
             </button>
           )}

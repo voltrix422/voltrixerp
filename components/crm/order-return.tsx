@@ -473,25 +473,38 @@ export function ReturnPaymentCapture({
   currentUser,
   onClose,
   onUpdate,
+  editPayment,
 }: {
   order: Order
   currentUser: string
   onClose: () => void
   onUpdate: (o: Order) => void
+  /** When set, edits this return payment (amount + optional new proofs) instead of adding. */
+  editPayment?: OrderReturnPayment | null
 }) {
-  const [amount, setAmount] = useState("")
-  const [method, setMethod] = useState("Bank Transfer")
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [notes, setNotes] = useState("")
+  const editing = Boolean(editPayment)
+  const [amount, setAmount] = useState(
+    editPayment ? String(Number(editPayment.amount) || "") : "",
+  )
+  const [method, setMethod] = useState(editPayment?.method || "Bank Transfer")
+  const [date, setDate] = useState(
+    editPayment?.date
+      ? String(editPayment.date).slice(0, 10)
+      : new Date().toISOString().split("T")[0],
+  )
+  const [notes, setNotes] = useState(editPayment?.notes || "")
   const [proofFiles, setProofFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const amountPaid = getOrderAmountPaid(order)
   const alreadyReturned = getOrderReturnAmount(order)
+  const editCurrent = Number(editPayment?.amount) || 0
   const remainingRefundable = Math.max(
     0,
-    amountPaid - alreadyReturned - getOrderCashbackAmount(order, "order"),
+    amountPaid -
+      (alreadyReturned - (editing ? editCurrent : 0)) -
+      getOrderCashbackAmount(order, "order"),
   )
 
   async function handleSubmit() {
@@ -510,18 +523,48 @@ export function ReturnPaymentCapture({
     setSaving(true)
     setError(null)
     try {
-      let proofUrls: string[] = []
+      let newProofUrls: string[] = []
       if (proofFiles.length > 0) {
-        proofUrls = await Promise.all(proofFiles.map((f) => uploadFile(f, "payment-proofs")))
+        newProofUrls = await Promise.all(proofFiles.map((f) => uploadFile(f, "payment-proofs")))
       }
+
+      if (editing && editPayment) {
+        const existing =
+          editPayment.proofUrls && editPayment.proofUrls.length > 0
+            ? [...editPayment.proofUrls]
+            : editPayment.proofUrl
+              ? [editPayment.proofUrl]
+              : []
+        const proofUrls = [...existing, ...newProofUrls]
+        const nextPayment: OrderReturnPayment = {
+          ...editPayment,
+          amount: value,
+          method,
+          date,
+          notes: notes.trim(),
+          proofUrl: proofUrls[0] || editPayment.proofUrl,
+          proofUrls: proofUrls.length > 0 ? proofUrls : undefined,
+        }
+        const updated: Order = {
+          ...order,
+          returnPayments: (order.returnPayments || []).map((p) =>
+            p.id === editPayment.id ? nextPayment : p,
+          ),
+        }
+        const saved = await saveOrder(updated)
+        onUpdate(saved)
+        onClose()
+        return
+      }
+
       const payment: OrderReturnPayment = {
         id: `ret-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         amount: value,
         method,
         date,
         notes: notes.trim(),
-        proofUrl: proofUrls[0],
-        proofUrls: proofUrls.length > 0 ? proofUrls : undefined,
+        proofUrl: newProofUrls[0],
+        proofUrls: newProofUrls.length > 0 ? newProofUrls : undefined,
         createdAt: new Date().toISOString(),
         createdBy: currentUser,
       }
@@ -550,9 +593,9 @@ export function ReturnPaymentCapture({
       >
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div>
-            <p className="text-sm font-bold">Add return payment</p>
+            <p className="text-sm font-bold">{editing ? "Edit return payment" : "Add return payment"}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {order.orderNumber} · Refundable PKR {remainingRefundable.toLocaleString()}
+              {order.orderNumber} · Max PKR {remainingRefundable.toLocaleString()}
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}>
@@ -607,7 +650,11 @@ export function ReturnPaymentCapture({
           </div>
           <label className="flex items-center gap-2 h-9 px-3 rounded-md border border-dashed text-xs cursor-pointer">
             <Upload className="h-3.5 w-3.5" />
-            {proofFiles.length > 0 ? `${proofFiles.length} proof file(s)` : "Upload proof"}
+            {proofFiles.length > 0
+              ? `${proofFiles.length} new proof file(s)`
+              : editing
+                ? "Add proof"
+                : "Upload proof"}
             <input
               type="file"
               accept="image/*,.pdf"
@@ -630,7 +677,7 @@ export function ReturnPaymentCapture({
             onClick={() => void handleSubmit()}
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save return payment"}
+            {saving ? "Saving..." : editing ? "Save changes" : "Save return payment"}
           </Button>
         </div>
       </div>
