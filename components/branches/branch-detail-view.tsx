@@ -492,182 +492,165 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     }
   }
 
-  const detailBits: string[] = []
-  if (branch.manager) detailBits.push(`Mgr: ${branch.manager}`)
-  if (branch.phone) detailBits.push(branch.phone)
-  if (branch.email) detailBits.push(branch.email)
-  if (branch.address || branch.city) {
-    detailBits.push([branch.address, branch.city, branch.country].filter(Boolean).join(", "))
-  }
+  const subtitleBits = [
+    branch.code,
+    branch.status === "active" ? null : branch.status,
+    branchTypeLabel(branch.type).replace(/ warehouse$/i, ""),
+  ].filter(Boolean)
+
+  const contactLine = [branch.manager, branch.phone].filter(Boolean).join(" · ")
+  const addressLine = [branch.address, branch.city].filter(Boolean).join(", ")
 
   return (
-    <div className="flex min-h-[calc(100dvh-5rem)] w-full flex-col bg-[hsl(var(--background))]">
-      <div className="sticky top-0 z-20 border-b bg-[hsl(var(--card))]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-start justify-between gap-3 px-4 py-3 sm:px-6">
+    <div className="flex min-h-[calc(100dvh-5rem)] w-full flex-col bg-[#f5f5f7] dark:bg-[hsl(var(--background))]">
+      <div className="sticky top-0 z-20 border-b border-black/[0.06] bg-[#f5f5f7]/90 backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(var(--background))]/90">
+        <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" className="h-8 gap-1.5 px-2 text-xs font-medium cursor-pointer" onClick={onBack}>
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </Button>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6] text-lg font-bold text-white">
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer dark:bg-white/10 dark:text-white"
+              aria-label="Back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#1a9f9a] text-[17px] font-semibold text-white shadow-sm">
               {branch.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-semibold truncate">{branch.name}</h1>
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">{branch.code}</span>
-                <Badge variant={branch.status === "active" ? "success" : "secondary"} className="text-[10px] px-1.5 py-0">
-                  {branch.status}
-                </Badge>
-                <Badge variant="info" className="text-[10px] px-1.5 py-0">
-                  {branchTypeLabel(branch.type)}
-                </Badge>
-              </div>
+              <h1 className="truncate text-[17px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                {branch.name}
+              </h1>
+              <p className="truncate text-[12px] text-[#86868b]">
+                {subtitleBits.join(" · ")}
+                {branch.status === "active" ? (
+                  <span className="ml-1.5 inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-[#34c759]" />
+                ) : null}
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-2 ml-auto">
-            {detailBits.length > 0 && (
-              <div className="hidden sm:block max-w-md text-right text-[11px] leading-snug text-[hsl(var(--muted-foreground))]">
-                {detailBits.map((bit, i) => (
-                  <span key={i}>
-                    {i > 0 && <span className="mx-1.5 text-[hsl(var(--border))]">|</span>}
-                    {bit}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap items-center justify-end gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer"
-                title="Edit"
-                aria-label="Edit"
-                onClick={onEdit}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer text-[#1faca6] border-[#1faca6]"
-                title="Inventory PDF"
-                aria-label="Inventory PDF"
-                disabled={inventory.length === 0}
-                onClick={() => generateSingleBranchPdf(branch, inventory)}
-              >
-                <Package className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer text-[#1faca6] border-[#1faca6]"
-                title="Transfer history PDF"
-                aria-label="Transfer history PDF"
-                disabled={groupedTransferHistory.length === 0}
-                onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
-              >
-                <FileDown className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
-                title="Delete branch"
-                aria-label="Delete branch"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#1d1d1f]/70 hover:bg-black/[0.06] cursor-pointer dark:text-white/70 dark:hover:bg-white/10"
+              title="Edit"
+              aria-label="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={inventory.length === 0}
+              onClick={() => generateSingleBranchPdf(branch, inventory)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#1d1d1f]/70 hover:bg-black/[0.06] disabled:opacity-30 cursor-pointer dark:text-white/70 dark:hover:bg-white/10"
+              title="PDF"
+              aria-label="Inventory PDF"
+            >
+              <Package className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={groupedTransferHistory.length === 0}
+              onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#1d1d1f]/70 hover:bg-black/[0.06] disabled:opacity-30 cursor-pointer dark:text-white/70 dark:hover:bg-white/10"
+              title="Transfer PDF"
+              aria-label="Transfer history PDF"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#ff3b30]/80 hover:bg-[#ff3b30]/10 cursor-pointer"
+              title="Delete"
+              aria-label="Delete branch"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
+        {(contactLine || addressLine) && (
+          <div className="mx-auto max-w-[1100px] px-4 pb-3 sm:px-6 sm:pl-[4.75rem]">
+            {contactLine ? (
+              <p className="truncate text-[12px] text-[#86868b]">{contactLine}</p>
+            ) : null}
+            {addressLine ? (
+              <p className="truncate text-[11px] text-[#aeaeb2]">{addressLine}</p>
+            ) : null}
+          </div>
+        )}
       </div>
 
-      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-4 sm:px-6">
-        {branch.notes && (
-          <p className="mb-3 text-xs text-[hsl(var(--muted-foreground))] border-b pb-2">
-            <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
-            {branch.notes}
-          </p>
-        )}
+      <div className="mx-auto w-full max-w-[1100px] flex-1 px-4 py-4 sm:px-6">
+        {branch.notes ? (
+          <p className="mb-3 text-[12px] text-[#86868b]">{branch.notes}</p>
+        ) : null}
 
         {!isMainWarehouse && (
-          <div className="mb-3 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <select
+              className="h-8 min-w-[10rem] max-w-full flex-1 rounded-full border-0 bg-white px-3 text-[12px] text-[#1d1d1f] shadow-sm ring-1 ring-black/[0.06] dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))] dark:ring-white/10"
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              aria-label="Product filter"
+            >
+              <option value="">All</option>
+              {productOptions.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {activeTab === "history" && (
               <select
-                className="h-7 min-w-[12rem] max-w-full flex-1 rounded border bg-transparent px-2 text-xs"
-                value={productFilter}
-                onChange={(e) => setProductFilter(e.target.value)}
-                aria-label="Product filter"
+                className="h-8 w-[6.5rem] rounded-full border-0 bg-white px-3 text-[12px] shadow-sm ring-1 ring-black/[0.06] dark:bg-[hsl(var(--card))] dark:ring-white/10"
+                value={directionFilter}
+                onChange={(e) => setDirectionFilter(e.target.value as "all" | "in" | "out")}
+                aria-label="Direction filter"
               >
-                <option value="">All products</option>
-                {productOptions.map((opt) => (
-                  <option key={opt.key} value={opt.key}>
-                    {opt.label}
-                  </option>
-                ))}
+                <option value="all">In + Out</option>
+                <option value="in">In</option>
+                <option value="out">Out</option>
               </select>
-              {activeTab === "history" && (
-                <select
-                  className="h-7 w-[7.5rem] rounded border bg-transparent px-2 text-xs"
-                  value={directionFilter}
-                  onChange={(e) => setDirectionFilter(e.target.value as "all" | "in" | "out")}
-                  aria-label="Direction filter"
-                >
-                  <option value="all">In + Out</option>
-                  <option value="in">In only</option>
-                  <option value="out">Out only</option>
-                </select>
-              )}
-              {(productFilter || directionFilter !== "all") && (
-                <button
-                  type="button"
-                  className="h-7 px-1.5 text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
-                  onClick={() => {
-                    setProductFilter("")
-                    setDirectionFilter("all")
-                  }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
+            )}
+            {(productFilter || directionFilter !== "all") && (
+              <button
+                type="button"
+                className="h-8 px-2 text-[12px] text-[#007aff] cursor-pointer"
+                onClick={() => {
+                  setProductFilter("")
+                  setDirectionFilter("all")
+                }}
+              >
+                Clear
+              </button>
+            )}
             {productTrail ? (
-              <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] leading-relaxed">
-                <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.label}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                On hand <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.onHand}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                In <span className="text-emerald-700 font-medium">{productTrail.transferIn}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                Out <span className="text-orange-700 font-medium">{productTrail.transferOut}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                Net <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.transferNet}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                POS <span className="text-blue-700 font-medium">{productTrail.posSold}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                Check <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.expected}</span>
-                <span className="text-[hsl(var(--muted-foreground))]"> (vs {productTrail.onHand})</span>
+              <p className="w-full text-[11px] tabular-nums text-[#86868b]">
+                <span className="font-medium text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">{productTrail.onHand}</span> on hand
+                <span className="mx-1.5 text-[#d2d2d7]">·</span>
+                <span className="text-[#34c759]">{productTrail.transferIn}</span> in
+                <span className="mx-1.5 text-[#d2d2d7]">·</span>
+                <span className="text-[#ff9500]">{productTrail.transferOut}</span> out
+                <span className="mx-1.5 text-[#d2d2d7]">·</span>
+                <span className="text-[#007aff]">{productTrail.posSold}</span> POS
               </p>
             ) : activeTab === "history" ? (
-              <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">
-                In <span className="text-emerald-700 font-medium">{transferTotals.inQty}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                Out <span className="text-orange-700 font-medium">{transferTotals.outQty}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
-                Net <span className="text-[hsl(var(--foreground))] font-medium">{transferTotals.net}</span>
-                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+              <p className="w-full text-[11px] tabular-nums text-[#86868b]">
+                <span className="text-[#34c759]">{transferTotals.inQty}</span> in
+                <span className="mx-1.5 text-[#d2d2d7]">·</span>
+                <span className="text-[#ff9500]">{transferTotals.outQty}</span> out
+                <span className="mx-1.5 text-[#d2d2d7]">·</span>
                 {transferTotals.moves} moves
               </p>
             ) : null}
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 border-b">
-          <div className="flex items-center gap-1">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="inline-flex rounded-full bg-black/[0.06] p-0.5 dark:bg-white/10">
             {(
               (isMainWarehouse
                 ? (["inventory", "history"] as const)
@@ -679,114 +662,83 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`relative px-3 py-2 text-xs font-medium cursor-pointer ${
+                className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium cursor-pointer transition-colors ${
                   activeTab === tab
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                    : "text-[#86868b] hover:text-[#1d1d1f] dark:hover:text-white"
                 }`}
               >
                 {tab === "inventory"
-                  ? "Inventory"
+                  ? "Stock"
                   : tab === "history"
-                    ? "Transfer history"
-                    : "POS sold"}
-                {tab === "history" && groupedTransferHistory.length > 0 && (
-                  <span className="ml-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                    (
-                    {productFilter || directionFilter !== "all"
-                      ? `${filteredTransferRows.length}/${groupedTransferHistory.length}`
-                      : groupedTransferHistory.length}
-                    )
-                  </span>
-                )}
-                {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+                    ? `History${groupedTransferHistory.length > 0 ? ` ${groupedTransferHistory.length}` : ""}`
+                    : "POS"}
               </button>
             ))}
           </div>
 
-          {activeTab === "inventory" && !isMainWarehouse && (
-            <div className="flex flex-wrap gap-1 pb-1">
-              {inventory.length > 0 ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 w-7 p-0 cursor-pointer"
-                    title="Transfer"
-                    aria-label="Transfer"
-                    onClick={() => openBulkTransfer("transfer")}
-                  >
-                    <ArrowRightLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 w-7 p-0 cursor-pointer text-orange-700"
-                    title="Return to main"
-                    aria-label="Return to main"
-                    disabled={returningToMain}
-                    onClick={handleReturnInventoryToMain}
-                  >
-                    {returningToMain ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Undo2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 w-7 p-0 cursor-pointer text-red-600"
-                    title="Delete all"
-                    aria-label="Delete all"
-                    disabled={removingAll}
-                    onClick={handleRemoveAllBranchInventory}
-                  >
-                    {removingAll ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </>
-              ) : null}
+          {activeTab === "inventory" && !isMainWarehouse && inventory.length > 0 && (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => openBulkTransfer("transfer")}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#1d1d1f]/70 hover:bg-black/[0.06] cursor-pointer dark:text-white/70"
+                title="Transfer"
+                aria-label="Transfer"
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={returningToMain}
+                onClick={handleReturnInventoryToMain}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#ff9500] hover:bg-[#ff9500]/10 disabled:opacity-40 cursor-pointer"
+                title="Return to main"
+                aria-label="Return to main"
+              >
+                {returningToMain ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                disabled={removingAll}
+                onClick={handleRemoveAllBranchInventory}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 disabled:opacity-40 cursor-pointer"
+                title="Delete all"
+                aria-label="Delete all"
+              >
+                {removingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
             </div>
           )}
 
           {activeTab === "history" && (
-            <div className="flex flex-wrap gap-1 pb-1">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer"
-                title="Download all transfer PDFs"
-                aria-label="Download all transfer PDFs"
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
                 disabled={groupedTransferHistory.length === 0}
                 onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#1d1d1f]/70 hover:bg-black/[0.06] disabled:opacity-30 cursor-pointer dark:text-white/70"
+                title="Download PDFs"
+                aria-label="Download all transfer PDFs"
               >
                 <FileDown className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 w-7 p-0 cursor-pointer text-red-600"
-                title="Clear transfer history"
-                aria-label="Clear transfer history"
+              </button>
+              <button
+                type="button"
                 disabled={groupedTransferHistory.length === 0 || clearingHistory}
                 onClick={handleClearTransferHistory}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/10 disabled:opacity-30 cursor-pointer"
+                title="Clear history"
+                aria-label="Clear transfer history"
               >
-                {clearingHistory ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Eraser className="h-3.5 w-3.5" />
-                )}
-              </Button>
+                {clearingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
+              </button>
             </div>
           )}
         </div>
 
         {activeTab === "inventory" && isMainWarehouse && (
-          <div className="mt-3">
+          <div className="mt-1">
             <InventorySerialView
               embedded
               onUnitsChanged={() => void reloadInventory()}
@@ -794,11 +746,11 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 text-xs cursor-pointer border-[#1faca6] text-[#1faca6] hover:bg-[#1faca6]/10"
+                  className="h-8 rounded-full text-xs cursor-pointer border-[#1a9f9a] text-[#1a9f9a] hover:bg-[#1a9f9a]/10"
                   onClick={() => openBulkTransfer("dispatch")}
                 >
                   <ArrowRightLeft className="h-3 w-3 mr-1" />
-                  Send multiple
+                  Send
                 </Button>
               }
             />
@@ -806,73 +758,71 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         )}
 
         {activeTab === "inventory" && !isMainWarehouse && (
-          <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
+          <div className="overflow-hidden rounded-[16px] bg-white shadow-sm ring-1 ring-black/[0.04] dark:bg-[hsl(var(--card))] dark:ring-white/10">
             {loadingInventory ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
+              <div className="flex justify-center py-14">
+                <Loader2 className="h-5 w-5 animate-spin text-[#aeaeb2]" />
               </div>
             ) : filteredInventory.length === 0 ? (
-              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                {productFilter
-                  ? "No on-hand stock for this product at this branch."
-                  : "No inventory at this branch yet."}
+              <p className="py-14 text-center text-[13px] text-[#86868b]">
+                {productFilter ? "Nothing for this product" : "No stock yet"}
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-[13px]">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                      <th className="px-3 py-2 font-medium">Product</th>
-                      <th className="px-3 py-2 font-medium">Model</th>
-                      <th className="px-3 py-2 font-medium text-right">Qty</th>
-                      <th className="px-3 py-2 font-medium">Unit</th>
-                      <th className="px-3 py-2 font-medium">Added</th>
-                      <th className="px-3 py-2 font-medium text-right w-[72px]">Actions</th>
+                    <tr className="border-b border-black/[0.06] text-left text-[11px] text-[#86868b] dark:border-white/10">
+                      <th className="px-4 py-2.5 font-medium">Item</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Qty</th>
+                      <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Added</th>
+                      <th className="px-4 py-2.5 font-medium text-right w-16" />
                     </tr>
                   </thead>
                   <tbody>
                     {filteredInventory.map((inv) => (
-                        <tr key={inv.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10">
-                          <td className="px-3 py-2 font-medium max-w-[200px] truncate">
-                            {inv.itemName || inv.productDescription || "—"}
+                        <tr key={inv.id} className="border-b border-black/[0.04] last:border-0 hover:bg-black/[0.02] dark:border-white/[0.06] dark:hover:bg-white/[0.03]">
+                          <td className="px-4 py-3 max-w-[280px]">
+                            <p className="truncate font-medium tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                              {inv.itemName || inv.productDescription || inv.model || "—"}
+                            </p>
+                            {inv.model && (inv.itemName || inv.productDescription) ? (
+                              <p className="truncate text-[11px] text-[#aeaeb2]">{inv.model}</p>
+                            ) : null}
                           </td>
-                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[120px] truncate">
-                            {inv.model || "—"}
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                            {inv.quantity}
+                            <span className="ml-1 text-[11px] font-normal text-[#aeaeb2]">{inv.unit || "pcs"}</span>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums font-medium">{inv.quantity}</td>
-                          <td className="px-3 py-2">{inv.unit || "pcs"}</td>
-                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                          <td className="hidden px-4 py-3 text-[12px] text-[#86868b] sm:table-cell">
                             {inv.assignedAt ? new Date(inv.assignedAt).toLocaleDateString() : "—"}
                           </td>
-                          <td className="px-3 py-2">
-                            <div className="flex justify-end gap-1">
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-0.5">
                               {inv.quantity > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 w-6 p-0 cursor-pointer"
+                                <button
+                                  type="button"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-[#86868b] hover:bg-black/[0.06] hover:text-[#1d1d1f] cursor-pointer"
                                   title="Transfer"
                                   aria-label="Transfer"
                                   onClick={() => openBulkTransfer("transfer", inv.id)}
                                 >
-                                  <ArrowRightLeft className="h-3 w-3" />
-                                </Button>
+                                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                                </button>
                               )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 w-6 p-0 cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
+                              <button
+                                type="button"
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-[#ff3b30]/70 hover:bg-[#ff3b30]/10 cursor-pointer disabled:opacity-40"
                                 title="Delete"
                                 aria-label="Delete"
                                 disabled={deletingInvId === inv.id}
                                 onClick={() => handleRemoveInventoryItem(inv)}
                               >
                                 {deletingInvId === inv.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 )}
-                              </Button>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -885,31 +835,27 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         )}
 
         {activeTab === "history" && (
-          <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
+          <div className="overflow-hidden rounded-[16px] bg-white shadow-sm ring-1 ring-black/[0.04] dark:bg-[hsl(var(--card))] dark:ring-white/10">
             {loadingTransferHistory ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="flex justify-center py-14">
+                <Loader2 className="h-5 w-5 animate-spin text-[#aeaeb2]" />
               </div>
             ) : groupedTransferHistory.length === 0 ? (
-              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                No inventory transfers recorded for this branch yet.
-              </p>
+              <p className="py-14 text-center text-[13px] text-[#86868b]">No transfers yet</p>
             ) : filteredTransferRows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                No transfers match the current product / direction filter.
-              </p>
+              <p className="py-14 text-center text-[13px] text-[#86868b]">No matches</p>
             ) : (
               <div className="overflow-x-auto max-h-[min(70vh,560px)] overflow-y-auto">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 z-10 bg-[hsl(var(--card))]">
-                    <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                      <th className="px-3 py-2 w-8" />
-                      <th className="px-3 py-2 font-medium">Product</th>
-                      <th className="px-3 py-2 font-medium">Route</th>
-                      <th className="px-3 py-2 font-medium text-right">Qty</th>
-                      <th className="px-3 py-2 font-medium">Date</th>
-                      <th className="px-3 py-2 font-medium">By</th>
-                      <th className="px-3 py-2 font-medium text-right w-[72px]">PDF</th>
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 z-10 bg-white dark:bg-[hsl(var(--card))]">
+                    <tr className="border-b border-black/[0.06] text-left text-[11px] text-[#86868b] dark:border-white/10">
+                      <th className="px-4 py-2.5 w-8" />
+                      <th className="px-4 py-2.5 font-medium">Item</th>
+                      <th className="px-4 py-2.5 font-medium">Route</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Qty</th>
+                      <th className="px-4 py-2.5 font-medium">Date</th>
+                      <th className="hidden px-4 py-2.5 font-medium sm:table-cell">By</th>
+                      <th className="px-4 py-2.5 w-12" />
                     </tr>
                   </thead>
                   <tbody>

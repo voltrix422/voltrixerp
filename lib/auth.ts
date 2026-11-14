@@ -250,14 +250,13 @@ export function clearSession() {
 }
 
 export function homePathForUser(user: { role?: string; modules?: string[] } | null | undefined) {
-  if (!user) return "/dashboard"
+  if (!user) return "/todos"
   if (isInvestorUser(user.role)) return "/investor"
   if (isChinaMoneyUser(user.role)) return "/money-to-china"
-  if (isErpAdmin(user.role)) return "/dashboard"
-  if (user.role === "sales_agent" || user.role === "sales_manager") return "/crm/sales-agents"
+  // POS-only accounts still open the terminal directly.
   if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"
-  if (user.modules && user.modules.length > 0) return `/${user.modules[0]}`
-  return "/dashboard"
+  // To-do is the default home / dashboard for every ERP user.
+  return "/todos"
 }
 
 function mapRow(row: Record<string, unknown>): User {

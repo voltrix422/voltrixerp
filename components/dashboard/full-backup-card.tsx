@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Check, Download, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
@@ -41,12 +42,19 @@ function cleanStatus(message: string) {
 }
 
 function SheetShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4 backdrop-blur-[8px]">
-      <div className="w-full max-w-[320px] overflow-hidden rounded-[22px] border border-white/40 bg-[#f5f5f7]/95 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) return null
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 p-4"
+      style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+    >
+      <div className="relative z-[1] w-full max-w-[320px] overflow-hidden rounded-[22px] border border-white/50 bg-white/95 shadow-[0_24px_80px_rgba(0,0,0,0.4)] dark:border-white/10 dark:bg-[hsl(var(--card))]/95">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

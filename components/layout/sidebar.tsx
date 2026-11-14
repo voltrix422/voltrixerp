@@ -10,7 +10,6 @@ import {
   Archive,
   Monitor,
   ShoppingBag,
-  Send,
   Compass,
   NotebookText,
   IdCard,
@@ -65,13 +64,12 @@ const NAV_ORDER: Array<{
   module?: Module
   kind: "link" | "crm" | "finance"
 }> = [
-  { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: Grid2X2, module: "dashboard", kind: "link" },
+  { key: "dashboard", href: "/todos", label: "Dashboard", icon: Grid2X2, module: "dashboard", kind: "link" },
   { key: "finance", href: "/finance", label: "Finance", icon: Wallet, module: "finance", kind: "link" },
   { key: "crm", label: "CRM", icon: UsersRound, module: "crm", kind: "crm" },
   { key: "inventory", href: "/inventory", label: "Inventory", icon: Archive, module: "inventory", kind: "link" },
   { key: "pos-admin", href: "/pos-admin", label: "POS Admin", icon: Monitor, module: "pos_admin", kind: "link" },
   { key: "purchase", href: "/purchase", label: "Purchase", icon: ShoppingBag, module: "purchase", kind: "link" },
-  { key: "dispatches", href: "/dispatches", label: "Dispatches", icon: Send, module: "dispatches", kind: "link" },
   { key: "website", href: "/website", label: "Website", icon: Compass, module: "website", kind: "link" },
   { key: "docs", href: "/docs", label: "Documentation", icon: NotebookText, module: "docs", kind: "link" },
   { key: "hrm", href: "/hrm", label: "HRM", icon: IdCard, module: "hrm", kind: "link" },

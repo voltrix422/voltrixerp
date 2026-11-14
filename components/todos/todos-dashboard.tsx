@@ -1482,11 +1482,19 @@ export function TodosDashboard() {
                 </div>
               </div>
             ) : selected ? (
-              <div className="space-y-2">
+              <div
+                className={`space-y-2 rounded-[10px] border p-2.5 ${statusSurface(selected.status, true)}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h2 className="text-[14px] font-semibold tracking-tight truncate">{selected.title}</h2>
+                      <h2
+                        className={`text-[14px] font-semibold tracking-tight truncate ${
+                          selected.status === "open" ? "text-[#b25000]" : ""
+                        }`}
+                      >
+                        {selected.title}
+                      </h2>
                       <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusClass(selected.status)}`}>
                         {shortStatus(selected.status)}
                       </span>
