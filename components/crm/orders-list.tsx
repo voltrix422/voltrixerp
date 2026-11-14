@@ -27,7 +27,10 @@ import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
 import {
   findLedgerClients,
+  LEDGER_CLIENT_GROUPS,
+  isLedgerGroupSelected,
   listLedgerClients,
+  resolveLedgerGroupIds,
   ledgerClientsLabel,
   orderBelongsToAnyClient,
 } from "@/lib/client-order-ledger"
@@ -578,6 +581,28 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
             <div className="space-y-1">
               <p className="text-[10px] font-semibold tracking-tight text-[#86868b]">Ledger</p>
+              <div className="flex flex-wrap gap-1">
+                {LEDGER_CLIENT_GROUPS.map((group) => {
+                  const groupIds = resolveLedgerGroupIds(ledgerOptions, group)
+                  if (groupIds.length < 2) return null
+                  const active = isLedgerGroupSelected(ledgerClientIds, groupIds)
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => selectLedgerClients(active ? [] : groupIds)}
+                      className={`h-7 max-w-full truncate rounded-full px-2.5 text-[10px] font-semibold cursor-pointer transition-colors ${
+                        active
+                          ? "bg-[#1a9f9a] text-white"
+                          : "bg-[#f2f2f7] text-[#1d1d1f] hover:bg-black/[0.08] dark:bg-white/10 dark:text-[hsl(var(--foreground))]"
+                      }`}
+                      title={group.names.join(" · ")}
+                    >
+                      {group.label}
+                    </button>
+                  )
+                })}
+              </div>
               <ClientLedgerPicker
                 clients={clients}
                 orders={orders}

@@ -138,6 +138,47 @@ export function findLedgerClients(clients: LedgerClientRef[], ids: string[]): Le
     .filter((c): c is LedgerClientRef => Boolean(c))
 }
 
+/** Named multi-client ledger presets (match by display name, case-insensitive). */
+export type LedgerClientGroup = {
+  id: string
+  label: string
+  names: string[]
+}
+
+export const LEDGER_CLIENT_GROUPS: LedgerClientGroup[] = [
+  {
+    id: "malik-zafar-zahid-hussain",
+    label: "Malik Zafar + Zahid Hussain",
+    names: ["Malik Zafar", "Zahid Hussain"],
+  },
+]
+
+export function resolveLedgerGroupIds(
+  options: LedgerClientRef[],
+  group: Pick<LedgerClientGroup, "names">,
+): string[] {
+  const wanted = new Set(group.names.map((n) => n.trim().toLowerCase()).filter(Boolean))
+  if (wanted.size === 0) return []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const client of options) {
+    const key = client.name.trim().toLowerCase()
+    if (!wanted.has(key) || seen.has(key)) continue
+    seen.add(key)
+    ids.push(client.id)
+  }
+  return ids
+}
+
+export function isLedgerGroupSelected(
+  selectedIds: string[],
+  groupIds: string[],
+): boolean {
+  if (groupIds.length === 0) return false
+  const set = new Set(selectedIds)
+  return groupIds.every((id) => set.has(id)) && selectedIds.length === groupIds.length
+}
+
 export function ledgerClientsLabel(clients: LedgerClientRef[]): string {
   if (clients.length === 0) return ""
   if (clients.length === 1) return clients[0].name

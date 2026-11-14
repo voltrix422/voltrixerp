@@ -9,7 +9,10 @@ import type { Order } from "@/lib/orders"
 import {
   buildClientLedgerPayload,
   findLedgerClient,
+  isLedgerGroupSelected,
+  LEDGER_CLIENT_GROUPS,
   listLedgerClients,
+  resolveLedgerGroupIds,
   type LedgerClientRef,
 } from "@/lib/client-order-ledger"
 import { downloadClientLedgerExcel } from "@/lib/crm-excel-export"
@@ -113,6 +116,33 @@ export function ClientLedgerPicker({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute z-20 w-full mt-1 max-h-72 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
             <div className="p-2 border-b sticky top-0 bg-[hsl(var(--background))] space-y-1">
+              {!q && LEDGER_CLIENT_GROUPS.some((g) => resolveLedgerGroupIds(options, g).length >= 2) ? (
+                <div className="flex flex-wrap gap-1 pb-1">
+                  {LEDGER_CLIENT_GROUPS.map((group) => {
+                    const groupIds = resolveLedgerGroupIds(options, group)
+                    if (groupIds.length < 2) return null
+                    const active = isLedgerGroupSelected(selectedIds, groupIds)
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => {
+                          onChange(active ? [] : groupIds)
+                          setOpen(false)
+                          setSearch("")
+                        }}
+                        className={`h-7 max-w-full truncate rounded-full px-2.5 text-[10px] font-semibold cursor-pointer ${
+                          active
+                            ? "bg-[#1a9f9a] text-white"
+                            : "bg-[#f2f2f7] text-[#1d1d1f] hover:bg-black/[0.08] dark:bg-white/10 dark:text-[hsl(var(--foreground))]"
+                        }`}
+                      >
+                        {group.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
