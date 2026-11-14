@@ -1595,7 +1595,8 @@ function OrderDetail({
   const canEditInvoice = canEditOrderInvoice(detailOrder)
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder)
-  const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
+  const canDeletePayments =
+    (detailOrder.status === "delivered" || detailOrder.status === "returned") && canManagePayments
   const canReturn = canReturnOrder(detailOrder) && !workspace?.readOnly
   const canManageReturnPayments = canAddReturnPayment(detailOrder) && !workspace?.readOnly
   const canManageCashback = canAddCashback(detailOrder) && !workspace?.readOnly

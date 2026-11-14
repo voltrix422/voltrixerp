@@ -295,15 +295,17 @@ export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: 
 
 export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["status"]) {
   if (isProofOnlyPayment(payment)) {
-    return orderStatus === "delivered"
+    return orderStatus === "delivered" || orderStatus === "returned"
   }
+  // Delivered / returned: allow correcting approved amounts (Money received, etc.).
+  if (orderStatus === "delivered" || orderStatus === "returned") return true
   const status = getPaymentSubmissionStatus(payment, orderStatus)
   return status === "draft" || status === "pending_approval"
 }
 
-/** Delivered orders: any payment or proof row can be removed without changing order status. */
+/** Delivered/returned: any payment or proof row can be removed without changing order status. */
 export function isPaymentDeletable(payment: OrderPayment, orderStatus?: Order["status"]) {
-  if (orderStatus === "delivered") return true
+  if (orderStatus === "delivered" || orderStatus === "returned") return true
   return isPaymentEditable(payment, orderStatus)
 }
 
@@ -775,7 +777,8 @@ export function isDeliveredCreditPaymentCapture(
 }
 
 export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymentTerms" | "creditApprovedAt" | "total" | "payments">) {
-  if (isOrderReturned(order)) return false
+  // Returned orders: allow Manage payments so staff can correct recorded amounts.
+  if (isOrderReturned(order)) return true
   if (order.status === "approved" || order.status === "finalized" || order.status === "payment_added") {
     return true
   }
@@ -789,7 +792,9 @@ export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymen
 }
 
 export function isOrderPaymentLocked(order: Pick<Order, "status" | "paymentTerms" | "total" | "payments" | "creditApprovedAt">) {
-  if (["cancelled", "rejected", "draft", "pending_approval", "returned"].includes(order.status)) return true
+  // Returned: unlocked so recorded payment amounts can be corrected (Money received).
+  if (["cancelled", "rejected", "draft", "pending_approval"].includes(order.status)) return true
+  if (isOrderReturned(order)) return false
   if (isPostDeliveryPaymentCapture(order)) return false
   if (hasOutstandingCredit(order)) return false
   return ["confirmed", "processing", "shipped"].includes(order.status)
