@@ -79,7 +79,12 @@ export async function GET(req: NextRequest) {
         prisma.erpManualInventoryItem.findMany({ orderBy: { createdAt: "desc" } }),
       ])
 
-      const unitDtos = units.map((u) => ({
+      // Only warehouse-relevant SN rows for dispatch / available counts (not delivered/faulty-only aliases).
+      const warehouseUnits = units.filter(
+        (u) => u.status === "in_stock" || u.status === "at_branch",
+      )
+
+      const unitDtos = warehouseUnits.map((u) => ({
         id: u.id,
         serialNumber: u.serialNumber,
         assignedName: u.assignedName,

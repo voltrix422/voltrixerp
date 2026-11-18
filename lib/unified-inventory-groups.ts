@@ -117,7 +117,37 @@ export function buildUnifiedInventoryGroups(
     })
   }
 
-  return Array.from(groups.values()).sort((a, b) => a.modelKey.localeCompare(b.modelKey))
+  return mergeAliasGroupsIntoManual(Array.from(groups.values())).sort((a, b) =>
+    a.modelKey.localeCompare(b.modelKey),
+  )
+}
+
+/** Fold SN/stock alias rows (e.g. HSLD15KW) into the Manual group with the same product name. */
+function mergeAliasGroupsIntoManual(
+  groups: UnifiedInventoryModelGroup[],
+): UnifiedInventoryModelGroup[] {
+  const byKey = new Map(groups.map((g) => [g.modelKey, g]))
+  const manualByName = new Map<string, UnifiedInventoryModelGroup>()
+  for (const g of groups) {
+    if (!g.stockOnly?.isManual) continue
+    const name = g.displayName.trim().toLowerCase()
+    if (name) manualByName.set(name, g)
+  }
+
+  const drop = new Set<string>()
+  for (const g of groups) {
+    if (g.stockOnly?.isManual) continue
+    const name = g.displayName.trim().toLowerCase()
+    const manual = name ? manualByName.get(name) : undefined
+    if (!manual || manual.modelKey === g.modelKey) continue
+
+    manual.units.push(...g.units)
+    // Keep Manual qty; only absorb SN units for tracking.
+    drop.add(g.modelKey)
+  }
+
+  if (drop.size === 0) return groups
+  return [...byKey.values()].filter((g) => !drop.has(g.modelKey))
 }
 
 export function unifiedGroupFaulty(group: UnifiedInventoryModelGroup): number {

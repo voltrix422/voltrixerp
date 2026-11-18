@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Button } from "@/components/ui/button"
-import { Loader2, X } from "lucide-react"
+import { Check, ChevronDown, Loader2, Search, X } from "lucide-react"
 import type { Branch } from "@/lib/branches"
 
 export type BulkTransferProduct = {
@@ -83,6 +82,9 @@ export function BulkBranchTransferModal({
 }: Props) {
   const [toBranchId, setToBranchId] = useState("")
   const [lineState, setLineState] = useState<Record<string, LineState>>({})
+  const [productSearch, setProductSearch] = useState("")
+  const [destOpen, setDestOpen] = useState(false)
+  const [destSearch, setDestSearch] = useState("")
 
   const destinations = useMemo(
     () =>
@@ -94,6 +96,30 @@ export function BulkBranchTransferModal({
       ),
     [branches, currentBranchId, destinationFilter],
   )
+
+  const filteredDestinations = useMemo(() => {
+    const q = destSearch.trim().toLowerCase()
+    if (!q) return destinations
+    return destinations.filter(
+      (b) =>
+        b.name.toLowerCase().includes(q) ||
+        b.code.toLowerCase().includes(q) ||
+        b.type.replace(/_/g, " ").toLowerCase().includes(q),
+    )
+  }, [destinations, destSearch])
+
+  const selectedDestination = destinations.find((b) => b.id === toBranchId) || null
+
+  const visibleProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return products
+    return products.filter(
+      (p) =>
+        p.label.toLowerCase().includes(q) ||
+        (p.sublabel || "").toLowerCase().includes(q) ||
+        (p.model || "").toLowerCase().includes(q),
+    )
+  }, [products, productSearch])
 
   const wasOpenRef = useRef(false)
 
@@ -118,6 +144,9 @@ export function BulkBranchTransferModal({
       }
       setLineState(initial)
       setToBranchId("")
+      setProductSearch("")
+      setDestSearch("")
+      setDestOpen(false)
       return
     }
 
@@ -236,207 +265,277 @@ export function BulkBranchTransferModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-3 sm:p-6"
       style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
       onClick={onClose}
     >
       <div
-        className="relative z-[1] w-full max-w-2xl rounded-xl border border-white/40 bg-white/95 dark:bg-[hsl(var(--card))]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)] overflow-hidden max-h-[90vh] flex flex-col"
+        className="relative z-[1] flex h-[min(92vh,900px)] w-full max-w-6xl flex-col overflow-hidden rounded-[22px] border border-white/40 bg-[#f5f5f7]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-[hsl(var(--card))]/95"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-          <div>
-            <p className="text-sm font-semibold">{title}</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/[0.06] px-5 py-4 sm:px-6 dark:border-white/10">
+          <div className="min-w-0">
+            <p className="text-[17px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+              {title}
+            </p>
+            <p className="mt-0.5 text-[12px] text-[#86868b]">
               {requiresApproval
-                ? "Stock will not move until a super admin approves. A transfer / dispatch note is generated after approval."
-                : "Select products, set qty and a note for each. Scanned inventory is linked automatically — each line saves its own transfer history record."}
+                ? "Stock moves after approval. Each line saves its own transfer record."
+                : "Pick destination, select products, set qty. SN units link automatically when available."}
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer dark:bg-white/10 dark:text-white"
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
 
-        <div className="p-5 space-y-4 overflow-y-auto flex-1">
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Destination</label>
-            <select
-              value={toBranchId}
-              onChange={(e) => setToBranchId(e.target.value)}
-              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-6">
+          <div className="relative shrink-0">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+              Destination
+            </p>
+            <button
+              type="button"
+              onClick={() => setDestOpen((v) => !v)}
+              className="flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border-0 bg-white px-3.5 text-left shadow-sm ring-1 ring-black/[0.06] cursor-pointer dark:bg-[hsl(var(--background))] dark:ring-white/10"
             >
-              <option value="">-- Select destination --</option>
-              {destinations.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code}) — {b.type.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              <span className="min-w-0 truncate">
+                {selectedDestination ? (
+                  <>
+                    <span className="text-[14px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                      {selectedDestination.name}
+                    </span>
+                    <span className="ml-2 text-[12px] text-[#86868b]">
+                      {selectedDestination.code} · {selectedDestination.type.replace(/_/g, " ")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[14px] text-[#86868b]">Choose branch…</span>
+                )}
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-[#86868b] transition-transform ${destOpen ? "rotate-180" : ""}`} />
+            </button>
+            {destOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setDestOpen(false)} />
+                <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-[16px] border border-black/[0.06] bg-white shadow-xl dark:border-white/10 dark:bg-[hsl(var(--card))]">
+                  <div className="border-b border-black/[0.06] p-2 dark:border-white/10">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#aeaeb2]" />
+                      <input
+                        value={destSearch}
+                        onChange={(e) => setDestSearch(e.target.value)}
+                        placeholder="Search branches…"
+                        autoFocus
+                        className="h-9 w-full rounded-[10px] border-0 bg-[#f2f2f7] pl-8 pr-3 text-[13px] outline-none dark:bg-white/10"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-1.5">
+                    {filteredDestinations.length === 0 ? (
+                      <p className="px-3 py-4 text-center text-[12px] text-[#86868b]">No matches</p>
+                    ) : (
+                      filteredDestinations.map((b) => {
+                        const active = b.id === toBranchId
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              setToBranchId(b.id)
+                              setDestOpen(false)
+                              setDestSearch("")
+                            }}
+                            className={`flex w-full items-center justify-between gap-2 rounded-[12px] px-3 py-2.5 text-left cursor-pointer ${
+                              active ? "bg-[#1a9f9a]/12" : "hover:bg-black/[0.04] dark:hover:bg-white/5"
+                            }`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-[13px] font-semibold text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                                {b.name}
+                              </span>
+                              <span className="block truncate text-[11px] text-[#86868b]">
+                                {b.code} · {b.type.replace(/_/g, " ")}
+                              </span>
+                            </span>
+                            {active ? <Check className="h-4 w-4 shrink-0 text-[#1a9f9a]" /> : null}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium">Products ({selectedLines.length} selected)</p>
-              {selectableProducts.length > 0 && (
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] px-2" onClick={selectAll}>
-                    Select all
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-[10px] px-2"
-                    onClick={clearSelection}
-                    disabled={selectedLines.length === 0}
-                  >
-                    Clear
-                  </Button>
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                Products · {selectedLines.length} selected · {visibleProducts.length} shown
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#aeaeb2]" />
+                  <input
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Search products…"
+                    className="h-8 w-[11rem] rounded-full border-0 bg-white pl-8 pr-3 text-[12px] shadow-sm ring-1 ring-black/[0.06] outline-none sm:w-[14rem] dark:bg-[hsl(var(--background))] dark:ring-white/10"
+                  />
                 </div>
-              )}
-            </div>
-            {products.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">No products available.</p>
-            ) : (
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                {products.map((p) => {
-                  const state = lineState[p.id] ?? { selected: false, qty: "", note: "" }
-                  const disabled = p.selectable === false
-                  const qtyError =
-                    state.selected && !disabled
-                      ? getQtyValidationError(state.qty, p.maxQty)
-                      : null
-                  return (
-                    <div
-                      key={p.id}
-                      role={disabled ? undefined : "button"}
-                      tabIndex={disabled ? undefined : 0}
-                      className={`rounded-lg border p-3 space-y-2 transition-colors ${
-                        state.selected ? "border-[#1faca6] bg-[#1faca6]/5" : "bg-[hsl(var(--background))]"
-                      } ${disabled ? "opacity-60" : "cursor-pointer hover:border-[#1faca6]/40"}`}
-                      onClick={() => !disabled && toggleLine(p.id, p)}
-                      onKeyDown={(e) => {
-                        if (!disabled && (e.key === "Enter" || e.key === " ")) {
-                          e.preventDefault()
-                          toggleLine(p.id, p)
-                        }
-                      }}
+                {selectableProducts.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={selectAll}
+                      className="h-8 rounded-full bg-black/[0.06] px-3 text-[11px] font-semibold text-[#1d1d1f] cursor-pointer hover:bg-black/[0.09] dark:bg-white/10 dark:text-white"
                     >
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4 rounded border cursor-pointer shrink-0"
-                          checked={state.selected}
-                          disabled={disabled}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            updateLine(p.id, {
-                              selected: e.target.checked,
-                              qty:
-                                e.target.checked && !state.qty.trim()
-                                  ? p.maxQty > 0
-                                    ? "1"
-                                    : ""
-                                  : state.qty,
-                            })
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      disabled={selectedLines.length === 0}
+                      className="h-8 rounded-full bg-black/[0.06] px-3 text-[11px] font-semibold text-[#1d1d1f] cursor-pointer hover:bg-black/[0.09] disabled:opacity-40 dark:bg-white/10 dark:text-white"
+                    >
+                      Clear
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {products.length === 0 ? (
+              <p className="py-10 text-center text-[13px] text-[#86868b]">No stock to send</p>
+            ) : visibleProducts.length === 0 ? (
+              <p className="py-10 text-center text-[13px] text-[#86868b]">No matches</p>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleProducts.map((p) => {
+                    const state = lineState[p.id] ?? { selected: false, qty: "", note: "" }
+                    const disabled = p.selectable === false
+                    const qtyError =
+                      state.selected && !disabled ? getQtyValidationError(state.qty, p.maxQty) : null
+                    return (
+                      <div
+                        key={p.id}
+                        role={disabled ? undefined : "button"}
+                        tabIndex={disabled ? undefined : 0}
+                        className={`rounded-[16px] bg-white p-3 shadow-sm ring-1 transition-colors dark:bg-[hsl(var(--background))] ${
+                          state.selected
+                            ? "ring-[#1a9f9a] bg-[#1a9f9a]/[0.06]"
+                            : "ring-black/[0.05] dark:ring-white/10"
+                        } ${disabled ? "opacity-55" : "cursor-pointer hover:ring-[#1a9f9a]/40"}`}
+                        onClick={() => !disabled && toggleLine(p.id, p)}
+                        onKeyDown={(e) => {
+                          if (!disabled && (e.key === "Enter" || e.key === " ")) {
+                            e.preventDefault()
+                            toggleLine(p.id, p)
                           }
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{p.label}</p>
-                          {p.sublabel && (
-                            <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{p.sublabel}</p>
-                          )}
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            Available: {p.maxQty} {p.unit}
-                            {disabled && p.unselectableReason ? ` · ${p.unselectableReason}` : ""}
-                          </p>
+                        }}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div
+                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                              state.selected
+                                ? "border-[#1a9f9a] bg-[#1a9f9a] text-white"
+                                : "border-black/15 dark:border-white/20"
+                            }`}
+                          >
+                            {state.selected ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
+                              {p.label}
+                            </p>
+                            {p.sublabel ? (
+                              <p className="truncate text-[11px] text-[#aeaeb2]">{p.sublabel}</p>
+                            ) : null}
+                            <p className="mt-1 text-[12px] tabular-nums font-medium text-[#1a9f9a]">
+                              {p.maxQty} {p.unit} available
+                            </p>
+                          </div>
                         </div>
                         {state.selected && (
-                          <div className="flex flex-col items-end gap-0.5 shrink-0">
-                            <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min={1}
-                              max={p.maxQty}
-                              step={1}
-                              value={state.qty}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) =>
-                                updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
-                              }
-                              onBlur={(e) =>
-                                updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
-                              }
-                              className={`w-16 h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs text-center ${
-                                qtyError ? "border-red-500 focus:ring-red-500" : ""
-                              }`}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 text-[10px] px-2"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                updateLine(p.id, { qty: String(p.maxQty) })
-                              }}
-                            >
-                              Max
-                            </Button>
+                          <div className="mt-3 space-y-2 border-t border-black/[0.05] pt-3 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1}
+                                max={p.maxQty}
+                                step={1}
+                                value={state.qty}
+                                onChange={(e) =>
+                                  updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
+                                }
+                                onBlur={(e) =>
+                                  updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
+                                }
+                                className={`h-9 w-20 rounded-[10px] border-0 bg-[#f2f2f7] px-2 text-center text-[13px] tabular-nums outline-none dark:bg-white/10 ${
+                                  qtyError ? "ring-1 ring-[#ff3b30]" : ""
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                className="h-9 rounded-full bg-black/[0.06] px-3 text-[11px] font-semibold cursor-pointer dark:bg-white/10"
+                                onClick={() => updateLine(p.id, { qty: String(p.maxQty) })}
+                              >
+                                Max
+                              </button>
+                              {qtyError ? (
+                                <p className="text-[11px] text-[#ff3b30]">{qtyError}</p>
+                              ) : null}
                             </div>
-                            {qtyError && (
-                              <p className="text-[10px] text-red-600 max-w-[140px] text-right leading-tight">
-                                {qtyError}
-                              </p>
-                            )}
+                            <input
+                              value={state.note}
+                              onChange={(e) => updateLine(p.id, { note: e.target.value })}
+                              placeholder="Note (optional)"
+                              className="h-9 w-full rounded-[10px] border-0 bg-[#f2f2f7] px-3 text-[12px] outline-none dark:bg-white/10"
+                            />
                           </div>
                         )}
                       </div>
-                      {state.selected && (
-                        <div className="pl-6 space-y-1">
-                          <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                            Note for this transfer
-                          </label>
-                          <textarea
-                            value={state.note}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => updateLine(p.id, { note: e.target.value })}
-                            rows={2}
-                            placeholder={`Note for ${p.label}…`}
-                            className="w-full rounded-md border bg-[hsl(var(--background))] px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={submitting}>
+        <div className="flex shrink-0 gap-2 border-t border-black/[0.06] bg-white/70 px-5 py-4 sm:px-6 dark:border-white/10 dark:bg-black/20">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="h-11 flex-1 rounded-full bg-black/[0.06] text-[14px] font-semibold text-[#1d1d1f] cursor-pointer hover:bg-black/[0.09] disabled:opacity-40 dark:bg-white/10 dark:text-white"
+          >
             Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
+          </button>
+          <button
+            type="button"
             disabled={submitting || !toBranchId || selectedLines.length === 0 || hasInvalidSelectedQty}
             onClick={() => void handleSubmit()}
+            className="inline-flex h-11 flex-[1.4] items-center justify-center gap-1.5 rounded-full bg-[#1a9f9a] text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 disabled:opacity-40"
           >
             {submitting ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Saving…
               </>
             ) : requiresApproval ? (
               `Submit ${selectedLines.length} for approval`
             ) : (
-              `${mode === "dispatch" ? "Send" : "Transfer"} ${selectedLines.length} product${selectedLines.length === 1 ? "" : "s"}`
+              `${mode === "dispatch" ? "Send" : "Transfer"} ${selectedLines.length}`
             )}
-          </Button>
+          </button>
         </div>
       </div>
     </div>,

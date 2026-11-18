@@ -659,8 +659,10 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none space-y-4 pr-0.5">
-          {serialTrackedGroups.length > 0 && renderGroupTable("Inventory with SN numbers", serialTrackedGroups, false)}
-          {nonSerialGroups.length > 0 && renderGroupTable("Inventory without SN numbers", nonSerialGroups, true)}
+          {serialTrackedGroups.length > 0 &&
+            renderGroupTable("Inventory with SN numbers", serialTrackedGroups, true)}
+          {nonSerialGroups.length > 0 &&
+            renderGroupTable("Inventory without SN numbers", nonSerialGroups, true)}
         </div>
       )}
 

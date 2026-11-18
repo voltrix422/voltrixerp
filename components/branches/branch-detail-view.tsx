@@ -291,23 +291,24 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   }
 
   const bulkTransferProducts: BulkTransferProduct[] = isMainWarehouse
-    ? inventory.map((item) => {
-        const canSend = (item.inStock ?? item.quantity) > 0
-        const stockId =
-          item.inventoryId && !item.inventoryId.startsWith("wh:") ? item.inventoryId : undefined
-        return {
-          id: item.id,
-          label: item.itemName || item.productDescription || item.model || "Item",
-          sublabel: [item.model, item.isManual ? "Manual" : null].filter(Boolean).join(" · "),
-          model: item.model,
-          productName: item.itemName,
-          maxQty: item.inStock ?? item.quantity,
-          unit: item.unit || "pcs",
-          inventoryId: stockId,
-          selectable: canSend,
-          unselectableReason: canSend ? undefined : "No units in stock",
-        }
-      })
+    ? inventory
+        .filter((item) => (item.inStock ?? item.quantity) > 0)
+        .map((item) => {
+          const stockId =
+            item.inventoryId && !item.inventoryId.startsWith("wh:") ? item.inventoryId : undefined
+          return {
+            id: item.id,
+            label: item.itemName || item.productDescription || item.model || "Item",
+            sublabel: [item.model, item.isManual ? "Manual" : null].filter(Boolean).join(" · "),
+            model: item.model,
+            productName: item.itemName,
+            maxQty: item.inStock ?? item.quantity,
+            unit: item.unit || "pcs",
+            inventoryId: stockId,
+            selectable: true,
+          }
+        })
+        .sort((a, b) => a.label.localeCompare(b.label))
     : inventory
         .filter((item) => item.quantity > 0)
         .map((item) => ({
