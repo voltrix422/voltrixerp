@@ -2061,10 +2061,52 @@ function StepPsw({
     d.category !== "cess" && (!d.itemId || !items.some(i => i.id === d.itemId)),
   )
   const orphanSros = gdSros.filter(s => !s.itemId || !items.some(i => i.id === s.itemId))
+  const fx = Number(draft.fxRate) || 0
+  const dutyToPkr = (d: CustomsDutyEntry) => {
+    const amt = Number(d.amount) || 0
+    if (amt <= 0) return 0
+    const cur = String(d.currency || "PKR").toUpperCase()
+    if (cur === "PKR") return amt
+    return amt * fx
+  }
+  const itemDuties = duties.filter(d => d.category !== "cess")
+  const itemDutiesPkr = itemDuties.reduce((s, d) => s + dutyToPkr(d), 0)
+  const cessPkr = cessDuties.reduce((s, d) => s + dutyToPkr(d), 0)
+  const pswTotalPkr = itemDutiesPkr + cessPkr
+  const filledPsids = psids.filter(p => String(p || "").trim()).length
+  const dutyLineCount = itemDuties.filter(d => dutyToPkr(d) > 0).length + cessDuties.filter(d => dutyToPkr(d) > 0).length
 
   return (
     <div className="space-y-3">
-      <Section title="PSW · Goods Declaration & payment slips">
+      <div className="rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2 space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold tracking-tight">PSW total (duties + cess)</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Sum of all invoice-item duties and shared cess on this tab
+              {dutyLineCount ? ` · ${dutyLineCount} amount line${dutyLineCount === 1 ? "" : "s"}` : ""}
+              {filledPsids ? ` · ${filledPsids} PSID${filledPsids === 1 ? "" : "s"}` : ""}
+            </p>
+          </div>
+          <p className="text-base font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+            {formatPkr(pswTotalPkr)}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          <Stat label="Item duties" value={formatPkr(itemDutiesPkr)} />
+          <Stat label="Cess (shared)" value={formatPkr(cessPkr)} />
+          <Stat label="PSW grand total" value={formatPkr(pswTotalPkr)} highlight />
+        </div>
+      </div>
+
+      <Section
+        title="PSW · Goods Declaration & payment slips"
+        aside={
+          <span className="text-[11px] font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+            Sum {formatPkr(pswTotalPkr)}
+          </span>
+        }
+      >
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           <Field label="GD number">
             <input disabled={readOnly} value={draft.gdNumber} onChange={e => patch({ gdNumber: e.target.value })} className={inputCls} />
@@ -2119,7 +2161,14 @@ function StepPsw({
         </div>
       </Section>
 
-      <Section title="Duties & SROs by invoice item">
+      <Section
+        title="Duties & SROs by invoice item"
+        aside={
+          <span className="text-[11px] font-semibold tabular-nums">
+            Sum {formatPkr(itemDutiesPkr)}
+          </span>
+        }
+      >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
             Each invoice item can have multiple duties and multiple SROs. Duties sync into Charges.
@@ -2139,16 +2188,22 @@ function StepPsw({
           <div className="space-y-3">
             {items.map((item, itemIdx) => {
               const itemDuties = duties.filter(d => d.itemId === item.id && d.category !== "cess")
+              const itemDutySum = itemDuties.reduce((s, d) => s + dutyToPkr(d), 0)
               const itemSros = gdSros.filter(s => s.itemId === item.id)
               const sroDraft = sroDraftByItem[item.id] || { code: "", title: "" }
               const label = item.description || item.sku || item.hsCode || `Item ${itemIdx + 1}`
               return (
                 <div key={item.id} className="rounded border p-2.5 space-y-2 bg-[hsl(var(--muted))]/10">
-                  <div>
-                    <p className="text-[11px] font-semibold">{label}</p>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                      HS {item.hsCode || "—"} · Qty {item.qty || 0}
-                      {item.netWeightKg || item.weightKg ? ` · Net ${item.netWeightKg || item.weightKg} kg` : ""}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-semibold">{label}</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        HS {item.hsCode || "—"} · Qty {item.qty || 0}
+                        {item.netWeightKg || item.weightKg ? ` · Net ${item.netWeightKg || item.weightKg} kg` : ""}
+                      </p>
+                    </div>
+                    <p className="text-[11px] font-semibold tabular-nums">
+                      Duties {formatPkr(itemDutySum)}
                     </p>
                   </div>
 
@@ -2346,7 +2401,14 @@ function StepPsw({
         )}
       </Section>
 
-      <Section title="Cess duties (shared across all items)">
+      <Section
+        title="Cess duties (shared across all items)"
+        aside={
+          <span className="text-[11px] font-semibold tabular-nums">
+            Sum {formatPkr(cessPkr)}
+          </span>
+        }
+      >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
             Add as many cess lines as needed. Each is shared and split across all invoice items in landed cost.
@@ -3270,10 +3332,21 @@ function StepReceive({
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  aside,
+}: {
+  title: string
+  children: ReactNode
+  aside?: ReactNode
+}) {
   return (
     <div className="rounded-md border p-2.5 space-y-2">
-      <p className="text-xs font-semibold">{title}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold">{title}</p>
+        {aside}
+      </div>
       {children}
     </div>
   )
