@@ -318,13 +318,12 @@ export async function executeDispatchLine(params: {
 
   const serialInStock = modelKey ? await countInStockSerialsForModel(modelKey) : 0
 
+  // Manual availableQty is warehouse truth; do not cap dispatch to SN count alone.
   let effectiveAvailable = inventory.availableQty
-  if (modelKey) {
-    if (serialInStock > 0) {
-      effectiveAvailable = serialInStock
-    } else if (manualItem) {
-      effectiveAvailable = manualItem.availableQty ?? 0
-    }
+  if (manualItem) {
+    effectiveAvailable = Math.max(Number(manualItem.availableQty) || 0, serialInStock)
+  } else if (modelKey && serialInStock > 0) {
+    effectiveAvailable = serialInStock
   }
 
   if (effectiveAvailable < quantity) {
@@ -373,6 +372,16 @@ export async function executeDispatchLine(params: {
       quantity,
       branchCode: destinationBranchCode || destinationBranch?.code || "",
     })
+  }
+
+  if (manualItem && modelKey) {
+    await decrementManualInventoryByModel(modelKey, quantity)
+    // decrementManualInventoryByModel already syncs linked stock.availableQty to Manual.
+    await prisma.erpInventoryStock.update({
+      where: { id: stockId },
+      data: { allocatedQty: { increment: quantity } },
+    })
+  } else if (modelKey && serialInStock >= quantity) {
     const remaining = await countInStockSerialsForModel(modelKey)
     await prisma.erpInventoryStock.update({
       where: { id: stockId },
@@ -380,15 +389,6 @@ export async function executeDispatchLine(params: {
         availableQty: remaining,
         allocatedQty: { increment: quantity },
       },
-    })
-    if (manualItem) {
-      await decrementManualInventoryByModel(modelKey, quantity)
-    }
-  } else if (manualItem) {
-    await decrementManualInventoryByModel(modelKey, quantity)
-    await prisma.erpInventoryStock.update({
-      where: { id: stockId },
-      data: { allocatedQty: { increment: quantity } },
     })
   } else {
     await prisma.erpInventoryStock.update({

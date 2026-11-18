@@ -80,16 +80,15 @@ export function buildUnifiedInventoryGroups(
     }
 
     existing.displayName = displayName
-    if (existing.units.length === 0) {
-      existing.stockOnly = {
-        inStock: manual.availableQty ?? 0,
-        total: manual.qty ?? 0,
-        faultyQty: Number(manual.faultyQty) || 0,
-        unit: manual.unit || "pcs",
-        isManual: true,
-        manualId: manual.id,
-        stockId: manual.inventoryStockId ?? undefined,
-      }
+    // Always keep Manual qty as stockOnly — SN units are tracking only and must not hide Manual counts.
+    existing.stockOnly = {
+      inStock: manual.availableQty ?? 0,
+      total: manual.qty ?? 0,
+      faultyQty: Number(manual.faultyQty) || 0,
+      unit: manual.unit || "pcs",
+      isManual: true,
+      manualId: manual.id,
+      stockId: manual.inventoryStockId ?? undefined,
     }
   }
 
@@ -128,15 +127,20 @@ export function unifiedGroupFaulty(group: UnifiedInventoryModelGroup): number {
 }
 
 export function unifiedGroupInStock(group: UnifiedInventoryModelGroup): number {
-  if (group.units.length > 0) {
-    return group.units.filter((u) => u.status === "in_stock").length
+  const serialInStock = group.units.filter((u) => u.status === "in_stock").length
+  // Manual / stock row is the warehouse quantity source of truth when present.
+  if (group.stockOnly) {
+    return Math.max(group.stockOnly.inStock, serialInStock)
   }
-  return group.stockOnly?.inStock ?? 0
+  return serialInStock
 }
 
 export function unifiedGroupTotal(group: UnifiedInventoryModelGroup): number {
-  if (group.units.length > 0) return group.units.length
-  return group.stockOnly?.total ?? 0
+  const serialTotal = group.units.length
+  if (group.stockOnly) {
+    return Math.max(group.stockOnly.total, serialTotal, unifiedGroupInStock(group))
+  }
+  return serialTotal
 }
 
 export function filterUnifiedGroups(

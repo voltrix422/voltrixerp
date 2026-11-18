@@ -152,15 +152,14 @@ export async function GET(req: NextRequest) {
           if (group.modelKey && (inStock > 0 || manual)) {
             const ensured = await ensureInventoryStockForModel(group.modelKey, itemName, unit)
             stockId = ensured.stock.id
-            const serialInStock = group.units.filter((u) => u.status === "in_stock").length
-            if (serialInStock > 0) {
-              inStock = ensured.inStockCount
-            } else if (manual) {
-              inStock = manual.availableQty ?? 0
+            if (manual) {
+              inStock = Math.max(manual.availableQty ?? 0, ensured.inStockCount)
               await prisma.erpInventoryStock.update({
                 where: { id: stockId },
                 data: { availableQty: inStock },
               }).catch(() => {})
+            } else {
+              inStock = ensured.inStockCount
             }
           }
 

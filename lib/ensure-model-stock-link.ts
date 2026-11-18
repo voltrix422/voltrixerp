@@ -56,13 +56,13 @@ export async function ensureInventoryStockForModel(
       where: { id: manualItem.inventoryStockId },
     })
     if (linked) {
-      const available =
-        inStockCount > 0 ? inStockCount : Number(manualItem.availableQty) || 0
+      // Manual availableQty is warehouse truth; SN count alone must not shrink stock.
+      const available = Math.max(Number(manualItem.availableQty) || 0, inStockCount)
       const stock = await prisma.erpInventoryStock.update({
         where: { id: linked.id },
         data: {
           availableQty: available,
-          receivedQty: Math.max(linked.receivedQty, manualItem.qty ?? 0, inStockCount),
+          receivedQty: Math.max(linked.receivedQty, manualItem.qty ?? 0, inStockCount, available),
           name: productName?.trim() || linked.name || manualItem.name || trimmed,
           description: manualItem.model,
           unit: unit || linked.unit,
@@ -142,11 +142,16 @@ export async function allocateSerialUnitsForBranchDispatch(params: {
     },
   })
 
-  const remaining = await countInStockSerialsForModel(trimmed)
-  await prisma.erpInventoryStock.update({
-    where: { id: params.inventoryStockId },
-    data: { availableQty: remaining },
-  })
+  // Do not overwrite stock.availableQty with SN remaining when Manual inventory owns the qty.
+  // Callers that decrement Manual (or non-manual stock) sync availableQty themselves.
+  const manual = await findManualInventoryByAnyModelOrAlias(trimmed)
+  if (!manual) {
+    const remaining = await countInStockSerialsForModel(trimmed)
+    await prisma.erpInventoryStock.update({
+      where: { id: params.inventoryStockId },
+      data: { availableQty: remaining },
+    })
+  }
 
   return units.length
 }

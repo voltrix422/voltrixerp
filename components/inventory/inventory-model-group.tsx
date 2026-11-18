@@ -79,11 +79,15 @@ export function InventoryModelGroup({
   /** Apple card grid (non-SN / manual). Default table row. */
   variant?: "row" | "card"
 }) {
-  const count = modelUnits.length > 0 ? modelUnits.length : (stockOnly?.total ?? 0)
-  const inStock =
-    modelUnits.length > 0
-      ? modelUnits.filter((u) => u.status === "in_stock").length
-      : (stockOnly?.inStock ?? 0)
+  const serialInStock = modelUnits.filter((u) => u.status === "in_stock").length
+  const serialTotal = modelUnits.length
+  // Prefer Manual/stock qty when present — SN rows alone were hiding real warehouse stock.
+  const inStock = stockOnly
+    ? Math.max(stockOnly.inStock, serialInStock)
+    : serialInStock
+  const count = stockOnly
+    ? Math.max(stockOnly.total, serialTotal, inStock)
+    : serialTotal
   const outCount = count > inStock ? count - inStock : 0
   const unitLabel = stockOnly?.unit || "pcs"
   const title = customName || modelKey

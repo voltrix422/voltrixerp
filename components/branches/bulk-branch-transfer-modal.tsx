@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Loader2, X } from "lucide-react"
 import type { Branch } from "@/lib/branches"
@@ -228,12 +229,19 @@ export function BulkBranchTransferModal({
     })
   }
 
-  if (!open) return null
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+  if (!open || !mounted) return null
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4"
+      style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-2xl rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="relative z-[1] w-full max-w-2xl rounded-xl border border-white/40 bg-white/95 dark:bg-[hsl(var(--card))]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)] overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
@@ -431,6 +439,7 @@ export function BulkBranchTransferModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
