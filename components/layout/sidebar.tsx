@@ -1,8 +1,8 @@
 "use client"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Image from "next/image"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useState, useTransition } from "react"
 import {
   Grid2X2,
   Wallet,
@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button"
 import { NavTooltip } from "@/components/ui/nav-tooltip"
 import { useAuth } from "@/components/auth-provider"
 import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
+import { ErpNavProgress } from "@/components/layout/erp-nav-progress"
 import type { Module } from "@/lib/auth"
 import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
@@ -87,11 +88,17 @@ const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: LucideIcon; mod
 function NavContent({
   onNavigate,
   collapsed = false,
+  pendingHref,
+  setPendingHref,
 }: {
   onNavigate?: () => void
   collapsed?: boolean
+  pendingHref: string | null
+  setPendingHref: (href: string | null) => void
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [, startTransition] = useTransition()
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
 
@@ -114,6 +121,70 @@ function NavContent({
   const visibleAdminNav = ADMIN_ONLY_NAV.filter((item) => (
     item.module ? hasModuleAccess(user, item.module) : isSuperadminUser
   ))
+
+  // Prefetch visible ERP routes so clicks don't wait on first download.
+  useEffect(() => {
+    const hrefs = new Set<string>()
+    for (const item of NAV_ORDER) {
+      if (!canShowNavItem(item)) continue
+      if (item.href) hrefs.add(item.href.split("?")[0])
+      if (item.kind === "crm") {
+        if (showCrmMain) hrefs.add("/crm")
+        if (showSalesAgents) hrefs.add("/crm/sales-agents")
+      }
+    }
+    for (const item of visibleAdminNav) hrefs.add(item.href.split("?")[0])
+    const run = () => {
+      for (const href of hrefs) {
+        try {
+          router.prefetch(href)
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 2500 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const t = window.setTimeout(run, 400)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefetch when auth modules settle
+  }, [user?.id, user?.role, showCrmMain, showSalesAgents, router])
+
+  useEffect(() => {
+    if (!pendingHref) return
+    const target = pendingHref.split("?")[0]
+    if (pathname === target || pathname?.startsWith(`${target}/`)) {
+      setPendingHref(null)
+    }
+  }, [pathname, pendingHref, setPendingHref])
+
+  function go(href: string) {
+    const target = href.split("?")[0]
+    if (pathname === target || pathname?.startsWith(`${target}/`)) {
+      onNavigate?.()
+      return
+    }
+    setPendingHref(href)
+    onNavigate?.()
+    startTransition(() => {
+      router.push(href)
+    })
+  }
+
+  const isActivePath = (href: string) => {
+    const target = href.split("?")[0]
+    const current = (pendingHref || pathname || "").split("?")[0]
+    // Exact match for CRM main so Sales agents does not light up Main.
+    if (target === "/crm") return current === "/crm"
+    return current === target || current.startsWith(`${target}/`)
+  }
+
+  const crmSectionActive = (() => {
+    const current = (pendingHref || pathname || "").split("?")[0]
+    return current === "/crm" || current.startsWith("/crm/")
+  })()
 
   const linkClass = (active: boolean) =>
     cn(
@@ -143,9 +214,14 @@ function NavContent({
                 <CollapsedTip key={item.key} label={item.label} enabled>
                   <Link
                     href={crmHref}
-                    onClick={onNavigate}
+                    prefetch
+                    onClick={(e) => {
+                      e.preventDefault()
+                      go(crmHref)
+                    }}
+                    onMouseEnter={() => router.prefetch(crmHref)}
                     aria-label={item.label}
-                    className={linkClass(pathname?.startsWith("/crm") || false)}
+                    className={linkClass(crmSectionActive)}
                   >
                     <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                   </Link>
@@ -157,7 +233,7 @@ function NavContent({
                 <button
                   type="button"
                   onClick={() => setCrmOpen((open) => !open)}
-                  className={cn(linkClass(pathname?.startsWith("/crm") || false), "w-full cursor-pointer")}
+                  className={cn(linkClass(crmSectionActive), "w-full cursor-pointer")}
                 >
                   <UsersRound className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                   <span className="flex-1 truncate text-left">{item.label}</span>
@@ -171,8 +247,13 @@ function NavContent({
                     {showCrmMain && (
                       <Link
                         href="/crm"
-                        onClick={onNavigate}
-                        className={subLinkClass(pathname === "/crm")}
+                        prefetch
+                        onClick={(e) => {
+                          e.preventDefault()
+                          go("/crm")
+                        }}
+                        onMouseEnter={() => router.prefetch("/crm")}
+                        className={subLinkClass(isActivePath("/crm"))}
                       >
                         Main
                       </Link>
@@ -180,8 +261,13 @@ function NavContent({
                     {showSalesAgents && (
                       <Link
                         href="/crm/sales-agents"
-                        onClick={onNavigate}
-                        className={subLinkClass(!!pathname?.startsWith("/crm/sales-agents"))}
+                        prefetch
+                        onClick={(e) => {
+                          e.preventDefault()
+                          go("/crm/sales-agents")
+                        }}
+                        onMouseEnter={() => router.prefetch("/crm/sales-agents")}
+                        className={subLinkClass(isActivePath("/crm/sales-agents"))}
                       >
                         Sales agents
                       </Link>
@@ -193,14 +279,19 @@ function NavContent({
           }
 
           const Icon = item.icon
-          const active = pathname?.startsWith(item.href!.split("?")[0]) || false
+          const href = item.href!
           return (
             <CollapsedTip key={item.key} label={item.label} enabled={collapsed}>
               <Link
-                href={item.href!}
-                onClick={onNavigate}
+                href={href}
+                prefetch
+                onClick={(e) => {
+                  e.preventDefault()
+                  go(href)
+                }}
+                onMouseEnter={() => router.prefetch(href)}
                 aria-label={item.label}
-                className={cn(linkClass(active), collapsed && item.key === "messages" && "relative")}
+                className={cn(linkClass(isActivePath(href)), collapsed && item.key === "messages" && "relative")}
               >
                 <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                 {!collapsed && (
@@ -214,14 +305,18 @@ function NavContent({
           )
         })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
-          const active = pathname?.startsWith(href.split("?")[0]) || false
           return (
             <CollapsedTip key={href} label={label} enabled={collapsed}>
               <Link
                 href={href}
-                onClick={onNavigate}
+                prefetch
+                onClick={(e) => {
+                  e.preventDefault()
+                  go(href)
+                }}
+                onMouseEnter={() => router.prefetch(href)}
                 aria-label={label}
-                className={linkClass(active)}
+                className={linkClass(isActivePath(href))}
               >
                 <Icon className={NAV_ICON_CLASS} strokeWidth={NAV_ICON_STROKE} />
                 {!collapsed && <span className="flex-1 truncate">{label}</span>}
@@ -237,6 +332,7 @@ function NavContent({
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -286,6 +382,7 @@ export function Sidebar() {
 
   return (
     <>
+      <ErpNavProgress pendingHref={pendingHref} />
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -295,7 +392,11 @@ export function Sidebar() {
       >
         {logoButton()}
         <Suspense fallback={null}>
-          <NavContent collapsed={collapsed} />
+          <NavContent
+            collapsed={collapsed}
+            pendingHref={pendingHref}
+            setPendingHref={setPendingHref}
+          />
         </Suspense>
       </aside>
 
@@ -324,7 +425,11 @@ export function Sidebar() {
               </Button>
             </div>
             <Suspense fallback={null}>
-              <NavContent onNavigate={() => setMobileOpen(false)} />
+              <NavContent
+                onNavigate={() => setMobileOpen(false)}
+                pendingHref={pendingHref}
+                setPendingHref={setPendingHref}
+              />
             </Suspense>
           </aside>
         </div>
