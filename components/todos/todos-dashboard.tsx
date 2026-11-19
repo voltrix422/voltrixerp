@@ -32,6 +32,7 @@ import {
   extendTodoDue,
   formatReminderTime,
   isRecurringCadence,
+  getTodo,
   listTodos,
   rejectTodo,
   setTodoReminder,
@@ -321,9 +322,14 @@ export function TodosDashboard() {
   const [attachFiles, setAttachFiles] = useState<LocalFile[]>([])
 
   const load = useCallback(async (opts?: { silent?: boolean; selectId?: string }) => {
+    const mine = !isAdmin || view === "mine"
+    // Wait for auth id before "mine" query so we don't double-fetch / flash empty.
+    if (mine && !user?.id) {
+      if (!opts?.silent) setLoading(true)
+      return
+    }
     if (!opts?.silent) setLoading(true)
     try {
-      const mine = !isAdmin || view === "mine"
       const [rows, userRows] = await Promise.all([
         listTodos(mine ? { mineForUserId: user?.id } : undefined),
         isAdmin ? getUsers().catch(() => [] as User[]) : Promise.resolve([] as User[]),
@@ -376,6 +382,24 @@ export function TodosDashboard() {
     void load()
   }, [load])
 
+  // Hydrate activity for the open todo (list payload skips updates for speed).
+  useEffect(() => {
+    if (!selectedId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const full = await getTodo(selectedId)
+        if (cancelled || !full) return
+        setTodos((prev) => prev.map((t) => (t.id === full.id ? full : t)))
+      } catch {
+        /* keep list row */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
+
   useEffect(() => {
     const onRefresh = () => {
       void load({ silent: true })
@@ -383,12 +407,11 @@ export function TodosDashboard() {
     const onVisible = () => {
       if (document.visibilityState === "visible") onRefresh()
     }
-    window.addEventListener("focus", onRefresh)
     window.addEventListener("voltrix-todos-refresh", onRefresh)
     document.addEventListener("visibilitychange", onVisible)
-    const interval = window.setInterval(onRefresh, 45000)
+    // Slow networks: avoid focus + frequent polling fighting the first paint.
+    const interval = window.setInterval(onRefresh, 120000)
     return () => {
-      window.removeEventListener("focus", onRefresh)
       window.removeEventListener("voltrix-todos-refresh", onRefresh)
       document.removeEventListener("visibilitychange", onVisible)
       window.clearInterval(interval)

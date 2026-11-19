@@ -132,16 +132,29 @@ function withLate(row: unknown, latePenalty?: LateMeta) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
+  const id = searchParams.get("id")?.trim() || ""
   const userId = searchParams.get("userId")?.trim() || ""
   const status = searchParams.get("status")?.trim() || ""
+  /** Full activity history — only for a single todo detail. List omits updates for speed. */
+  const withUpdates = searchParams.get("withUpdates") === "1" || !!id
 
   try {
+    if (id) {
+      const row = await prisma.erpTodo.findUnique({
+        where: { id },
+        include: todoInclude,
+      })
+      if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      return NextResponse.json(row)
+    }
+
     const rows = await prisma.erpTodo.findMany({
       where: {
         ...(userId ? { assigneeUserId: userId } : {}),
         ...(status ? { status } : {}),
       },
-      include: todoInclude,
+      // List stays light for slow links; open a todo (?id=) to load full activity.
+      ...(withUpdates ? { include: todoInclude } : {}),
       orderBy: [{ status: "asc" }, { dueAt: "asc" }, { assignedAt: "desc" }],
     })
     return NextResponse.json(rows)

@@ -94,8 +94,14 @@ export function ActiveUsersCounter({ className = "" }: ActiveUsersCounterProps) 
 
   useEffect(() => {
     void updateActivity()
-    const activityInterval = setInterval(() => void updateActivity(), 30000)
-    const countInterval = setInterval(() => void fetchActiveUsers(), 10000)
+    const activityInterval = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void updateActivity()
+    }, 60000)
+    const countInterval = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void fetchActiveUsers()
+    }, 45000)
     return () => {
       clearInterval(activityInterval)
       clearInterval(countInterval)

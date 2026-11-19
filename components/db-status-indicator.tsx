@@ -8,7 +8,10 @@ export function DBStatusIndicator() {
 
   useEffect(() => {
     checkConnection()
-    const interval = setInterval(checkConnection, 30000)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void checkConnection()
+    }, 60000)
     return () => clearInterval(interval)
   }, [])
 

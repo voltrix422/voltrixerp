@@ -47,13 +47,20 @@ export function NotificationBell() {
   const seenIdsRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
 
+  const lastRemindAtRef = useRef(0)
+
   const refresh = useCallback(async () => {
     if (!user?.id) return
     const [list, count] = await Promise.all([
       fetchNotifications(user.id),
       fetchUnreadCount(user.id),
     ])
-    void fetch("/api/db/todos/remind", { method: "POST" }).catch(() => {})
+    // Reminder job is heavy — run at most once per 5 minutes, not on every poll.
+    const now = Date.now()
+    if (now - lastRemindAtRef.current > 5 * 60 * 1000) {
+      lastRemindAtRef.current = now
+      void fetch("/api/db/todos/remind", { method: "POST" }).catch(() => {})
+    }
     const incoming = list.filter((n) => !n.read && !seenIdsRef.current.has(n.id))
     if (!primedRef.current) {
       primedRef.current = true
@@ -83,7 +90,10 @@ export function NotificationBell() {
     primedRef.current = false
     seenIdsRef.current = new Set()
     void refresh()
-    const interval = setInterval(() => void refresh(), 8000)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void refresh()
+    }, 30000)
     const onVisible = () => {
       if (document.visibilityState === "visible") void refresh()
     }

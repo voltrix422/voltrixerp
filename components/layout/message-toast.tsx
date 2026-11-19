@@ -115,7 +115,10 @@ export function MessageToastListener() {
     }
 
     void poll()
-    const interval = setInterval(() => void poll(), 6000)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void poll()
+    }, 30000)
     return () => {
       cancelled = true
       clearInterval(interval)

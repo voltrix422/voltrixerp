@@ -12,7 +12,7 @@ export type ChatConversation = {
   unreadCount: number
 }
 
-export function useUnreadMessages(pollMs = 8000) {
+export function useUnreadMessages(pollMs = 30000) {
   const { user } = useAuth()
   const [conversations, setConversations] = useState<ChatConversation[]>([])
   const [unread, setUnread] = useState(0)
@@ -38,7 +38,10 @@ export function useUnreadMessages(pollMs = 8000) {
       return
     }
     void refresh()
-    const interval = setInterval(() => void refresh(), pollMs)
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      void refresh()
+    }, pollMs)
     function onChanged() {
       void refresh()
     }

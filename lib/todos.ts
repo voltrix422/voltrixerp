@@ -118,6 +118,16 @@ export async function listTodos(params?: {
   return Array.isArray(data) ? data.map((r) => mapTodo(r)) : []
 }
 
+/** Single todo with full activity history (list endpoint omits updates). */
+export async function getTodo(id: string): Promise<Todo | null> {
+  const qs = new URLSearchParams({ id: id.trim() })
+  const res = await fetch(`/api/db/todos?${qs}`, { cache: "no-store" })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error("Failed to load todo")
+  const data = await res.json()
+  return data && typeof data === "object" ? mapTodo(data) : null
+}
+
 export async function createTodo(input: {
   title: string
   description?: string
