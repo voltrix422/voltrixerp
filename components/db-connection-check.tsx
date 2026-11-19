@@ -17,7 +17,7 @@ export function DBConnectionCheck() {
   async function checkConnection() {
     try {
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Connection timeout")), 10000)
+        setTimeout(() => reject(new Error("Connection timeout")), 20000)
       )
       
       const healthPromise = fetch("/api/health").then(r => r.ok)

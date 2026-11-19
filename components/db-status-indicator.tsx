@@ -15,7 +15,7 @@ export function DBStatusIndicator() {
   async function checkConnection() {
     try {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 5000),
+        setTimeout(() => reject(new Error("timeout")), 15000),
       )
       const healthPromise = fetch("/api/health").then((r) => r.ok)
       const ok = (await Promise.race([healthPromise, timeoutPromise])) as boolean
