@@ -143,9 +143,13 @@ function NavContent({
         }
       }
     }
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(run, { timeout: 2500 })
-      return () => window.cancelIdleCallback(id)
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(run, { timeout: 2500 })
+      return () => w.cancelIdleCallback?.(id)
     }
     const t = window.setTimeout(run, 400)
     return () => window.clearTimeout(t)
