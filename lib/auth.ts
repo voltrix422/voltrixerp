@@ -255,7 +255,9 @@ export function homePathForUser(user: { role?: string; modules?: string[] } | nu
   if (isChinaMoneyUser(user.role)) return "/money-to-china"
   // POS-only accounts still open the terminal directly.
   if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"
-  // To-do is the default home / dashboard for every ERP user.
+  // Superadmin / admin: full Dashboard (overview + approvals) as the first screen.
+  if (isErpAdmin(user.role)) return "/dashboard"
+  // Everyone else: To-do is the main screen.
   return "/todos"
 }
 

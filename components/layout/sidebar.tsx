@@ -65,7 +65,7 @@ const NAV_ORDER: Array<{
   module?: Module
   kind: "link" | "crm" | "finance"
 }> = [
-  { key: "dashboard", href: "/todos", label: "Dashboard", icon: Grid2X2, module: "dashboard", kind: "link" },
+  { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: Grid2X2, module: "dashboard", kind: "link" },
   { key: "finance", href: "/finance", label: "Finance", icon: Wallet, module: "finance", kind: "link" },
   { key: "crm", label: "CRM", icon: UsersRound, module: "crm", kind: "crm" },
   { key: "inventory", href: "/inventory", label: "Inventory", icon: Archive, module: "inventory", kind: "link" },

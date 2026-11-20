@@ -3,7 +3,6 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
-import { ComingSoon } from "@/components/layout/coming-soon"
 import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
@@ -50,19 +49,19 @@ export default function DashboardPage() {
     }
   }, [searchParams, router])
 
+  // Staff home is To-do — send non-admins there instead of an empty Dashboard.
+  useEffect(() => {
+    if (user && !isErpAdmin(user.role)) {
+      router.replace("/todos")
+    }
+  }, [user, router])
+
   if (!user) return null
+
+  if (!isErpAdmin(user.role)) return null
 
   const greeting = dashboardGreeting(user.name)
   const dateLabel = dashboardDateLabel()
-
-  if (!isErpAdmin(user.role)) {
-    return (
-      <>
-        <Topbar title={greeting} description={dateLabel} />
-        <ComingSoon title="Dashboard" />
-      </>
-    )
-  }
 
   return (
     <>
