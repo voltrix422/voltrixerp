@@ -1646,6 +1646,15 @@ model ErpWebsitePresence {
   @@map("erp_website_presence")
 }
 
+/// Simple public visitor counter for /visitors (increments on each page hit).
+model ErpSiteVisitorCounter {
+  id        String   @id @default("main")
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_site_visitor_counter")
+}
+
 /// Company / staff vehicles used for petrol allotments.
 model ErpFuelVehicle {
   id             String   @id @default(cuid())
