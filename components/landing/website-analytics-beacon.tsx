@@ -12,6 +12,8 @@ import {
 const VISITOR_KEY = "vx_web_vid"
 const SESSION_KEY = "vx_web_sid"
 const ATTR_KEY = "vx_web_attr"
+/** Once-per-browser flag for the public live visitor counter (/visitors). */
+const UNIQUE_COUNTER_KEY = "voltrix-visitors-counted-v2"
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
@@ -144,6 +146,18 @@ export function WebsiteAnalyticsBeacon() {
         if (d?.pageviewId) pageviewIdRef.current = d.pageviewId
       })
       .catch(() => {})
+
+    // Live /visitors counter: +1 once per browser for any real public-site visit.
+    try {
+      if (localStorage.getItem(UNIQUE_COUNTER_KEY) !== "1") {
+        localStorage.setItem(UNIQUE_COUNTER_KEY, "1")
+        void fetch("/api/site/visitors", { method: "POST", cache: "no-store", keepalive: true }).catch(
+          () => {},
+        )
+      }
+    } catch {
+      /* private mode — skip unique counter */
+    }
 
     const heartbeat = window.setInterval(() => {
       const durationMs = Date.now() - startedAtRef.current

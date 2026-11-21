@@ -6,7 +6,6 @@ import Footer from "@/components/landing/footer"
 import { dmSans } from "@/lib/fonts/dm-sans"
 
 const ACCENT = "#1a9f9a"
-const COUNTED_KEY = "voltrix-visitors-counted-v1"
 
 export default function VisitorsPage() {
   const [count, setCount] = useState<number | null>(null)
@@ -18,30 +17,15 @@ export default function VisitorsPage() {
     let cancelled = false
     let pollTimer: ReturnType<typeof setInterval> | null = null
 
-    async function hitAndStart() {
+    async function load() {
       if (startedRef.current) return
       startedRef.current = true
 
       try {
-        const alreadyCounted =
-          typeof window !== "undefined" && localStorage.getItem(COUNTED_KEY) === "1"
-
-        // Same browser: only read the count. New browser: +1 once, then remember.
-        const res = await fetch("/api/site/visitors", {
-          method: alreadyCounted ? "GET" : "POST",
-          cache: "no-store",
-        })
+        // Display only — unique count is recorded site-wide by the analytics beacon.
+        const res = await fetch("/api/site/visitors", { cache: "no-store" })
         const data = await res.json()
         if (!res.ok) throw new Error(data?.error || "Failed")
-
-        if (!alreadyCounted) {
-          try {
-            localStorage.setItem(COUNTED_KEY, "1")
-          } catch {
-            /* private mode / blocked storage */
-          }
-        }
-
         if (!cancelled) {
           setCount(Number(data.count) || 0)
           setLive(true)
@@ -69,7 +53,7 @@ export default function VisitorsPage() {
       }
     }
 
-    void hitAndStart()
+    void load()
     return () => {
       cancelled = true
       if (pollTimer) clearInterval(pollTimer)
@@ -99,8 +83,8 @@ export default function VisitorsPage() {
               Visitors
             </h1>
             <p className="text-neutral-500 text-base leading-relaxed max-w-md mx-auto">
-              Each browser counts once. Refreshing the same browser won’t increase the number —
-              a new device or browser will.
+              Counts real website visitors — each browser once across the site (home, products, and
+              more). Refresh won’t add again; a new browser will.
             </p>
           </div>
 
@@ -125,7 +109,7 @@ export default function VisitorsPage() {
           </div>
 
           <p className="text-xs text-neutral-400">
-            Share this page — each new browser adds +1 (live updates every few seconds).
+            Live updates every few seconds as real users visit voltrixbatteries.com.
           </p>
         </div>
       </section>
