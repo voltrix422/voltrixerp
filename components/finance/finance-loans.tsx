@@ -31,6 +31,71 @@ export interface LoanRecord {
   has_proof?: boolean
 }
 
+type LoanProofItem = { url: string; name: string }
+
+const MAX_LOAN_PROOFS = 8
+const MAX_LOAN_PROOF_BYTES = 2 * 1024 * 1024
+
+/** Supports legacy single proof_url string and JSON arrays of urls/names. */
+function parseLoanProofs(proofUrl: string, proofName: string): LoanProofItem[] {
+  const url = String(proofUrl || "").trim()
+  const name = String(proofName || "").trim()
+  if (!url) return []
+  try {
+    const parsed = JSON.parse(url)
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      let names: string[] = []
+      try {
+        const n = JSON.parse(name)
+        if (Array.isArray(n)) names = n.map((x) => String(x || ""))
+      } catch {
+        /* single name string */
+      }
+      if (parsed.every((x) => typeof x === "string")) {
+        return parsed.map((u, i) => ({
+          url: u,
+          name: names[i] || name || `Proof ${i + 1}`,
+        }))
+      }
+      if (parsed.every((x) => x && typeof x === "object" && typeof (x as { url?: string }).url === "string")) {
+        return (parsed as { url: string; name?: string }[]).map((x, i) => ({
+          url: x.url,
+          name: x.name || names[i] || `Proof ${i + 1}`,
+        }))
+      }
+    }
+  } catch {
+    /* legacy single data-url / path */
+  }
+  return [{ url, name: name || "Proof" }]
+}
+
+function serializeLoanProofs(items: LoanProofItem[]): { proof_url: string; proof_name: string } {
+  if (items.length === 0) return { proof_url: "", proof_name: "" }
+  if (items.length === 1) return { proof_url: items[0].url, proof_name: items[0].name }
+  return {
+    proof_url: JSON.stringify(items.map((i) => i.url)),
+    proof_name: JSON.stringify(items.map((i) => i.name)),
+  }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(String(fr.result || ""))
+    fr.onerror = () => reject(new Error("Failed to read file"))
+    fr.readAsDataURL(file)
+  })
+}
+
+function isImageProofUrl(url: string) {
+  return url.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url)
+}
+
+function isPdfProofUrl(url: string) {
+  return url.startsWith("data:application/pdf") || /\.pdf(\?|$)/i.test(url)
+}
+
 async function fetchLoanProof(id: string): Promise<LoanRecord | null> {
   try {
     const res = await fetch(`/api/finance/records?id=${encodeURIComponent(id)}`)
@@ -237,8 +302,7 @@ function LoanFormDialog({
   const [currency, setCurrency] = useState("PKR")
   const [tag, setTag] = useState("")
   const [notes, setNotes] = useState("")
-  const [proofFile, setProofFile] = useState<File | null>(null)
-  const [proofPreview, setProofPreview] = useState("")
+  const [proofFiles, setProofFiles] = useState<{ file: File; preview: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
@@ -260,11 +324,25 @@ function LoanFormDialog({
   const overpay = mode === "return" && outstanding > 0 && parsedAmount > outstanding + 0.004
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setProofFile(file)
-    if (file.type.startsWith("image/")) setProofPreview(URL.createObjectURL(file))
-    else setProofPreview("")
+    const list = e.target.files
+    if (!list?.length) return
+    const next = Array.from(list).map((file) => ({
+      file,
+      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
+    }))
+    setProofFiles((prev) => [...prev, ...next].slice(0, MAX_LOAN_PROOFS))
+    e.target.value = ""
+  }
+
+  function removeProofAt(index: number) {
+    setProofFiles((prev) => {
+      const copy = [...prev]
+      const [removed] = copy.splice(index, 1)
+      if (removed?.file.type.startsWith("image/") && removed.preview) {
+        URL.revokeObjectURL(removed.preview)
+      }
+      return copy
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -275,20 +353,28 @@ function LoanFormDialog({
     setSaving(true)
     setError("")
 
-    let proof_url = ""
-    let proof_name = ""
-    if (proofFile) {
-      if (proofFile.size > 2 * 1024 * 1024) {
-        setError("File too large. Max 2MB.")
+    for (const p of proofFiles) {
+      if (p.file.size > MAX_LOAN_PROOF_BYTES) {
+        setError(`“${p.file.name}” is too large. Max 2MB each.`)
         setSaving(false)
         return
       }
-      proof_name = proofFile.name
-      proof_url = await new Promise<string>((r) => {
-        const fr = new FileReader()
-        fr.onload = () => r(fr.result as string)
-        fr.readAsDataURL(proofFile)
-      })
+    }
+
+    let proof_url = ""
+    let proof_name = ""
+    if (proofFiles.length > 0) {
+      try {
+        const items: LoanProofItem[] = []
+        for (const p of proofFiles) {
+          items.push({ url: await fileToDataUrl(p.file), name: p.file.name })
+        }
+        ;({ proof_url, proof_name } = serializeLoanProofs(items))
+      } catch {
+        setError("Failed to read one of the proof files.")
+        setSaving(false)
+        return
+      }
     }
 
     const category =
@@ -324,6 +410,9 @@ function LoanFormDialog({
         setSaving(false)
         return
       }
+      proofFiles.forEach((p) => {
+        if (p.file.type.startsWith("image/") && p.preview) URL.revokeObjectURL(p.preview)
+      })
       onSaved(record)
       onClose()
     } catch (err) {
@@ -474,38 +563,65 @@ function LoanFormDialog({
               />
             </Field>
 
-            <Field label="Proof">
-              <div
-                onClick={() => fileRef.current?.click()}
-                className="rounded-[12px] border border-dashed border-black/[0.12] bg-white dark:bg-[hsl(var(--card))] p-4 text-center cursor-pointer hover:border-[#007aff]/40 transition-colors"
-              >
-                {proofPreview ? (
-                  <img src={proofPreview} alt="proof" className="max-h-28 mx-auto rounded-lg object-contain" />
-                ) : proofFile ? (
-                  <div className="flex items-center justify-center gap-2 text-[12px] text-[#86868b]">
-                    <FileText className="h-4 w-4" />
-                    {proofFile.name}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-[#86868b]">
-                    <Upload className="h-5 w-5" />
-                    <p className="text-[12px]">Image or PDF · max 2MB</p>
-                  </div>
-                )}
-              </div>
-              <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileChange} />
-              {proofFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProofFile(null)
-                    setProofPreview("")
-                  }}
-                  className="text-[11px] text-[#ff3b30] hover:underline mt-1.5 cursor-pointer"
-                >
-                  Remove
-                </button>
+            <Field label="Proofs">
+              {proofFiles.length > 0 && (
+                <div className="mb-2 grid grid-cols-2 gap-2">
+                  {proofFiles.map((p, i) => (
+                    <div
+                      key={`${p.file.name}-${p.file.size}-${i}`}
+                      className="relative rounded-[12px] border border-black/[0.08] bg-white dark:bg-[hsl(var(--card))] p-2"
+                    >
+                      {p.preview ? (
+                        <img src={p.preview} alt={p.file.name} className="h-20 w-full rounded-lg object-cover" />
+                      ) : (
+                        <div className="h-20 flex flex-col items-center justify-center gap-1 text-[#86868b] px-1">
+                          <FileText className="h-4 w-4" />
+                          <p className="text-[10px] text-center line-clamp-2 break-all">{p.file.name}</p>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeProofAt(i)}
+                        className="absolute top-1.5 right-1.5 h-6 w-6 inline-flex items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/70 cursor-pointer"
+                        aria-label={`Remove ${p.file.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
+              <div
+                onClick={() => {
+                  if (proofFiles.length >= MAX_LOAN_PROOFS) return
+                  fileRef.current?.click()
+                }}
+                className={cn(
+                  "rounded-[12px] border border-dashed border-black/[0.12] bg-white dark:bg-[hsl(var(--card))] p-4 text-center transition-colors",
+                  proofFiles.length >= MAX_LOAN_PROOFS
+                    ? "opacity-50 cursor-not-allowed"
+                    : "cursor-pointer hover:border-[#007aff]/40",
+                )}
+              >
+                <div className="flex flex-col items-center gap-1 text-[#86868b]">
+                  <Upload className="h-5 w-5" />
+                  <p className="text-[12px]">
+                    {proofFiles.length > 0 ? "Add more images or PDFs" : "Images or PDFs · multiple OK"}
+                  </p>
+                  <p className="text-[11px]">
+                    Max 2MB each · up to {MAX_LOAN_PROOFS} files
+                    {proofFiles.length > 0 ? ` · ${proofFiles.length}/${MAX_LOAN_PROOFS}` : ""}
+                  </p>
+                </div>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
             </Field>
           </div>
 
@@ -555,12 +671,19 @@ function LoanProfileDialog({
 }) {
   const [proofRecord, setProofRecord] = useState<LoanRecord | null>(null)
   const [proofLoading, setProofLoading] = useState(false)
+  const [proofIndex, setProofIndex] = useState(0)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [exporting, setExporting] = useState(false)
 
+  const proofItems = proofRecord
+    ? parseLoanProofs(proofRecord.proof_url || "", proofRecord.proof_name || "")
+    : []
+  const activeProof = proofItems[Math.min(proofIndex, Math.max(0, proofItems.length - 1))] || null
+
   async function openProof(r: LoanRecord) {
+    setProofIndex(0)
     if (r.proof_url) {
       setProofRecord(r)
       return
@@ -931,8 +1054,17 @@ function LoanProfileDialog({
                 className="w-full max-w-lg rounded-[20px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between px-5 py-3.5">
-                  <p className="text-[15px] font-semibold truncate">{proofRecord.proof_name || "Proof"}</p>
+                <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold truncate">
+                      {activeProof?.name || proofRecord.proof_name || "Proof"}
+                    </p>
+                    {proofItems.length > 1 && (
+                      <p className="text-[11px] text-[#86868b] mt-0.5">
+                        {Math.min(proofIndex, proofItems.length - 1) + 1} of {proofItems.length}
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setProofRecord(null)}
@@ -941,22 +1073,66 @@ function LoanProfileDialog({
                     <X className="h-4 w-4" strokeWidth={2.25} />
                   </button>
                 </div>
-                <div className="px-5 pb-5">
+                <div className="px-5 pb-5 space-y-3">
                   {proofLoading || !proofRecord.proof_url ? (
                     <p className="text-[13px] text-[#86868b] py-8 text-center">Loading proof…</p>
-                  ) : proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
-                    <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-[14px] object-contain max-h-[60vh]" />
-                  ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
-                    <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-[14px]" title="proof" />
+                  ) : !activeProof ? (
+                    <p className="text-[13px] text-[#86868b] py-8 text-center">No proof found</p>
+                  ) : isImageProofUrl(activeProof.url) ? (
+                    <img
+                      src={activeProof.url}
+                      alt={activeProof.name}
+                      className="w-full rounded-[14px] object-contain max-h-[60vh]"
+                    />
+                  ) : isPdfProofUrl(activeProof.url) ? (
+                    <iframe
+                      src={activeProof.url}
+                      className="w-full h-[60vh] rounded-[14px]"
+                      title={activeProof.name}
+                    />
                   ) : (
                     <a
-                      href={proofRecord.proof_url}
+                      href={activeProof.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-[13px] text-[#007aff] hover:underline"
                     >
-                      <FileText className="h-4 w-4" /> View {proofRecord.proof_name || "document"}
+                      <FileText className="h-4 w-4" /> View {activeProof.name || "document"}
                     </a>
+                  )}
+                  {proofItems.length > 1 && (
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        disabled={proofIndex <= 0}
+                        onClick={() => setProofIndex((i) => Math.max(0, i - 1))}
+                        className="h-9 px-3 rounded-full bg-black/[0.06] text-[12px] font-semibold disabled:opacity-40 cursor-pointer"
+                      >
+                        Previous
+                      </button>
+                      <div className="flex gap-1.5 flex-wrap justify-center">
+                        {proofItems.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setProofIndex(i)}
+                            className={cn(
+                              "h-2 w-2 rounded-full cursor-pointer",
+                              i === proofIndex ? "bg-[#007aff]" : "bg-black/20",
+                            )}
+                            aria-label={`Proof ${i + 1}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={proofIndex >= proofItems.length - 1}
+                        onClick={() => setProofIndex((i) => Math.min(proofItems.length - 1, i + 1))}
+                        className="h-9 px-3 rounded-full bg-black/[0.06] text-[12px] font-semibold disabled:opacity-40 cursor-pointer"
+                      >
+                        Next
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
