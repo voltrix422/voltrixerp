@@ -6,39 +6,55 @@ import Footer from "@/components/landing/footer"
 import { dmSans } from "@/lib/fonts/dm-sans"
 
 const ACCENT = "#1a9f9a"
+const COUNTED_KEY = "voltrix-visitors-counted-v1"
 
 export default function VisitorsPage() {
   const [count, setCount] = useState<number | null>(null)
   const [live, setLive] = useState(false)
   const [error, setError] = useState("")
-  const countedRef = useRef(false)
+  const startedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
     let pollTimer: ReturnType<typeof setInterval> | null = null
 
     async function hitAndStart() {
+      if (startedRef.current) return
+      startedRef.current = true
+
       try {
-        // Count this browser tab visit once (Strict Mode safe).
-        if (!countedRef.current) {
-          countedRef.current = true
-          const res = await fetch("/api/site/visitors", { method: "POST", cache: "no-store" })
-          const data = await res.json()
-          if (!res.ok) throw new Error(data?.error || "Failed")
-          if (!cancelled) {
-            setCount(Number(data.count) || 0)
-            setLive(true)
-            setError("")
+        const alreadyCounted =
+          typeof window !== "undefined" && localStorage.getItem(COUNTED_KEY) === "1"
+
+        // Same browser: only read the count. New browser: +1 once, then remember.
+        const res = await fetch("/api/site/visitors", {
+          method: alreadyCounted ? "GET" : "POST",
+          cache: "no-store",
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data?.error || "Failed")
+
+        if (!alreadyCounted) {
+          try {
+            localStorage.setItem(COUNTED_KEY, "1")
+          } catch {
+            /* private mode / blocked storage */
           }
+        }
+
+        if (!cancelled) {
+          setCount(Number(data.count) || 0)
+          setLive(true)
+          setError("")
         }
 
         pollTimer = setInterval(async () => {
           try {
-            const res = await fetch("/api/site/visitors", { cache: "no-store" })
-            const data = await res.json()
-            if (!res.ok) return
+            const pollRes = await fetch("/api/site/visitors", { cache: "no-store" })
+            const pollData = await pollRes.json()
+            if (!pollRes.ok) return
             if (!cancelled) {
-              setCount(Number(data.count) || 0)
+              setCount(Number(pollData.count) || 0)
               setLive(true)
             }
           } catch {
@@ -83,13 +99,12 @@ export default function VisitorsPage() {
               Visitors
             </h1>
             <p className="text-neutral-500 text-base leading-relaxed max-w-md mx-auto">
-              Every time someone opens this page, the count goes up by 1 — updating live.
+              Each browser counts once. Refreshing the same browser won’t increase the number —
+              a new device or browser will.
             </p>
           </div>
 
-          <div
-            className="rounded-[28px] border border-neutral-100 bg-neutral-50 px-8 py-12 shadow-[0_20px_60px_rgba(0,0,0,0.06)]"
-          >
+          <div className="rounded-[28px] border border-neutral-100 bg-neutral-50 px-8 py-12 shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
             {error ? (
               <p className="text-sm text-red-600">{error}</p>
             ) : count === null ? (
@@ -103,14 +118,14 @@ export default function VisitorsPage() {
                   {count.toLocaleString()}
                 </p>
                 <p className="mt-3 text-sm text-neutral-500">
-                  total visit{count === 1 ? "" : "s"}
+                  unique visitor{count === 1 ? "" : "s"}
                 </p>
               </>
             )}
           </div>
 
           <p className="text-xs text-neutral-400">
-            Share this page — each new visit increases the number.
+            Share this page — each new browser adds +1 (live updates every few seconds).
           </p>
         </div>
       </section>
