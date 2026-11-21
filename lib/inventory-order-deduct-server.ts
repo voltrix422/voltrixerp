@@ -1101,12 +1101,13 @@ export async function restoreInventoryForOrderServer(
 
     const manualItem = await resolveManualInventoryForOrderLine(item)
     if (manualItem) {
+      // Manual available is deducted by order-line qty at dispatch. Always restore
+      // the full requested return qty — even if only some serial units were found.
+      // (Previously: restoredQty > 0 used serial count only, under-restoring Manual.)
       const qtyToRestore =
-        restoredQty > 0
-          ? restoredQty
-          : orderWasDispatched(order)
-            ? lineQty
-            : 0
+        lineQty > 0 && (orderWasDispatched(order) || restoredQty > 0)
+          ? lineQty
+          : 0
       if (qtyToRestore > 0) {
         await restoreManualInventoryByModel(manualItem.model, qtyToRestore)
         loggedQty = qtyToRestore
