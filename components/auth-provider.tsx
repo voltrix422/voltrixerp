@@ -54,6 +54,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/cookies",
   "/documentation",
   "/solar-calculator",
+  "/visitors",
 ]
 
 function isPublicPath(pathname: string): boolean {

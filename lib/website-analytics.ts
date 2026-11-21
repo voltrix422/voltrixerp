@@ -20,6 +20,7 @@ export const PUBLIC_ANALYTICS_PREFIXES = [
   "/cookies",
   "/documentation",
   "/solar-calculator",
+  "/visitors",
 ] as const
 
 export const FEATURE_LABELS: Record<string, string> = {
