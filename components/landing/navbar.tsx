@@ -44,11 +44,13 @@ export default function Navbar() {
   const pathname = usePathname()
   const isHome = pathname === "/"
   const isCashback = pathname === "/installer-cashback"
-  const portalActive =
-    pathname === "/login" ||
-    pathname.startsWith("/installments") ||
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/todos")
+  const portalActive = Boolean(
+    pathname &&
+      (pathname === "/login" ||
+        pathname.startsWith("/installments") ||
+        pathname.startsWith("/dashboard") ||
+        pathname.startsWith("/todos")),
+  )
 
   const glass = !isHome || scrolled
   const getHref = (link: NavLink) =>
