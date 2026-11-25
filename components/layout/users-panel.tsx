@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, isInstallmentsUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
 import { investorCrm2SalesForInvestPeriod } from "@/lib/investor-fake-crm"
 import {
@@ -307,7 +307,7 @@ function UserRow({
         <div className="flex items-center gap-1 shrink-0 pt-0.5">
           <Badge
             variant={
-              roleHasAllModules(u.role) || isInvestorUser(u.role) || isChinaMoneyUser(u.role)
+              roleHasAllModules(u.role) || isInvestorUser(u.role) || isChinaMoneyUser(u.role) || isInstallmentsUser(u.role)
                 ? "default"
                 : isViewOnlyUser(u.role)
                   ? "outline"
@@ -318,7 +318,9 @@ function UserRow({
                 ? "bg-[#1a9f9a] hover:bg-[#1a9f9a]"
                 : isChinaMoneyUser(u.role)
                   ? "bg-[#ff9f0a] hover:bg-[#ff9f0a] text-[#1d1d1f]"
-                  : ""
+                  : isInstallmentsUser(u.role)
+                    ? "bg-[#007aff] hover:bg-[#007aff] text-white"
+                    : ""
             }`}
           >
             {ROLE_LABELS[u.role] ?? u.role}
@@ -338,7 +340,7 @@ function UserRow({
           )}
         </div>
       </div>
-      {!isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && (
+      {!isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && !isInstallmentsUser(draft.role) && (
         <div className="pt-1 border-t border-dashed">
           <NotificationEmailsEditor
             emails={draft.notificationEmails ?? []}
@@ -354,6 +356,11 @@ function UserRow({
         <p className="text-[10px] text-[#b25000] pt-1 border-t border-dashed">
           Signs in at /money-to-china/login — Money to China portal only
           {draft.role === "china_money_view" ? " (view only)" : " (can add transfers + proofs)"}.
+        </p>
+      )}
+      {isInstallmentsUser(draft.role) && (
+        <p className="text-[10px] text-[#007aff] pt-1 border-t border-dashed">
+          Signs in at /installments/login — Installments portal only (shared clients + documents). No ERP access.
         </p>
       )}
       {isInvestorUser(draft.role) && (
@@ -400,7 +407,12 @@ function UserRow({
               Portal: https://voltrixbatteries.com/money-to-china/login — no ERP modules.
             </p>
           )}
-          {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && (
+          {isInstallmentsUser(draft.role) && (
+            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              Portal: https://voltrixbatteries.com/installments/login — no ERP modules.
+            </p>
+          )}
+          {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && !isChinaMoneyUser(draft.role) && !isInstallmentsUser(draft.role) && (
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
             </p>
@@ -425,6 +437,10 @@ function UserRow({
         ) : isChinaMoneyUser(draft.role) ? (
           <span className="text-[10px] text-[#b25000]">
             Login: {draft.email} at /money-to-china/login
+          </span>
+        ) : isInstallmentsUser(draft.role) ? (
+          <span className="text-[10px] text-[#007aff]">
+            Login: {draft.email} at /installments/login
           </span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
@@ -501,7 +517,13 @@ function AddUserForm({
   return (
     <form onSubmit={submit} className="border rounded-lg p-3 space-y-2 bg-[hsl(var(--muted))]/30 text-xs">
       <p className="font-semibold text-xs">
-        {isInvestorUser(role) ? "New investor" : isChinaMoneyUser(role) ? "New Money to China user" : "New User"}
+        {isInvestorUser(role)
+          ? "New investor"
+          : isChinaMoneyUser(role)
+            ? "New Money to China user"
+            : isInstallmentsUser(role)
+              ? "New Installments portal user"
+              : "New User"}
       </p>
       {isInvestorUser(role) && (
         <p className="text-[10px] text-[#1a9f9a]">
@@ -511,6 +533,11 @@ function AddUserForm({
       {isChinaMoneyUser(role) && (
         <p className="text-[10px] text-[#b25000]">
           They sign in at /money-to-china/login. Admin can add transfers + proofs; View can only browse.
+        </p>
+      )}
+      {isInstallmentsUser(role) && (
+        <p className="text-[10px] text-[#007aff]">
+          They sign in at /installments/login. Shared clients + documents — can view and edit. No ERP access.
         </p>
       )}
       <input required placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
@@ -534,7 +561,7 @@ function AddUserForm({
             if (roleHasAllModules(next)) setModules([...ALL_MODULES])
             else if (next === "sales_agent") setModules(["crm"])
             else if (next === "investor") setModules(["dashboard", "crm"])
-            else if (next === "china_money_admin" || next === "china_money_view") setModules([])
+            else if (next === "china_money_admin" || next === "china_money_view" || next === "installments") setModules([])
           }}
           className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
         >
@@ -545,6 +572,11 @@ function AddUserForm({
         {isChinaMoneyUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
             Portal link: /money-to-china/login — no staff ERP access.
+          </p>
+        )}
+        {isInstallmentsUser(role) && (
+          <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            Portal link: /installments/login — no staff ERP access.
           </p>
         )}
         {isInvestorUser(role) && (
@@ -569,13 +601,13 @@ function AddUserForm({
             />
           </>
         )}
-        {isViewOnlyUser(role) && !isInvestorUser(role) && !isChinaMoneyUser(role) && (
+        {isViewOnlyUser(role) && !isInvestorUser(role) && !isChinaMoneyUser(role) && !isInstallmentsUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
             Assign the pages this user can view. They will not be able to change anything in the ERP.
           </p>
         )}
       </div>
-      {!isInvestorUser(role) && !isChinaMoneyUser(role) && (
+      {!isInvestorUser(role) && !isChinaMoneyUser(role) && !isInstallmentsUser(role) && (
         <NotificationEmailsEditor
           emails={notificationEmails}
           enabled={emailNotificationsEnabled}
@@ -602,6 +634,10 @@ function AddUserForm({
         <p className="text-[10px] text-[#b25000]">
           Money to China login: /money-to-china/login
         </p>
+      ) : isInstallmentsUser(role) ? (
+        <p className="text-[10px] text-[#007aff]">
+          Installments login: /installments/login
+        </p>
       ) : (
       <div className="flex flex-wrap gap-1">
         {ALL_MODULES.map(m => {
@@ -620,7 +656,11 @@ function AddUserForm({
       )}
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-7 text-xs flex-1 cursor-pointer">
-          {isInvestorUser(role) ? "Create investor login" : "Create"}
+          {isInvestorUser(role)
+            ? "Create investor login"
+            : isInstallmentsUser(role)
+              ? "Create installments login"
+              : "Create"}
         </Button>
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs cursor-pointer" onClick={onCancel}>Cancel</Button>
       </div>
@@ -631,7 +671,7 @@ function AddUserForm({
 export function UsersManager() {
   const [users, setUsers] = useState<User[]>([])
   const [purchaseScopes, setPurchaseScopes] = useState<PurchaseScope[]>([])
-  const [adding, setAdding] = useState<"user" | "investor" | false>(false)
+  const [adding, setAdding] = useState<"user" | "investor" | "installments" | false>(false)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
 
@@ -680,10 +720,10 @@ export function UsersManager() {
           <div>
             <h2 className="text-base font-semibold">User Accounts</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Staff ERP, investors (/login), and Money to China roles (/money-to-china/login)
+              Staff ERP, investors (/login), Money to China, and Installments portal (/installments/login)
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <Button
               size="sm"
               variant="outline"
@@ -691,6 +731,14 @@ export function UsersManager() {
               onClick={() => setAdding(v => v === "investor" ? false : "investor")}
             >
               <Plus className="h-3.5 w-3.5" /> Add investor
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs cursor-pointer"
+              onClick={() => setAdding(v => v === "installments" ? false : "installments")}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add installments
             </Button>
             <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => v === "user" ? false : "user")}>
               <Plus className="h-3.5 w-3.5" /> Add user
@@ -722,7 +770,13 @@ export function UsersManager() {
           {adding && (
             <AddUserForm
               key={adding}
-              initialRole={adding === "investor" ? "investor" : "user"}
+              initialRole={
+                adding === "investor"
+                  ? "investor"
+                  : adding === "installments"
+                    ? "installments"
+                    : "user"
+              }
               onAdd={handleAdd}
               onCancel={() => setAdding(false)}
               purchaseScopes={purchaseScopes}

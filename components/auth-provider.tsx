@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, isErpAdmin, homePathForUser } from "@/lib/auth"
+import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser, isInvestorUser, isChinaMoneyUser, isInstallmentsUser, isErpAdmin, homePathForUser } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -63,6 +63,7 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/pos/login" ||
     pathname === "/investor/login" ||
     pathname === "/money-to-china/login" ||
+    pathname === "/installments/login" ||
     pathname === "/"
   ) {
     return true
@@ -79,6 +80,11 @@ function isInvestorPortalPath(pathname: string): boolean {
 function isChinaMoneyPortalPath(pathname: string): boolean {
   if (pathname === "/money-to-china/login") return false
   return pathname === "/money-to-china" || pathname.startsWith("/money-to-china/")
+}
+
+function isInstallmentsPortalPath(pathname: string): boolean {
+  if (pathname === "/installments/login") return false
+  return pathname === "/installments" || pathname.startsWith("/installments/")
 }
 
 export { isPublicPath }
@@ -124,6 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace("/pos/login")
       } else if (pathname.startsWith("/money-to-china")) {
         router.replace("/money-to-china/login")
+      } else if (pathname.startsWith("/installments")) {
+        router.replace("/installments/login")
       } else {
         router.replace("/login")
       }
@@ -133,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user && pathname) {
       const investor = isInvestorUser(user.role)
       const chinaMoney = isChinaMoneyUser(user.role)
+      const installments = isInstallmentsUser(user.role)
 
       if (investor && pathname === "/investor/login") {
         router.replace("/investor")
@@ -157,6 +166,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       // Dedicated china-money users only; ERP admins may also open the portal.
       if (!chinaMoney && !isErpAdmin(user.role) && isChinaMoneyPortalPath(pathname)) {
+        router.replace(homePathForUser(user))
+        return
+      }
+
+      if (installments && pathname === "/installments/login") {
+        router.replace("/installments")
+        return
+      }
+      if (installments && !isPublicPath(pathname) && !isInstallmentsPortalPath(pathname)) {
+        router.replace("/installments")
+        return
+      }
+      // Dedicated installments IDs only; ERP admins may also open the portal.
+      if (!installments && !isErpAdmin(user.role) && isInstallmentsPortalPath(pathname)) {
         router.replace(homePathForUser(user))
       }
     }

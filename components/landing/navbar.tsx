@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Menu, X } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { ChevronDown, Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { usePathname } from "next/navigation"
@@ -27,22 +27,36 @@ const navLinks: NavLink[] = [
   { label: "Blog", href: "/blog" },
   { label: "Warranty", href: "/warranty" },
   { label: "Cashback", href: "/installer-cashback", accent: true },
-  { label: "Money to China", short: "China $", href: "/money-to-china/login" },
+]
+
+const portalLinks = [
   { label: "ERP", href: "/login" },
+  { label: "Installments", href: "/installments/login" },
 ]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const [portalOpen, setPortalOpen] = useState(false)
+  const [mobilePortalOpen, setMobilePortalOpen] = useState(false)
   const [visible, setVisible] = useState(false)
+  const portalRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const isHome = pathname === "/"
   const isCashback = pathname === "/installer-cashback"
+  const portalActive =
+    pathname === "/login" ||
+    pathname.startsWith("/installments") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/todos")
 
   const glass = !isHome || scrolled
   const getHref = (link: NavLink) =>
     link.href || (link.hash ? (isHome ? `#${link.hash}` : `/#${link.hash}`) : "#")
-  const closeMenu = () => setOpen(false)
+  const closeMenu = () => {
+    setOpen(false)
+    setMobilePortalOpen(false)
+  }
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
@@ -53,11 +67,30 @@ export default function Navbar() {
 
   useEffect(() => {
     closeMenu()
+    setPortalOpen(false)
   }, [pathname])
 
   useEffect(() => {
     setVisible(true)
   }, [])
+
+  useEffect(() => {
+    if (!portalOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (portalRef.current && !portalRef.current.contains(e.target as Node)) {
+        setPortalOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPortalOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [portalOpen])
 
   const navClass = glass
     ? "bg-white/90 backdrop-blur-xl border-neutral-200/80 shadow-lg border"
@@ -87,7 +120,6 @@ export default function Navbar() {
           />
         </a>
 
-        {/* Desktop links — compact, no wrap, CTA never clipped */}
         <div className="hidden xl:flex flex-1 items-center justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex items-center gap-x-1 2xl:gap-x-2 px-1">
             {navLinks.map((l) => {
@@ -112,6 +144,43 @@ export default function Navbar() {
                 </a>
               )
             })}
+
+            <div className="relative" ref={portalRef}>
+              <button
+                type="button"
+                onClick={() => setPortalOpen((v) => !v)}
+                aria-expanded={portalOpen}
+                aria-haspopup="menu"
+                className={[
+                  "inline-flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-lg text-[12px] 2xl:text-[13px] font-medium whitespace-nowrap transition-colors cursor-pointer",
+                  portalActive || portalOpen
+                    ? "text-neutral-900 bg-neutral-100"
+                    : "text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100/80",
+                ].join(" ")}
+                style={{ letterSpacing: "-0.2px" }}
+              >
+                Portal
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${portalOpen ? "rotate-180" : ""}`} />
+              </button>
+              {portalOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+6px)] min-w-[11rem] rounded-xl border border-neutral-200/90 bg-white/95 backdrop-blur-xl shadow-xl p-1.5 z-50"
+                >
+                  {portalLinks.map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={() => setPortalOpen(false)}
+                      className="block px-3 py-2 rounded-lg text-[13px] font-medium text-neutral-800 hover:bg-neutral-100 transition-colors"
+                    >
+                      {item.label}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -157,6 +226,25 @@ export default function Navbar() {
               </a>
             )
           })}
+          <button
+            type="button"
+            onClick={() => setMobilePortalOpen((v) => !v)}
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl text-[15px] font-medium text-neutral-900 hover:bg-neutral-100 cursor-pointer"
+          >
+            Portal
+            <ChevronDown className={`h-4 w-4 transition-transform ${mobilePortalOpen ? "rotate-180" : ""}`} />
+          </button>
+          {mobilePortalOpen &&
+            portalLinks.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={closeMenu}
+                className="pl-6 pr-3 py-2 rounded-xl text-[14px] font-medium text-neutral-700 hover:bg-neutral-100"
+              >
+                {item.label}
+              </a>
+            ))}
           <div className="pt-2 mt-1 border-t border-neutral-100 px-1 pb-1">
             <GetQuoteButton onClick={closeMenu} className="w-full justify-center" />
           </div>

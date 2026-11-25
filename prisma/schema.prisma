@@ -1888,3 +1888,45 @@ model ChinaMoneyTransfer {
   @@index([createdAt])
   @@map("erp_china_money_transfers")
 }
+
+/** Shared installments portal clients — all portal IDs can view/edit. */
+model InstallmentClient {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String   @default("")
+  email         String   @default("")
+  cnic          String   @default("")
+  address       String   @default("")
+  product       String   @default("")
+  notes         String   @default("")
+  createdBy     String   @default("") @map("created_by")
+  createdById   String   @default("") @map("created_by_id")
+  updatedBy     String   @default("") @map("updated_by")
+  updatedById   String   @default("") @map("updated_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  documents     InstallmentDocument[]
+
+  @@index([name])
+  @@index([phone])
+  @@index([createdAt])
+  @@map("erp_installment_clients")
+}
+
+/** Labeled client documents (agreement / checklist / other). */
+model InstallmentDocument {
+  id            String   @id @default(cuid())
+  clientId      String   @map("client_id")
+  label         String
+  customLabel   String   @default("") @map("custom_label")
+  fileName      String   @default("") @map("file_name")
+  fileUrl       String   @map("file_url")
+  uploadedBy    String   @default("") @map("uploaded_by")
+  uploadedById  String   @default("") @map("uploaded_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  client        InstallmentClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([label])
+  @@map("erp_installment_documents")
+}

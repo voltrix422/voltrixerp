@@ -16,6 +16,7 @@ export type UserRole =
   | "investor"
   | "china_money_admin"
   | "china_money_view"
+  | "installments"
 
 export interface User {
   id: string
@@ -78,6 +79,14 @@ function normalizeRole(rawRole: unknown): UserRole {
   ) {
     return "china_money_view"
   }
+  if (
+    value === "installments" ||
+    value === "installment" ||
+    value === "installments_portal" ||
+    value === "installment_portal"
+  ) {
+    return "installments"
+  }
   if (value === "admin") return "admin"
   return "user"
 }
@@ -112,6 +121,7 @@ export const ASSIGNABLE_ROLES: UserRole[] = [
   "investor",
   "china_money_admin",
   "china_money_view",
+  "installments",
 ]
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -124,6 +134,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   investor: "Investor",
   china_money_admin: "Money to China (Admin)",
   china_money_view: "Money to China (View)",
+  installments: "Installments Portal",
 }
 
 export function isInvestorUser(role: UserRole | string | undefined | null) {
@@ -133,6 +144,20 @@ export function isInvestorUser(role: UserRole | string | undefined | null) {
 export function isChinaMoneyUser(role: UserRole | string | undefined | null) {
   const normalized = normalizeRole(role)
   return normalized === "china_money_admin" || normalized === "china_money_view"
+}
+
+export function isInstallmentsUser(role: UserRole | string | undefined | null) {
+  return normalizeRole(role) === "installments"
+}
+
+/** Dedicated installments portal IDs + ERP admins can use the shared installments workspace. */
+export function canAccessInstallmentsPortal(role: UserRole | string | undefined | null) {
+  const normalized = normalizeRole(role)
+  return normalized === "installments" || normalized === "superadmin" || normalized === "admin"
+}
+
+export function canWriteInstallments(role: UserRole | string | undefined | null) {
+  return canAccessInstallmentsPortal(role)
 }
 
 /** Who may create/delete China money transfers (portal admin + ERP staff; not view-only). */
@@ -194,7 +219,7 @@ export function hasModuleAccess(
 ): boolean {
   if (!user) return false
   if (isInvestorUser(user.role)) return module === "dashboard" || module === "crm"
-  if (isChinaMoneyUser(user.role)) return false
+  if (isChinaMoneyUser(user.role) || isInstallmentsUser(user.role)) return false
   if (module === "users") {
     return isSuperadmin(user.role) || (user.modules?.includes("users") ?? false)
   }
@@ -204,7 +229,7 @@ export function hasModuleAccess(
 export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
   if (roleHasAllModules(role)) return [...ALL_MODULES]
   if (role === "investor") return ["dashboard", "crm"]
-  if (role === "china_money_admin" || role === "china_money_view") return []
+  if (role === "china_money_admin" || role === "china_money_view" || role === "installments") return []
   if (role === "sales_agent" && selected.length === 0) return ["crm"]
   return selected
 }
@@ -253,6 +278,7 @@ export function homePathForUser(user: { role?: string; modules?: string[] } | nu
   if (!user) return "/todos"
   if (isInvestorUser(user.role)) return "/investor"
   if (isChinaMoneyUser(user.role)) return "/money-to-china"
+  if (isInstallmentsUser(user.role)) return "/installments"
   // POS-only accounts still open the terminal directly.
   if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"
   // Superadmin / admin: full Dashboard (overview + approvals) as the first screen.
