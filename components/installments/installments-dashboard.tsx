@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Pencil,
   ArrowLeft,
+  ChevronRight,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { canWriteInstallments } from "@/lib/auth"
@@ -71,7 +72,7 @@ function labelDisplay(doc: InstallmentDocument) {
 
 function formatWhen(value: string) {
   const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ""
+  if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleString(undefined, {
     day: "2-digit",
     month: "short",
@@ -80,6 +81,20 @@ function formatWhen(value: string) {
     minute: "2-digit",
   })
 }
+
+function formatShortDate(value: string) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return "—"
+  return d.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+const fieldClass =
+  "w-full h-10 rounded-[10px] border-0 bg-[#f2f2f7] px-3.5 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:ring-2 focus:ring-[#007aff]/25 transition-shadow"
+const labelClass = "block text-[12px] font-medium text-[#6e6e73] mb-1.5"
 
 export function InstallmentsDashboard() {
   const { user } = useAuth()
@@ -130,6 +145,7 @@ export function InstallmentsDashboard() {
         if (!res.ok) throw new Error(data.error || "Failed to load client")
         setSelected(data)
         setSelectedId(id)
+        setShowForm(false)
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load client")
       }
@@ -297,188 +313,254 @@ export function InstallmentsDashboard() {
     }
   }
 
-  const inputClass =
-    "w-full h-9 rounded-[10px] border border-black/[0.08] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:border-[#007aff]/50 focus:ring-[3px] focus:ring-[#007aff]/15"
+  function backToList() {
+    setSelected(null)
+    setSelectedId(null)
+    setShowForm(false)
+    setEditingId(null)
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-        <div>
-          <h1 className="text-[20px] font-semibold tracking-tight text-[#1d1d1f]">Clients</h1>
-          <p className="text-[12px] text-[#86868b] mt-0.5">
-            Shared workspace — everyone with a portal ID can view and edit.
-          </p>
+    <div className="space-y-5">
+      {!selected && !showForm && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <h1 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Clients</h1>
+          {canWrite && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-[#007aff] text-white text-[13px] font-semibold hover:bg-[#0066d6] active:scale-[0.98] transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,122,255,0.25)]"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+              New client
+            </button>
+          )}
         </div>
-        {canWrite && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-full bg-[#007aff] text-white text-[13px] font-semibold hover:bg-[#0066d6] cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add client
-          </button>
-        )}
-      </div>
+      )}
 
       {error ? (
-        <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-xl px-3 py-2">{error}</p>
+        <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[12px] px-3.5 py-2.5">{error}</p>
       ) : null}
 
       {showForm && (
         <form
           onSubmit={saveClient}
-          className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-5 space-y-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
+          className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
         >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[14px] font-semibold text-[#1d1d1f]">
-              {editingId ? "Edit client" : "New client"}
-            </h2>
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-black/[0.05] bg-[#fafafa]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+            <p className="flex-1 text-center text-[12px] font-medium text-[#86868b] pr-8 tracking-[-0.01em]">
+              {editingId ? "Edit Client" : "New Client"}
+            </p>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
-              className="p-1.5 rounded-lg text-[#86868b] hover:bg-black/[0.04] cursor-pointer"
+              onClick={() => {
+                setShowForm(false)
+                setEditingId(null)
+              }}
+              className="p-1 rounded-md text-[#aeaeb2] hover:text-[#86868b] hover:bg-black/[0.04] cursor-pointer"
               aria-label="Close"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <input
-              required
-              className={inputClass}
-              placeholder="Full name *"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <input
-              className={inputClass}
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-            <input
-              className={inputClass}
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-            <input
-              className={inputClass}
-              placeholder="CNIC"
-              value={form.cnic}
-              onChange={(e) => setForm((f) => ({ ...f, cnic: e.target.value }))}
-            />
-            <input
-              className={`${inputClass} sm:col-span-2`}
-              placeholder="Address"
-              value={form.address}
-              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-            />
-            <input
-              className={`${inputClass} sm:col-span-2`}
-              placeholder="Product / system"
-              value={form.product}
-              onChange={(e) => setForm((f) => ({ ...f, product: e.target.value }))}
-            />
-            <textarea
-              className="w-full min-h-[72px] rounded-[10px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:border-[#007aff]/50 focus:ring-[3px] focus:ring-[#007aff]/15 sm:col-span-2"
-              placeholder="Notes"
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            />
+
+          <div className="p-5 sm:p-6 space-y-6">
+            <section>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#aeaeb2] mb-3">
+                Personal details
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="ic-name">
+                    Full name <span className="text-[#ff3b30]">*</span>
+                  </label>
+                  <input
+                    id="ic-name"
+                    required
+                    className={fieldClass}
+                    placeholder="Client full name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="ic-phone">
+                    Phone
+                  </label>
+                  <input
+                    id="ic-phone"
+                    className={fieldClass}
+                    placeholder="03XX XXXXXXX"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="ic-email">
+                    Email
+                  </label>
+                  <input
+                    id="ic-email"
+                    type="email"
+                    className={fieldClass}
+                    placeholder="name@example.com"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="ic-cnic">
+                    CNIC
+                  </label>
+                  <input
+                    id="ic-cnic"
+                    className={fieldClass}
+                    placeholder="XXXXX-XXXXXXX-X"
+                    value={form.cnic}
+                    onChange={(e) => setForm((f) => ({ ...f, cnic: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="h-px bg-black/[0.05]" />
+
+            <section>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#aeaeb2] mb-3">
+                Installation details
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="ic-address">
+                    Address
+                  </label>
+                  <input
+                    id="ic-address"
+                    className={fieldClass}
+                    placeholder="Street, city, area"
+                    value={form.address}
+                    onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="ic-product">
+                    Product / system
+                  </label>
+                  <input
+                    id="ic-product"
+                    className={fieldClass}
+                    placeholder="Battery, inverter, or package"
+                    value={form.product}
+                    onChange={(e) => setForm((f) => ({ ...f, product: e.target.value }))}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="ic-notes">
+                    Notes
+                  </label>
+                  <textarea
+                    id="ic-notes"
+                    rows={4}
+                    className="w-full rounded-[10px] border-0 bg-[#f2f2f7] px-3.5 py-2.5 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:ring-2 focus:ring-[#007aff]/25 resize-y min-h-[96px]"
+                    placeholder="Payment terms, install schedule, special instructions…"
+                    value={form.notes}
+                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-          <div className="flex gap-2 pt-1">
+
+          <div className="flex items-center justify-end gap-2 px-5 sm:px-6 py-4 border-t border-black/[0.05] bg-[#fafafa]">
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false)
+                setEditingId(null)
+              }}
+              className="h-9 px-4 rounded-full text-[13px] font-medium text-[#1d1d1f] hover:bg-black/[0.05] cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-9 px-4 rounded-full bg-[#1d1d1f] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+              className="h-9 px-5 rounded-full bg-[#007aff] text-white text-[13px] font-semibold hover:bg-[#0066d6] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="h-9 px-4 rounded-full border border-black/[0.08] bg-white text-[13px] font-medium text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
-            >
-              Cancel
+              Save client
             </button>
           </div>
         </form>
       )}
 
-      {selected ? (
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => {
-              setSelected(null)
-              setSelectedId(null)
-            }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#007aff] hover:underline cursor-pointer"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to list
-          </button>
-
-          <div className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-[18px] font-semibold text-[#1d1d1f] truncate">{selected.name}</h2>
-                <p className="text-[11px] text-[#86868b] mt-1">
-                  Updated {formatWhen(selected.updatedAt)}
-                  {selected.updatedBy ? ` · ${selected.updatedBy}` : ""}
-                </p>
+      {selected && !showForm ? (
+        <div className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <button
+              type="button"
+              onClick={backToList}
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 -ml-2.5 rounded-lg text-[13px] font-medium text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer transition-colors w-fit"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Clients
+            </button>
+            {canWrite && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEdit(selected)}
+                  className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteClient(selected.id)}
+                  className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-[#ff3b30]/20 bg-white text-[12px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </button>
               </div>
-              {canWrite && (
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(selected)}
-                    className="h-8 w-8 inline-flex items-center justify-center rounded-full border border-black/[0.08] hover:bg-black/[0.03] cursor-pointer"
-                    aria-label="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteClient(selected.id)}
-                    className="h-8 w-8 inline-flex items-center justify-center rounded-full border border-black/[0.08] text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-              <Detail label="Phone" value={selected.phone} />
-              <Detail label="Email" value={selected.email} />
-              <Detail label="CNIC" value={selected.cnic} />
-              <Detail label="Product" value={selected.product} />
-              <Detail label="Address" value={selected.address} className="sm:col-span-2" />
-              <Detail label="Notes" value={selected.notes} className="sm:col-span-2" />
-            </div>
+            )}
           </div>
 
-          <div className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-4">
-            <div>
-              <h3 className="text-[14px] font-semibold text-[#1d1d1f]">Documents</h3>
-              <p className="text-[12px] text-[#86868b] mt-0.5">
-                Upload agreement, checklist, or other labeled files.
+          <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.05)]">
+            <div className="px-5 sm:px-6 py-5 border-b border-black/[0.05]">
+              <h2 className="text-[20px] font-semibold tracking-tight text-[#1d1d1f]">{selected.name}</h2>
+              <p className="text-[12px] text-[#86868b] mt-1">
+                Last updated {formatWhen(selected.updatedAt)}
+                {selected.updatedBy ? ` by ${selected.updatedBy}` : ""}
               </p>
             </div>
 
-            {canWrite && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-                <div className="flex-1 space-y-1">
-                  <label className="text-[11px] text-[#86868b]">Label</label>
+            <dl className="divide-y divide-black/[0.045]">
+              <InfoRow label="Phone" value={selected.phone} />
+              <InfoRow label="Email" value={selected.email} />
+              <InfoRow label="CNIC" value={selected.cnic} />
+              <InfoRow label="Product / system" value={selected.product} />
+              <InfoRow label="Address" value={selected.address} />
+              <InfoRow label="Notes" value={selected.notes} multiline />
+            </dl>
+          </div>
+
+          <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.05)]">
+            <div className="px-5 sm:px-6 py-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+              <div>
+                <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Documents</h3>
+                <p className="text-[12px] text-[#86868b] mt-0.5">Agreement, checklist, and other files</p>
+              </div>
+              {canWrite && (
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={docLabel}
                     onChange={(e) => setDocLabel(e.target.value as DocLabel)}
-                    className={inputClass}
+                    className="h-8 rounded-full border-0 bg-[#f2f2f7] px-3 text-[12px] font-medium text-[#1d1d1f] outline-none focus:ring-2 focus:ring-[#007aff]/25"
                   >
                     {LABEL_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -486,72 +568,94 @@ export function InstallmentsDashboard() {
                       </option>
                     ))}
                   </select>
-                </div>
-                {docLabel === "other" && (
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[11px] text-[#86868b]">Custom label</label>
+                  {docLabel === "other" && (
                     <input
-                      className={inputClass}
-                      placeholder="e.g. ID copy"
+                      className="h-8 w-[8.5rem] rounded-full border-0 bg-[#f2f2f7] px-3 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                      placeholder="Custom label"
                       value={customLabel}
                       onChange={(e) => setCustomLabel(e.target.value)}
                     />
-                  </div>
-                )}
-                <label className="h-9 inline-flex items-center justify-center gap-1.5 px-3.5 rounded-full bg-[#1d1d1f] text-white text-[13px] font-semibold hover:bg-black cursor-pointer disabled:opacity-50">
-                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  Upload
-                  <input
-                    type="file"
-                    className="hidden"
-                    disabled={uploading}
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.txt"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ""
-                      if (file) void uploadDocument(file)
-                    }}
-                  />
-                </label>
-              </div>
-            )}
+                  )}
+                  <label className="h-8 inline-flex items-center justify-center gap-1.5 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer">
+                    {uploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    Upload
+                    <input
+                      type="file"
+                      className="hidden"
+                      disabled={uploading}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.txt"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        e.target.value = ""
+                        if (file) void uploadDocument(file)
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
-            {(["agreement", "checklist", "other"] as DocLabel[]).map((key) => {
-              const list = docsByLabel[key]
-              return (
-                <div key={key} className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
-                    {LABEL_OPTIONS.find((o) => o.value === key)?.label}
-                  </p>
-                  {list.length === 0 ? (
-                    <p className="text-[12px] text-[#aeaeb2]">No files yet</p>
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {list.map((doc) => (
-                        <li
-                          key={doc.id}
-                          className="flex items-center gap-2 rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-2"
-                        >
-                          <FileText className="h-4 w-4 text-[#007aff] shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <a
-                              href={doc.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[13px] font-medium text-[#1d1d1f] hover:underline inline-flex items-center gap-1 truncate max-w-full"
-                            >
-                              <span className="truncate">
-                                {doc.fileName || labelDisplay(doc)}
-                              </span>
-                              <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-                            </a>
-                            <p className="text-[10px] text-[#86868b] truncate">
-                              {labelDisplay(doc)}
-                              {doc.uploadedBy ? ` · ${doc.uploadedBy}` : ""}
-                              {doc.createdAt ? ` · ${formatWhen(doc.createdAt)}` : ""}
-                            </p>
-                          </div>
-                          {canWrite && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left">
+                <thead>
+                  <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+                    <th className="px-5 sm:px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                      Type
+                    </th>
+                    <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                      File
+                    </th>
+                    <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] hidden sm:table-cell">
+                      Uploaded
+                    </th>
+                    <th className="px-5 sm:px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] text-right w-16">
+                      {" "}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.045]">
+                  {(["agreement", "checklist", "other"] as DocLabel[]).flatMap((key) => {
+                    const list = docsByLabel[key]
+                    if (list.length === 0) {
+                      return [
+                        <tr key={`${key}-empty`} className="bg-white">
+                          <td className="px-5 sm:px-6 py-3.5 text-[13px] font-medium text-[#1d1d1f]">
+                            {LABEL_OPTIONS.find((o) => o.value === key)?.label}
+                          </td>
+                          <td className="px-4 py-3.5 text-[13px] text-[#aeaeb2]" colSpan={canWrite ? 2 : 3}>
+                            No files yet
+                          </td>
+                          {canWrite ? <td className="px-5 sm:px-6 py-3.5" /> : null}
+                        </tr>,
+                      ]
+                    }
+                    return list.map((doc) => (
+                      <tr key={doc.id} className="bg-white hover:bg-[#fafafa]/80 transition-colors">
+                        <td className="px-5 sm:px-6 py-3.5 text-[13px] font-medium text-[#1d1d1f] whitespace-nowrap">
+                          {labelDisplay(doc)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#007aff] hover:underline max-w-[16rem] sm:max-w-none"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                            <span className="truncate">{doc.fileName || "Open file"}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+                          </a>
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] text-[#86868b] hidden sm:table-cell whitespace-nowrap">
+                          {formatShortDate(doc.createdAt)}
+                          {doc.uploadedBy ? ` · ${doc.uploadedBy}` : ""}
+                        </td>
+                        <td className="px-5 sm:px-6 py-3.5 text-right">
+                          {canWrite ? (
                             <button
                               type="button"
                               onClick={() => deleteDocument(doc.id)}
@@ -560,59 +664,114 @@ export function InstallmentsDashboard() {
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {!selected && !showForm && (
         <>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />
+          <div className="relative max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search clients…"
-              className="w-full h-10 rounded-full border border-black/[0.08] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#007aff]/50 focus:ring-[3px] focus:ring-[#007aff]/15"
+              placeholder="Search by name, phone, email…"
+              className="w-full h-10 rounded-full border-0 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] pl-10 pr-4 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
             />
           </div>
 
-          <div className="rounded-2xl border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+          <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.05)]">
             {loading ? (
-              <p className="text-center text-[12px] text-[#86868b] py-10">Loading…</p>
+              <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#86868b]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
             ) : clients.length === 0 ? (
-              <p className="text-center text-[12px] text-[#86868b] py-10">
-                {search.trim() ? "No clients match your search." : "No clients yet. Add the first one."}
-              </p>
+              <div className="py-16 text-center px-4">
+                <p className="text-[14px] font-medium text-[#1d1d1f]">
+                  {search.trim() ? "No matching clients" : "No clients yet"}
+                </p>
+                <p className="text-[12px] text-[#86868b] mt-1">
+                  {search.trim()
+                    ? "Try a different search."
+                    : "Create a client to start uploading documents."}
+                </p>
+              </div>
             ) : (
-              <ul className="divide-y divide-black/[0.05]">
-                {clients.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => void loadClient(c.id)}
-                      className="w-full text-left px-4 py-3.5 hover:bg-black/[0.02] transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[#1d1d1f] truncate">{c.name}</p>
-                          <p className="text-[12px] text-[#86868b] truncate mt-0.5">
-                            {[c.phone, c.product].filter(Boolean).join(" · ") || "No phone / product"}
-                          </p>
-                        </div>
-                        <span className="text-[11px] text-[#aeaeb2] shrink-0">
-                          {c._count?.documents ?? c.documents?.length ?? 0} docs
-                        </span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left">
+                  <thead>
+                    <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+                      <th className="px-5 sm:px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                        Name
+                      </th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                        Phone
+                      </th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                        Product
+                      </th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b] text-center">
+                        Docs
+                      </th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                        Updated
+                      </th>
+                      <th className="px-5 sm:px-6 py-3 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.045]">
+                    {clients.map((c) => {
+                      const docs = c._count?.documents ?? c.documents?.length ?? 0
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => void loadClient(c.id)}
+                          className="bg-white hover:bg-[#f5f8ff] transition-colors cursor-pointer group"
+                        >
+                          <td className="px-5 sm:px-6 py-3.5">
+                            <p className="text-[13px] font-semibold text-[#1d1d1f] truncate max-w-[14rem]">
+                              {c.name}
+                            </p>
+                            {c.email ? (
+                              <p className="text-[11px] text-[#86868b] truncate max-w-[14rem] mt-0.5">
+                                {c.email}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-3.5 text-[13px] text-[#1d1d1f] whitespace-nowrap">
+                            {c.phone || <span className="text-[#aeaeb2]">—</span>}
+                          </td>
+                          <td className="px-4 py-3.5 text-[13px] text-[#1d1d1f]">
+                            <span className="truncate block max-w-[12rem]">
+                              {c.product || <span className="text-[#aeaeb2]">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="inline-flex min-w-[1.75rem] justify-center px-2 py-0.5 rounded-full bg-[#f2f2f7] text-[11px] font-semibold text-[#6e6e73] tabular-nums">
+                              {docs}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-[12px] text-[#86868b] whitespace-nowrap">
+                            {formatShortDate(c.updatedAt)}
+                          </td>
+                          <td className="px-5 sm:px-6 py-3.5 text-right">
+                            <ChevronRight className="h-4 w-4 text-[#c7c7cc] group-hover:text-[#007aff] transition-colors inline-block" />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>
@@ -621,20 +780,26 @@ export function InstallmentsDashboard() {
   )
 }
 
-function Detail({
+function InfoRow({
   label,
   value,
-  className = "",
+  multiline = false,
 }: {
   label: string
   value?: string | null
-  className?: string
+  multiline?: boolean
 }) {
-  if (!value?.trim()) return null
+  const empty = !value?.trim()
   return (
-    <div className={className}>
-      <p className="text-[10px] uppercase tracking-wide text-[#aeaeb2] font-semibold">{label}</p>
-      <p className="text-[13px] text-[#1d1d1f] whitespace-pre-wrap break-words">{value}</p>
+    <div className="grid grid-cols-[7.5rem_1fr] sm:grid-cols-[9.5rem_1fr] gap-3 px-5 sm:px-6 py-3.5">
+      <dt className="text-[12px] font-medium text-[#86868b] pt-0.5">{label}</dt>
+      <dd
+        className={`text-[13px] text-[#1d1d1f] ${
+          multiline ? "whitespace-pre-wrap break-words" : "break-words"
+        } ${empty ? "text-[#aeaeb2]" : ""}`}
+      >
+        {empty ? "—" : value}
+      </dd>
     </div>
   )
 }

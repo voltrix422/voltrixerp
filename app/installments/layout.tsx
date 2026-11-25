@@ -17,7 +17,7 @@ export default function InstallmentsLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
       <header className="sticky top-0 z-40 border-b border-black/[0.06] bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto max-w-4xl px-4 h-14 flex items-center justify-between gap-3">
+        <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between gap-3">
           <Link href="/installments" className="inline-flex items-center gap-2.5 min-w-0">
             <Image src="/logo.png" alt="Voltrix" width={90} height={28} className="h-6 w-auto object-contain" />
             <span className="text-[12px] font-semibold tracking-tight text-[#1d1d1f] truncate hidden sm:inline">
@@ -41,7 +41,7 @@ export default function InstallmentsLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-5 sm:py-7">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 py-5 sm:py-7">{children}</main>
     </div>
   )
 }
