@@ -30,15 +30,14 @@ const navLinks: NavLink[] = [
 ]
 
 const portalLinks = [
-  { label: "ERP", href: "/login" },
-  { label: "Installments", href: "/installments/login" },
+  { label: "ERP", href: "/login", hint: "Staff ERP login" },
+  { label: "Installments", href: "/installments/login", hint: "Installments portal login" },
 ]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
-  const [mobilePortalOpen, setMobilePortalOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const portalRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
@@ -57,7 +56,7 @@ export default function Navbar() {
     link.href || (link.hash ? (isHome ? `#${link.hash}` : `/#${link.hash}`) : "#")
   const closeMenu = () => {
     setOpen(false)
-    setMobilePortalOpen(false)
+    setPortalOpen(false)
   }
 
   useEffect(() => {
@@ -69,7 +68,6 @@ export default function Navbar() {
 
   useEffect(() => {
     closeMenu()
-    setPortalOpen(false)
   }, [pathname])
 
   useEffect(() => {
@@ -122,6 +120,7 @@ export default function Navbar() {
           />
         </a>
 
+        {/* Scrollable links only — Portal lives outside so its menu is never clipped */}
         <div className="hidden xl:flex flex-1 items-center justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex items-center gap-x-1 2xl:gap-x-2 px-1">
             {navLinks.map((l) => {
@@ -146,47 +145,48 @@ export default function Navbar() {
                 </a>
               )
             })}
-
-            <div className="relative" ref={portalRef}>
-              <button
-                type="button"
-                onClick={() => setPortalOpen((v) => !v)}
-                aria-expanded={portalOpen}
-                aria-haspopup="menu"
-                className={[
-                  "inline-flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-lg text-[12px] 2xl:text-[13px] font-medium whitespace-nowrap transition-colors cursor-pointer",
-                  portalActive || portalOpen
-                    ? "text-neutral-900 bg-neutral-100"
-                    : "text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100/80",
-                ].join(" ")}
-                style={{ letterSpacing: "-0.2px" }}
-              >
-                Portal
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${portalOpen ? "rotate-180" : ""}`} />
-              </button>
-              {portalOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-[calc(100%+6px)] min-w-[11rem] rounded-xl border border-neutral-200/90 bg-white/95 backdrop-blur-xl shadow-xl p-1.5 z-50"
-                >
-                  {portalLinks.map((item) => (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      role="menuitem"
-                      onClick={() => setPortalOpen(false)}
-                      className="block px-3 py-2 rounded-lg text-[13px] font-medium text-neutral-800 hover:bg-neutral-100 transition-colors"
-                    >
-                      {item.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* Portal dropdown — always visible on md+, outside overflow clip */}
+          <div className="relative hidden md:block" ref={portalRef}>
+            <button
+              type="button"
+              onClick={() => setPortalOpen((v) => !v)}
+              aria-expanded={portalOpen}
+              aria-haspopup="menu"
+              className={[
+                "inline-flex items-center gap-1 h-9 px-3 rounded-full text-[12px] font-semibold whitespace-nowrap transition-colors cursor-pointer border",
+                portalActive || portalOpen
+                  ? "text-neutral-900 bg-neutral-100 border-neutral-200"
+                  : "text-neutral-700 bg-white/70 border-neutral-200/80 hover:text-neutral-900 hover:bg-neutral-100",
+              ].join(" ")}
+            >
+              Portal
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${portalOpen ? "rotate-180" : ""}`} />
+            </button>
+            {portalOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-[calc(100%+8px)] w-[13.5rem] rounded-xl border border-neutral-200 bg-white shadow-xl p-1.5 z-[60]"
+              >
+                {portalLinks.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setPortalOpen(false)}
+                    className="block px-3 py-2.5 rounded-lg hover:bg-neutral-100 transition-colors"
+                  >
+                    <span className="block text-[13px] font-semibold text-neutral-900">{item.label}</span>
+                    <span className="block text-[11px] text-neutral-500 mt-0.5">{item.hint}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="hidden xl:block">
             <GetQuoteButton variant="solid" className="!text-sm !h-9" />
           </div>
@@ -228,25 +228,24 @@ export default function Navbar() {
               </a>
             )
           })}
-          <button
-            type="button"
-            onClick={() => setMobilePortalOpen((v) => !v)}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl text-[15px] font-medium text-neutral-900 hover:bg-neutral-100 cursor-pointer"
-          >
-            Portal
-            <ChevronDown className={`h-4 w-4 transition-transform ${mobilePortalOpen ? "rotate-180" : ""}`} />
-          </button>
-          {mobilePortalOpen &&
-            portalLinks.map((item) => (
+
+          <div className="mt-1 border-t border-neutral-100 pt-2 space-y-0.5">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+              Portal
+            </p>
+            {portalLinks.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
                 onClick={closeMenu}
-                className="pl-6 pr-3 py-2 rounded-xl text-[14px] font-medium text-neutral-700 hover:bg-neutral-100"
+                className="block px-3 py-2.5 rounded-xl hover:bg-neutral-100"
               >
-                {item.label}
+                <span className="block text-[14px] font-semibold text-neutral-900">{item.label}</span>
+                <span className="block text-[12px] text-neutral-500">{item.hint}</span>
               </a>
             ))}
+          </div>
+
           <div className="pt-2 mt-1 border-t border-neutral-100 px-1 pb-1">
             <GetQuoteButton onClick={closeMenu} className="w-full justify-center" />
           </div>
