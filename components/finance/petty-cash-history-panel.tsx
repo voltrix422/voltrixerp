@@ -10,7 +10,7 @@ import {
 } from "@/lib/petty-cash-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { History, Eye, CheckCircle, XCircle, Archive } from "lucide-react"
+import { History, Eye, CheckCircle, XCircle } from "lucide-react"
 
 type Props = {
   allocations: PettyCashAllocation[]
