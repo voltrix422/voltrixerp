@@ -11,9 +11,9 @@ export default function PettyCashPage() {
 
   return (
     <>
-      <Topbar title="Petty Cash" description="Request cash, add expense receipts, and track your balance" />
-      <div className="flex-1 overflow-auto">
-        <div className="p-6 max-w-6xl">
+      <Topbar title="Petty Cash" description="" />
+      <div className="flex-1 overflow-auto bg-[#f5f5f7]">
+        <div className="p-5 sm:p-6 max-w-[72rem]">
           <PettyCashDashboard />
         </div>
       </div>

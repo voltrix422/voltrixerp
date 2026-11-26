@@ -43,73 +43,73 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
 
   if (historyAllocations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Archive className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">No archived petty cash records yet.</p>
+      <div className="rounded-[18px] border border-black/[0.06] bg-white py-16 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+        <p className="text-[14px] font-medium text-[#1d1d1f]">No archived records yet</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Archived petty cash — settled, rejected, and cancelled allocations. Active cash stays on the Allocations tab.
-      </p>
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full">
+    <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[800px] text-left">
           <thead>
-            <tr className="border-b bg-[hsl(var(--muted))]/40">
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ref</th>
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Purpose</th>
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Closed</th>
-              <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-              <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-28">History</th>
+            <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+              {["Ref", "Employee", "Purpose", "Amount", "Closed", "Status", "History"].map((h) => (
+                <th
+                  key={h}
+                  className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
+                    h === "History" ? "text-center" : "text-left"
+                  }`}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-black/[0.045]">
             {historyAllocations.map((allocation) => {
               const spent = getApprovedSpent(allocation.id)
               const settlementCount = getSettlementCount(allocation.id)
               const closedAt = allocation.settledAt || allocation.reviewedAt || allocation.allocatedAt
               return (
-                <tr key={allocation.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <td className="px-4 py-2.5 text-xs font-semibold text-[#1a9f9a] tabular-nums whitespace-nowrap">
+                <tr key={allocation.id} className="hover:bg-[#f5f8ff] transition-colors">
+                  <td className="px-4 py-3.5 text-[12px] font-semibold text-[#007aff] tabular-nums whitespace-nowrap">
                     {allocation.referenceNumber || "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-xs">
-                    <p className="font-medium">{allocation.employeeName}</p>
-                    <p className="text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                  <td className="px-4 py-3.5 text-[12px]">
+                    <p className="font-semibold text-[#1d1d1f]">{allocation.employeeName}</p>
+                    <p className="text-[10px] text-[#86868b] mt-0.5">{allocation.employeeRole}</p>
                   </td>
-                  <td className="px-4 py-2.5 text-xs">{allocation.purpose}</td>
-                  <td className="px-4 py-2.5 text-xs">
-                    <p className="font-semibold">PKR {allocation.amount.toLocaleString()}</p>
+                  <td className="px-4 py-3.5 text-[12px] text-[#1d1d1f]">{allocation.purpose}</td>
+                  <td className="px-4 py-3.5 text-[12px]">
+                    <p className="font-semibold tabular-nums text-[#1d1d1f]">PKR {allocation.amount.toLocaleString()}</p>
                     {allocation.status === "settled" && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Spent PKR {spent.toLocaleString()}</p>
+                      <p className="text-[10px] text-[#aeaeb2] mt-0.5">Spent PKR {spent.toLocaleString()}</p>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">
-                    {new Date(closedAt).toLocaleString()}
+                  <td className="px-4 py-3.5 text-[12px] text-[#86868b]">
+                    {new Date(closedAt).toLocaleDateString()}
                     {settlementCount > 0 && (
-                      <p className="text-[10px]">{settlementCount} settlement{settlementCount === 1 ? "" : "s"}</p>
+                      <p className="text-[10px] text-[#aeaeb2] mt-0.5">
+                        {settlementCount} settlement{settlementCount === 1 ? "" : "s"}
+                      </p>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-xs">
-                    <Badge variant="secondary" className="text-[10px] capitalize">
+                  <td className="px-4 py-3.5 text-[12px]">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#f2f2f7] text-[#6e6e73] capitalize">
                       {allocation.status === "settled" ? "archived" : allocation.status}
-                    </Badge>
+                    </span>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-center">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-[10px]"
+                  <td className="px-4 py-3.5 text-[12px] text-center">
+                    <button
+                      type="button"
+                      className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full border border-black/[0.08] bg-white text-[11px] font-semibold text-[#007aff] hover:bg-black/[0.03] cursor-pointer"
                       onClick={() => onViewHistory(allocation)}
                     >
-                      <Eye className="h-3 w-3 mr-1" />
+                      <Eye className="h-3 w-3" />
                       View
-                    </Button>
+                    </button>
                   </td>
                 </tr>
               )

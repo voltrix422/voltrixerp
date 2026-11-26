@@ -9,12 +9,11 @@ import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { PettyCashHistoryPanel } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
 import { PettyCashPayOwed } from "./petty-cash-pay-owed"
-import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText, FileDown, Search, Trash2 } from "lucide-react"
+import { Plus, CheckCircle, XCircle, Archive, FileText, FileDown, Search, Trash2 } from "lucide-react"
 import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
@@ -127,13 +126,13 @@ export function PettyCashDashboard() {
 
   function getStatusColor(status: string) {
     switch (status) {
-      case "active":    return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-      case "settled":   return "bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300"
-      case "cancelled": return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      case "pending":   return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-      case "rejected":  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      case "approved":  return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-      default:          return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+      case "active":    return "bg-[#34c759]/14 text-[#248a3d]"
+      case "settled":   return "bg-[#f2f2f7] text-[#6e6e73]"
+      case "cancelled": return "bg-[#ff3b30]/12 text-[#d70015]"
+      case "pending":   return "bg-[#ff9f0a]/16 text-[#9a6700]"
+      case "rejected":  return "bg-[#ff3b30]/12 text-[#d70015]"
+      case "approved":  return "bg-[#34c759]/14 text-[#248a3d]"
+      default:          return "bg-[#f2f2f7] text-[#6e6e73]"
     }
   }
 
@@ -331,68 +330,79 @@ export function PettyCashDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading petty cash data...</p>
+      <div className="flex items-center justify-center py-24">
+        <p className="text-[13px] text-[#86868b]">Loading…</p>
       </div>
     )
   }
 
+  const totalAllocated = displayAllocations.reduce((sum, a) => sum + a.amount, 0)
+  const totalSpent = sumApprovedReceipts(displayReceipts)
+  const activeCount = displayAllocations.filter((a) => a.status === "active").length
+  const pendingReceiptCount = displayReceipts.filter((r) => r.status === "pending").length
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Petty Cash</h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Allocations, receipts, and balances
-          </p>
-        </div>
+        <h2 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Petty Cash</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowRequestForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Request
-          </Button>
+          <button
+            type="button"
+            onClick={() => setShowRequestForm(true)}
+            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" /> Request
+          </button>
           {canManagePettyCash && (
-            <Button size="sm" className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowAllocationForm(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate
-            </Button>
+            <button
+              type="button"
+              onClick={() => setShowAllocationForm(true)}
+              className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" /> Allocate
+            </button>
           )}
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Receipt
-          </Button>
+          <button
+            type="button"
+            onClick={() => setShowReceiptForm(true)}
+            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" /> Receipt
+          </button>
         </div>
       </div>
 
       {canManagePettyCash && migrationPreview && migrationPreview.eligibleCount > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="rounded-[16px] border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">One-time finance records migration</h3>
-            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+            <h3 className="text-[13px] font-semibold text-[#1d1d1f]">One-time finance records migration</h3>
+            <p className="text-[12px] text-[#6e6e73] mt-1">
               Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash as negative balance under finance.
             </p>
           </div>
-          <Button
-            size="sm"
-            className="h-8 text-xs shrink-0"
+          <button
+            type="button"
+            className="h-8 px-3.5 rounded-full bg-[#1d1d1f] text-white text-[12px] font-semibold shrink-0 disabled:opacity-50 cursor-pointer"
             disabled={migratingFinance}
             onClick={handleMigrateFinanceRecords}
           >
             {migratingFinance ? "Migrating..." : "Move to Petty Cash"}
-          </Button>
+          </button>
         </div>
       )}
 
       {canManagePettyCash && pendingRequests.length > 0 && (
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+          <div className="px-5 py-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
-              <h3 className="text-sm font-semibold">Pending requests</h3>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Approve requests with bank proof or record a cash payout before settlement starts.</p>
+              <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Pending requests</h3>
+              <p className="text-[12px] text-[#86868b] mt-0.5">
+                Approve with bank proof or record a cash payout.
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
+              <button
+                type="button"
                 disabled={pendingPdfBusy}
                 onClick={async () => {
                   setPendingPdfBusy(true)
@@ -408,35 +418,46 @@ export function PettyCashDashboard() {
                     setPendingPdfBusy(false)
                   }
                 }}
+                className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer"
               >
-                <FileDown className="h-3.5 w-3.5 mr-1.5" />
-                {pendingPdfBusy ? "PDF..." : "PDF"}
-              </Button>
-              <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded-full">{pendingRequests.length} waiting</span>
+                <FileDown className="h-3.5 w-3.5" />
+                {pendingPdfBusy ? "PDF…" : "PDF"}
+              </button>
+              <span className="text-[11px] font-semibold text-[#9a6700] bg-[#ff9f0a]/16 px-2.5 py-1 rounded-full">
+                {pendingRequests.length} waiting
+              </span>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="divide-y divide-black/[0.045]">
             {pendingRequests.map((allocation) => (
-              <div key={allocation.id} className="flex flex-col gap-3 rounded-lg border px-4 py-3 md:flex-row md:items-center md:justify-between">
-                <div>
+              <div
+                key={allocation.id}
+                className="px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+              >
+                <div className="min-w-0">
                   {allocation.referenceNumber ? (
-                    <p className="text-[11px] font-semibold text-[#1a9f9a] tabular-nums">{allocation.referenceNumber}</p>
+                    <p className="text-[11px] font-semibold text-[#007aff] tabular-nums">
+                      {allocation.referenceNumber}
+                    </p>
                   ) : null}
-                  <p className="text-sm font-medium">{allocation.employeeName}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
-                  <p className="text-xs font-semibold mt-1">Requested: PKR {allocation.amount.toLocaleString()}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                    Requested on: {new Date(allocation.allocatedAt).toLocaleString()}
+                  <p className="text-[14px] font-semibold text-[#1d1d1f] mt-0.5">{allocation.employeeName}</p>
+                  <p className="text-[12px] text-[#86868b] mt-0.5">{allocation.purpose}</p>
+                  <p className="text-[12px] font-semibold text-[#1d1d1f] mt-1.5 tabular-nums">
+                    PKR {allocation.amount.toLocaleString()}
+                    <span className="font-normal text-[#aeaeb2]"> · {new Date(allocation.allocatedAt).toLocaleString()}</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setApprovalAllocation(allocation)}>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    className="h-8 px-3.5 rounded-full bg-[#34c759] text-white text-[12px] font-semibold hover:bg-[#2db350] cursor-pointer"
+                    onClick={() => setApprovalAllocation(allocation)}
+                  >
                     Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
                     onClick={async () => {
                       try {
                         const updated = await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
@@ -449,7 +470,7 @@ export function PettyCashDashboard() {
                     }}
                   >
                     Reject
-                  </Button>
+                  </button>
                 </div>
               </div>
             ))}
@@ -458,82 +479,48 @@ export function PettyCashDashboard() {
       )}
 
       {!canManagePettyCash && (
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[18px] border border-black/[0.06] bg-white p-5 flex flex-wrap items-center justify-between gap-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           <div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Your petty cash balance</p>
-            <p className={`text-2xl font-bold ${personalBalance < 0 ? "text-red-600" : "text-green-600"}`}>
+            <p className="text-[12px] text-[#86868b]">Your balance</p>
+            <p className={`text-[28px] font-semibold tracking-tight tabular-nums ${personalBalance < 0 ? "text-[#ff3b30]" : "text-[#34c759]"}`}>
               {formatPettyCashBalance(personalBalance)}
             </p>
             {personalPending > 0 && (
-              <p className="text-[11px] text-amber-700 mt-1">
+              <p className="text-[11px] text-[#9a6700] mt-1">
                 Pending approval: {formatPettyCashExpense(personalPending)}
               </p>
             )}
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-              Negative balance = approved expenses; admin reimburses when paying you back.
-            </p>
           </div>
-          <Button size="sm" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
-          </Button>
+          <button
+            type="button"
+            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer"
+            onClick={() => setShowReceiptForm(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Receipt
+          </button>
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Allocated</p>
-              <p className="text-lg font-bold">PKR {displayAllocations.reduce((sum, a) => sum + a.amount, 0).toLocaleString()}</p>
-            </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Allocated", value: `PKR ${totalAllocated.toLocaleString()}`, tone: "text-[#1d1d1f]" },
+          { label: "Spent", value: formatPettyCashExpense(totalSpent), tone: "text-[#ff3b30]" },
+          { label: "Active", value: String(activeCount), tone: "text-[#1d1d1f]" },
+          { label: "Pending receipts", value: String(pendingReceiptCount), tone: "text-[#9a6700]" },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-[16px] border border-black/[0.06] bg-white px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
+          >
+            <p className="text-[11px] font-medium text-[#86868b]">{stat.label}</p>
+            <p className={`text-[17px] font-semibold tracking-tight tabular-nums mt-1 ${stat.tone}`}>
+              {stat.value}
+            </p>
           </div>
-        </div>
-
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Receipt className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Spent</p>
-              <p className="text-lg font-bold text-red-600">
-                {formatPettyCashExpense(sumApprovedReceipts(displayReceipts))}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-              <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Active Allocations</p>
-              <p className="text-lg font-bold">{displayAllocations.filter(a => a.status === "active").length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-              <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Receipts</p>
-              <p className="text-lg font-bold">{displayReceipts.filter(r => r.status === "pending").length}</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b">
+      <div className="inline-flex p-1 rounded-full bg-[#e8e8ed]">
         {([
           { id: "allocations" as const, label: "Allocations" },
           { id: "receipts" as const, label: "Receipts" },
@@ -541,24 +528,23 @@ export function PettyCashDashboard() {
         ]).map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => {
               setActiveTab(tab.id)
               if (tab.id === "history") setAllocationFilter("settled")
               if (tab.id === "allocations" && allocationFilter === "settled") setAllocationFilter("active")
             }}
-            className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+            className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all cursor-pointer ${
               activeTab === tab.id
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                ? "bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+                : "text-[#6e6e73] hover:text-[#1d1d1f]"
             }`}
           >
             {tab.label}
-            {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
           </button>
         ))}
       </div>
 
-      {/* Allocations Tab */}
       {activeTab === "allocations" && (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -571,88 +557,103 @@ export function PettyCashDashboard() {
                     key={filter.id}
                     type="button"
                     onClick={() => setAllocationFilter(filter.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer ${
                       selected
-                        ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
-                        : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                        ? "bg-[#1d1d1f] text-white"
+                        : "bg-white border border-black/[0.08] text-[#6e6e73] hover:text-[#1d1d1f]"
                     }`}
                   >
                     {filter.id === "settled" && <Archive className="h-3 w-3" />}
                     {filter.label}
-                    <span className="tabular-nums text-[10px] opacity-70">{count}</span>
+                    <span className={`tabular-nums ${selected ? "text-white/70" : "text-[#aeaeb2]"}`}>{count}</span>
                   </button>
                 )
               })}
             </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#aeaeb2]" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search name, ref, purpose…"
-                className="h-8 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-3 text-xs outline-none focus:border-[#1faca6]"
+                className="h-9 w-full rounded-full border-0 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
               />
             </div>
           </div>
 
           {filteredAllocations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <DollarSign className="h-10 w-10 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            <div className="rounded-[18px] border border-black/[0.06] bg-white py-16 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <p className="text-[14px] font-medium text-[#1d1d1f]">
                 {searchQuery.trim()
                   ? `No matches for “${searchQuery.trim()}”`
                   : allocationFilter === "all"
-                    ? "No petty cash allocations found"
+                    ? "No allocations yet"
                     : allocationFilter === "settled"
-                      ? "No archived petty cash yet"
+                      ? "No archived allocations"
                       : `No ${allocationFilter} allocations`}
               </p>
               {allocationFilter === "active" && (
-                <>
-                  <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowRequestForm(true)}>
-                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
-                  </Button>
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button
+                    type="button"
+                    className="h-8 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold cursor-pointer"
+                    onClick={() => setShowRequestForm(true)}
+                  >
+                    Request Cash
+                  </button>
                   {canManagePettyCash && (
-                    <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" onClick={() => setShowAllocationForm(true)}>
-                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
-                    </Button>
+                    <button
+                      type="button"
+                      className="h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold cursor-pointer"
+                      onClick={() => setShowAllocationForm(true)}
+                    >
+                      Allocate Cash
+                    </button>
                   )}
-                </>
+                </div>
               )}
               {allocationFilter !== "active" && allocationFilter !== "all" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 h-8 text-xs"
+                <button
+                  type="button"
+                  className="mt-4 h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold cursor-pointer"
                   onClick={() => setAllocationFilter("active")}
                 >
-                  View active allocations
-                </Button>
+                  View active
+                </button>
               )}
             </div>
           ) : (
-            <div>
-              <div className="rounded-lg border overflow-x-auto">
-                <table className="w-full min-w-[1040px]">
+            <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1040px] text-left">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--muted))]/30">
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ref</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Given</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] max-w-[140px]">Purpose</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Approved</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Pending</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Balance</th>
-                      {canManagePettyCash && (
-                        <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Owed</th>
-                      )}
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] min-w-[7.5rem]">Actions</th>
+                    <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+                      {[
+                        "Ref",
+                        "Employee",
+                        "Given",
+                        "Purpose",
+                        "Approved",
+                        "Pending",
+                        "Balance",
+                        ...(canManagePettyCash ? ["Owed"] : []),
+                        "Status",
+                        "Date",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
+                            h === "Actions" ? "text-center" : "text-left"
+                          }`}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
-                    {filteredAllocations.map(allocation => {
+                  <tbody className="divide-y divide-black/[0.045]">
+                    {filteredAllocations.map((allocation) => {
                       const summary = getAllocationSummary(allocation)
                       const balance = formatAllocationBalanceCell(summary.balanceAfterApproved)
                       const projected = formatAllocationBalanceCell(summary.balanceAfterPending)
@@ -661,119 +662,95 @@ export function PettyCashDashboard() {
                       return (
                         <tr
                           key={allocation.id}
-                          className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer align-top"
+                          className="hover:bg-[#f5f8ff] transition-colors cursor-pointer align-top"
                           onClick={() => setSelectedAllocation(allocation)}
                         >
-                          <td className="px-3 py-2.5 text-xs">
-                            <p className="font-semibold text-[#1a9f9a] tabular-nums whitespace-nowrap">
+                          <td className="px-4 py-3.5 text-[12px]">
+                            <p className="font-semibold text-[#007aff] tabular-nums whitespace-nowrap">
                               {allocation.referenceNumber || "—"}
                             </p>
                           </td>
-                          <td className="px-3 py-2.5 text-xs">
-                            <div className="flex items-start gap-2">
-                              <Eye className="h-3 w-3 mt-0.5 text-[hsl(var(--muted-foreground))] shrink-0" />
-                              <div>
-                                <p className="font-medium">{allocation.employeeName}</p>
-                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
-                                {summary.isPersonalLedger && (
-                                  <span className="inline-block mt-1 text-[9px] uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
-                                    Personal ledger
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                          <td className="px-4 py-3.5 text-[12px]">
+                            <p className="font-semibold text-[#1d1d1f]">{allocation.employeeName}</p>
+                            <p className="text-[10px] text-[#86868b] mt-0.5">{allocation.employeeRole}</p>
+                            {summary.isPersonalLedger && (
+                              <span className="inline-block mt-1 text-[9px] uppercase tracking-wide text-[#007aff] font-semibold">
+                                Personal ledger
+                              </span>
+                            )}
                           </td>
-                          <td className="px-3 py-2.5 text-xs font-semibold tabular-nums">
+                          <td className="px-4 py-3.5 text-[12px] font-semibold tabular-nums text-[#1d1d1f]">
                             PKR {summary.allocated.toLocaleString()}
                           </td>
-                          <td className="px-3 py-2.5 text-xs max-w-[140px]">
+                          <td className="px-4 py-3.5 text-[12px] text-[#1d1d1f] max-w-[160px]">
                             <p className="line-clamp-2" title={allocation.purpose}>{allocation.purpose}</p>
                           </td>
-                          <td className="px-3 py-2.5 text-xs">
-                            <p className="font-semibold text-red-600 tabular-nums">
+                          <td className="px-4 py-3.5 text-[12px]">
+                            <p className="font-semibold text-[#ff3b30] tabular-nums">
                               {summary.approvedSpent > 0
                                 ? formatPettyCashExpense(summary.approvedSpent)
                                 : "—"}
                             </p>
-                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                              {summary.approvedCount} receipt{summary.approvedCount === 1 ? "" : "s"} approved
+                            <p className="text-[10px] text-[#aeaeb2] mt-0.5">
+                              {summary.approvedCount} approved
                             </p>
                           </td>
-                          <td className="px-3 py-2.5 text-xs">
+                          <td className="px-4 py-3.5 text-[12px]">
                             {summary.pendingSpent > 0 ? (
                               <>
-                                <p className="font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
+                                <p className="font-semibold text-[#9a6700] tabular-nums">
                                   {formatPettyCashExpense(summary.pendingSpent)}
                                 </p>
-                                <p className="text-[10px] text-amber-700/80 dark:text-amber-300/80">
-                                  {summary.pendingCount} awaiting approval
+                                <p className="text-[10px] text-[#9a6700]/80 mt-0.5">
+                                  {summary.pendingCount} waiting
                                 </p>
                               </>
                             ) : (
-                              <p className="text-[hsl(var(--muted-foreground))]">—</p>
+                              <p className="text-[#aeaeb2]">—</p>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-xs">
+                          <td className="px-4 py-3.5 text-[12px]">
                             <p className={`font-semibold tabular-nums ${balance.className}`}>{balance.text}</p>
-                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">after approved</p>
                             {summary.pendingSpent > 0 && (
                               <p className={`text-[10px] mt-1 tabular-nums ${projected.className}`}>
-                                → {projected.text} if pending approved
+                                → {projected.text} if pending
                               </p>
                             )}
                           </td>
                           {canManagePettyCash && (
-                            <td className="px-3 py-2.5 text-xs">
+                            <td className="px-4 py-3.5 text-[12px]">
                               {owedToEmployee ? (
-                                <>
-                                  <p className="font-semibold text-red-600 tabular-nums">
-                                    {formatPettyCashExpense(owedToEmployee)}
-                                  </p>
-                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                                    owed to employee
-                                  </p>
-                                </>
+                                <p className="font-semibold text-[#ff3b30] tabular-nums">
+                                  {formatPettyCashExpense(owedToEmployee)}
+                                </p>
                               ) : projectedOwed ? (
-                                <>
-                                  <p className="text-[hsl(var(--muted-foreground))]">—</p>
-                                  <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 tabular-nums">
-                                    → {formatPettyCashExpense(projectedOwed)} if pending approved
-                                  </p>
-                                </>
+                                <p className="text-[10px] text-[#9a6700] tabular-nums">
+                                  → {formatPettyCashExpense(projectedOwed)} if pending
+                                </p>
                               ) : summary.approvedOverage > 0 ? (
-                                <>
-                                  <p className="font-semibold text-red-600 tabular-nums">
-                                    {formatPettyCashExpense(summary.approvedOverage)}
-                                  </p>
-                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                                    over allocation
-                                  </p>
-                                </>
+                                <p className="font-semibold text-[#ff3b30] tabular-nums">
+                                  {formatPettyCashExpense(summary.approvedOverage)}
+                                </p>
                               ) : (
-                                <p className="text-[hsl(var(--muted-foreground))]">—</p>
+                                <p className="text-[#aeaeb2]">—</p>
                               )}
                             </td>
                           )}
-                          <td className="px-3 py-2.5 text-xs">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
+                          <td className="px-4 py-3.5 text-[12px]">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(allocation.status)}`}>
                               {allocationStatusLabel(allocation.status)}
                             </span>
-                            {summary.receiptCount > 0 && (
-                              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                                {summary.receiptCount} receipt{summary.receiptCount === 1 ? "" : "s"} total
-                              </p>
-                            )}
                           </td>
-                          <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                          <td className="px-4 py-3.5 text-[12px] text-[#86868b] whitespace-nowrap">
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-center" onClick={e => e.stopPropagation()}>
+                          <td className="px-4 py-3.5 text-[11px] text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-2 flex-wrap">
                               {isPettyCashHistoryAllocation(allocation) && (
                                 <button
+                                  type="button"
                                   onClick={() => setSelectedAllocation(allocation)}
-                                  className="text-[#1faca6] hover:text-[#17857f] text-[10px] font-medium transition-colors cursor-pointer"
-                                  title="View history"
+                                  className="text-[#007aff] hover:underline font-semibold cursor-pointer"
                                 >
                                   History
                                 </button>
@@ -782,20 +759,20 @@ export function PettyCashDashboard() {
                                 allocation.status === "active" &&
                                 isPersonalLedgerAllocation(allocation) && (
                                 <button
+                                  type="button"
                                   onClick={() => setTopUpAllocation(allocation)}
-                                  className="text-green-600 hover:text-green-800 text-[10px] font-medium transition-colors cursor-pointer"
-                                  title="Add cash to this ledger"
+                                  className="text-[#34c759] hover:underline font-semibold cursor-pointer"
                                 >
                                   Add Cash
                                 </button>
                               )}
                               {canManagePettyCash && allocation.status === "active" && owedToEmployee && (
                                 <button
+                                  type="button"
                                   onClick={() =>
                                     setPayOwedAllocation({ allocation, owedAmount: owedToEmployee })
                                   }
-                                  className="text-red-600 hover:text-red-800 text-[10px] font-medium transition-colors cursor-pointer"
-                                  title="Pay employee and settle"
+                                  className="text-[#ff3b30] hover:underline font-semibold cursor-pointer"
                                 >
                                   Pay & settle
                                 </button>
@@ -804,18 +781,18 @@ export function PettyCashDashboard() {
                                 allocation.status === "active" &&
                                 !owedToEmployee && (
                                 <button
+                                  type="button"
                                   onClick={() => setSettleConfirm(allocation)}
-                                  className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
-                                  title="Settle allocation"
+                                  className="text-[#007aff] hover:underline font-semibold cursor-pointer"
                                 >
                                   Settle
                                 </button>
                               )}
                               {canManagePettyCash && !isPersonalLedgerAllocation(allocation) && (
                                 <button
+                                  type="button"
                                   onClick={() => setDeleteConfirm(allocation)}
-                                  className="text-red-600 hover:text-red-800 text-[10px] font-medium transition-colors cursor-pointer inline-flex items-center gap-0.5"
-                                  title="Delete allocation"
+                                  className="text-[#ff3b30] hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                   Delete
@@ -834,93 +811,101 @@ export function PettyCashDashboard() {
         </div>
       )}
 
-      {/* Receipts Tab */}
       {activeTab === "receipts" && (
         <div className="space-y-4">
           {displayReceipts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts found</p>
-              <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
-              </Button>
+            <div className="rounded-[18px] border border-black/[0.06] bg-white py-16 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <p className="text-[14px] font-medium text-[#1d1d1f]">No receipts yet</p>
+              <button
+                type="button"
+                className="mt-4 h-8 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold cursor-pointer"
+                onClick={() => setShowReceiptForm(true)}
+              >
+                Add Receipt
+              </button>
             </div>
           ) : (
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-[hsl(var(--muted))]/40">
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Category</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Submitted</th>
-                    <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Proof</th>
-                    <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {displayReceipts.map(receipt => (
-                    <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                      <td className="px-4 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
-                      <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{receipt.category || "—"}</td>
-                      <td className="px-4 py-2.5 text-xs">{receipt.description}</td>
-                      <td className="px-4 py-2.5 text-xs font-semibold text-red-600">
-                        {formatPettyCashExpense(receipt.amount)}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(receipt.status)}`}>
-                          {receipt.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">
-                        {new Date(receipt.submittedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-center">
-                        {receipt.receiptProof || receipt.hasReceiptProof ? (
-                          <button
-                            type="button"
-                            onClick={() => void openReceiptProof(receipt)}
-                            className="inline-flex items-center justify-center text-[#1faca6] hover:text-[#1faca6]/80"
-                            title={receipt.receiptProofName || "View receipt proof"}
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                          </button>
-                        ) : (
-                          <span className="text-[hsl(var(--muted-foreground))]">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {canManagePettyCash && receipt.status === "pending" && (
-                            <>
-                              <button
-                                type="button"
-                                disabled={reviewingReceiptId === receipt.id}
-                                onClick={() => handleReviewReceipt(receipt, "approved")}
-                                className="text-green-500 hover:text-green-700 cursor-pointer transition-colors disabled:opacity-50"
-                                title="Approve"
-                              >
-                                <CheckCircle className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={reviewingReceiptId === receipt.id}
-                                onClick={() => handleReviewReceipt(receipt, "rejected")}
-                                className="text-red-500 hover:text-red-700 cursor-pointer transition-colors disabled:opacity-50"
-                                title="Reject"
-                              >
-                                <XCircle className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+            <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[860px] text-left">
+                  <thead>
+                    <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+                      {["Employee", "Category", "Description", "Amount", "Status", "Submitted", "Proof", "Actions"].map((h) => (
+                        <th
+                          key={h}
+                          className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
+                            h === "Proof" || h === "Actions" ? "text-center" : "text-left"
+                          }`}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.045]">
+                    {displayReceipts.map((receipt) => (
+                      <tr key={receipt.id} className="hover:bg-[#f5f8ff] transition-colors">
+                        <td className="px-4 py-3.5 text-[12px] font-semibold text-[#1d1d1f]">{receipt.employeeName}</td>
+                        <td className="px-4 py-3.5 text-[12px] text-[#86868b]">{receipt.category || "—"}</td>
+                        <td className="px-4 py-3.5 text-[12px] text-[#1d1d1f] max-w-[220px]">
+                          <p className="line-clamp-2">{receipt.description}</p>
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] font-semibold text-[#ff3b30] tabular-nums">
+                          {formatPettyCashExpense(receipt.amount)}
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px]">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(receipt.status)}`}>
+                            {receipt.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] text-[#86868b] whitespace-nowrap">
+                          {new Date(receipt.submittedAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] text-center">
+                          {receipt.receiptProof || receipt.hasReceiptProof ? (
+                            <button
+                              type="button"
+                              onClick={() => void openReceiptProof(receipt)}
+                              className="inline-flex items-center justify-center text-[#007aff] hover:text-[#0066d6] cursor-pointer"
+                              title={receipt.receiptProofName || "View receipt proof"}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </button>
+                          ) : (
+                            <span className="text-[#aeaeb2]">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {canManagePettyCash && receipt.status === "pending" && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={reviewingReceiptId === receipt.id}
+                                  onClick={() => handleReviewReceipt(receipt, "approved")}
+                                  className="text-[#34c759] hover:text-[#248a3d] cursor-pointer disabled:opacity-50"
+                                  title="Approve"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={reviewingReceiptId === receipt.id}
+                                  onClick={() => handleReviewReceipt(receipt, "rejected")}
+                                  className="text-[#ff3b30] hover:text-[#d70015] cursor-pointer disabled:opacity-50"
+                                  title="Reject"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
