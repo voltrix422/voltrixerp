@@ -342,213 +342,216 @@ export function PettyCashDashboard() {
   const pendingReceiptCount = displayReceipts.filter((r) => r.status === "pending").length
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Petty Cash</h2>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums">
+          <span className="text-[#86868b]">
+            Allocated <span className="font-semibold text-[#1d1d1f]">PKR {totalAllocated.toLocaleString()}</span>
+          </span>
+          <span className="text-[#d1d1d6]">·</span>
+          <span className="text-[#86868b]">
+            Spent <span className="font-semibold text-[#ff3b30]">{formatPettyCashExpense(totalSpent)}</span>
+          </span>
+          <span className="text-[#d1d1d6]">·</span>
+          <span className="text-[#86868b]">
+            Active <span className="font-semibold text-[#1d1d1f]">{activeCount}</span>
+          </span>
+          <span className="text-[#d1d1d6]">·</span>
+          <span className="text-[#86868b]">
+            Pending <span className="font-semibold text-[#9a6700]">{pendingReceiptCount}</span>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowRequestForm(true)}
-            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+            className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full border border-black/[0.08] bg-white text-[11px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
           >
-            <Plus className="h-3.5 w-3.5" /> Request
+            <Plus className="h-3 w-3" /> Request
           </button>
           {canManagePettyCash && (
             <button
               type="button"
               onClick={() => setShowAllocationForm(true)}
-              className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer"
+              className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full bg-[#007aff] text-white text-[11px] font-semibold hover:bg-[#0066d6] cursor-pointer"
             >
-              <Plus className="h-3.5 w-3.5" /> Allocate
+              <Plus className="h-3 w-3" /> Allocate
             </button>
           )}
           <button
             type="button"
             onClick={() => setShowReceiptForm(true)}
-            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+            className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full border border-black/[0.08] bg-white text-[11px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
           >
-            <Plus className="h-3.5 w-3.5" /> Receipt
+            <Plus className="h-3 w-3" /> Receipt
           </button>
         </div>
       </div>
 
       {canManagePettyCash && migrationPreview && migrationPreview.eligibleCount > 0 && (
-        <div className="rounded-[16px] border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h3 className="text-[13px] font-semibold text-[#1d1d1f]">One-time finance records migration</h3>
-            <p className="text-[12px] text-[#6e6e73] mt-1">
-              Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash as negative balance under finance.
-            </p>
-          </div>
+        <div className="rounded-[12px] border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-3 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] text-[#6e6e73]">
+            Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash.
+          </p>
           <button
             type="button"
-            className="h-8 px-3.5 rounded-full bg-[#1d1d1f] text-white text-[12px] font-semibold shrink-0 disabled:opacity-50 cursor-pointer"
+            className="h-7 px-2.5 rounded-full bg-[#1d1d1f] text-white text-[11px] font-semibold shrink-0 disabled:opacity-50 cursor-pointer"
             disabled={migratingFinance}
             onClick={handleMigrateFinanceRecords}
           >
-            {migratingFinance ? "Migrating..." : "Move to Petty Cash"}
+            {migratingFinance ? "Migrating..." : "Move"}
           </button>
         </div>
       )}
 
       {canManagePettyCash && pendingRequests.length > 0 && (
-        <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-          <div className="px-5 py-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-            <div>
-              <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Pending requests</h3>
-              <p className="text-[12px] text-[#86868b] mt-0.5">
-                Approve with bank proof or record a cash payout.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                disabled={pendingPdfBusy}
-                onClick={async () => {
-                  setPendingPdfBusy(true)
-                  try {
-                    await downloadMoneyApprovalPdf({ pendingRequests, includeLedgerDues: false })
-                  } catch (error) {
-                    toast({
-                      title: "PDF failed",
-                      message: error instanceof Error ? error.message : "Could not download PDF.",
-                      type: "error",
-                    })
-                  } finally {
-                    setPendingPdfBusy(false)
-                  }
-                }}
-                className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer"
-              >
-                <FileDown className="h-3.5 w-3.5" />
-                {pendingPdfBusy ? "PDF…" : "PDF"}
-              </button>
-              <span className="text-[11px] font-semibold text-[#9a6700] bg-[#ff9f0a]/16 px-2.5 py-1 rounded-full">
-                {pendingRequests.length} waiting
+        <div className="rounded-[12px] border border-black/[0.06] bg-white overflow-hidden">
+          <div className="px-3 py-2 border-b border-black/[0.05] flex items-center justify-between gap-2">
+            <p className="text-[12px] font-semibold text-[#1d1d1f]">
+              Pending requests
+              <span className="ml-1.5 text-[10px] font-semibold text-[#9a6700] bg-[#ff9f0a]/16 px-1.5 py-0.5 rounded-full">
+                {pendingRequests.length}
               </span>
-            </div>
+            </p>
+            <button
+              type="button"
+              disabled={pendingPdfBusy}
+              onClick={async () => {
+                setPendingPdfBusy(true)
+                try {
+                  await downloadMoneyApprovalPdf({ pendingRequests, includeLedgerDues: false })
+                } catch (error) {
+                  toast({
+                    title: "PDF failed",
+                    message: error instanceof Error ? error.message : "Could not download PDF.",
+                    type: "error",
+                  })
+                } finally {
+                  setPendingPdfBusy(false)
+                }
+              }}
+              className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full border border-black/[0.08] bg-white text-[11px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer"
+            >
+              <FileDown className="h-3 w-3" />
+              {pendingPdfBusy ? "PDF…" : "PDF"}
+            </button>
           </div>
-          <div className="divide-y divide-black/[0.045]">
-            {pendingRequests.map((allocation) => (
-              <div
-                key={allocation.id}
-                className="px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="min-w-0">
-                  {allocation.referenceNumber ? (
-                    <p className="text-[11px] font-semibold text-[#007aff] tabular-nums">
-                      {allocation.referenceNumber}
-                    </p>
-                  ) : null}
-                  <p className="text-[14px] font-semibold text-[#1d1d1f] mt-0.5">{allocation.employeeName}</p>
-                  <p className="text-[12px] text-[#86868b] mt-0.5">{allocation.purpose}</p>
-                  <p className="text-[12px] font-semibold text-[#1d1d1f] mt-1.5 tabular-nums">
-                    PKR {allocation.amount.toLocaleString()}
-                    <span className="font-normal text-[#aeaeb2]"> · {new Date(allocation.allocatedAt).toLocaleString()}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    className="h-8 px-3.5 rounded-full bg-[#34c759] text-white text-[12px] font-semibold hover:bg-[#2db350] cursor-pointer"
-                    onClick={() => setApprovalAllocation(allocation)}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
-                    onClick={async () => {
-                      try {
-                        const updated = await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
-                        setAllocations((prev) => prev.map((item) => item.id === updated.id ? updated : item))
-                        toast({ title: "Rejected", message: "Petty cash request rejected.", type: "success" })
-                      } catch (error) {
-                        console.error(error)
-                        toast({ title: "Error", message: "Failed to reject request.", type: "error" })
-                      }
-                    }}
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left">
+              <thead>
+                <tr className="bg-[#fafafa] border-b border-black/[0.05]">
+                  {["Ref", "Employee", "Purpose", "Amount", "Date", ""].map((h) => (
+                    <th key={h || "actions"} className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b]">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.045]">
+                {pendingRequests.map((allocation) => (
+                  <tr key={allocation.id} className="hover:bg-[#fafafa]">
+                    <td className="px-3 py-2 text-[11px] font-semibold text-[#007aff] tabular-nums whitespace-nowrap">
+                      {allocation.referenceNumber || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-[12px] font-semibold text-[#1d1d1f] whitespace-nowrap">
+                      {allocation.employeeName}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-[#6e6e73] max-w-[220px]">
+                      <p className="truncate" title={allocation.purpose}>{allocation.purpose}</p>
+                    </td>
+                    <td className="px-3 py-2 text-[12px] font-semibold tabular-nums text-[#1d1d1f] whitespace-nowrap">
+                      PKR {allocation.amount.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-[#86868b] whitespace-nowrap">
+                      {new Date(allocation.allocatedAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          className="h-6 px-2 rounded-full bg-[#34c759] text-white text-[10px] font-semibold hover:bg-[#2db350] cursor-pointer"
+                          onClick={() => setApprovalAllocation(allocation)}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="h-6 px-2 rounded-full border border-black/[0.08] bg-white text-[10px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer"
+                          onClick={async () => {
+                            try {
+                              const updated = await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
+                              setAllocations((prev) => prev.map((item) => item.id === updated.id ? updated : item))
+                              toast({ title: "Rejected", message: "Petty cash request rejected.", type: "success" })
+                            } catch (error) {
+                              console.error(error)
+                              toast({ title: "Error", message: "Failed to reject request.", type: "error" })
+                            }
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       {!canManagePettyCash && (
-        <div className="rounded-[18px] border border-black/[0.06] bg-white p-5 flex flex-wrap items-center justify-between gap-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-          <div>
-            <p className="text-[12px] text-[#86868b]">Your balance</p>
-            <p className={`text-[28px] font-semibold tracking-tight tabular-nums ${personalBalance < 0 ? "text-[#ff3b30]" : "text-[#34c759]"}`}>
+        <div className="rounded-[12px] border border-black/[0.06] bg-white px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[12px] text-[#86868b]">
+            Balance{" "}
+            <span className={`font-semibold tabular-nums ${personalBalance < 0 ? "text-[#ff3b30]" : "text-[#34c759]"}`}>
               {formatPettyCashBalance(personalBalance)}
-            </p>
+            </span>
             {personalPending > 0 && (
-              <p className="text-[11px] text-[#9a6700] mt-1">
-                Pending approval: {formatPettyCashExpense(personalPending)}
-              </p>
+              <span className="text-[#9a6700]"> · pending {formatPettyCashExpense(personalPending)}</span>
             )}
-          </div>
+          </p>
           <button
             type="button"
-            className="h-8 inline-flex items-center gap-1.5 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer"
+            className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full bg-[#007aff] text-white text-[11px] font-semibold hover:bg-[#0066d6] cursor-pointer"
             onClick={() => setShowReceiptForm(true)}
           >
-            <Plus className="h-3.5 w-3.5" /> Add Receipt
+            <Plus className="h-3 w-3" /> Receipt
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Allocated", value: `PKR ${totalAllocated.toLocaleString()}`, tone: "text-[#1d1d1f]" },
-          { label: "Spent", value: formatPettyCashExpense(totalSpent), tone: "text-[#ff3b30]" },
-          { label: "Active", value: String(activeCount), tone: "text-[#1d1d1f]" },
-          { label: "Pending receipts", value: String(pendingReceiptCount), tone: "text-[#9a6700]" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-[16px] border border-black/[0.06] bg-white px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
-          >
-            <p className="text-[11px] font-medium text-[#86868b]">{stat.label}</p>
-            <p className={`text-[17px] font-semibold tracking-tight tabular-nums mt-1 ${stat.tone}`}>
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="inline-flex p-1 rounded-full bg-[#e8e8ed]">
-        {([
-          { id: "allocations" as const, label: "Allocations" },
-          { id: "receipts" as const, label: "Receipts" },
-          { id: "history" as const, label: "Archived" },
-        ]).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id)
-              if (tab.id === "history") setAllocationFilter("settled")
-              if (tab.id === "allocations" && allocationFilter === "settled") setAllocationFilter("active")
-            }}
-            className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? "bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
-                : "text-[#6e6e73] hover:text-[#1d1d1f]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="inline-flex p-0.5 rounded-full bg-[#e8e8ed]">
+          {([
+            { id: "allocations" as const, label: "Allocations" },
+            { id: "receipts" as const, label: "Receipts" },
+            { id: "history" as const, label: "Archived" },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id)
+                if (tab.id === "history") setAllocationFilter("settled")
+                if (tab.id === "allocations" && allocationFilter === "settled") setAllocationFilter("active")
+              }}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                activeTab === tab.id
+                  ? "bg-white text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "text-[#6e6e73] hover:text-[#1d1d1f]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === "allocations" && (
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-1.5">
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-1">
               {ALLOCATION_FILTERS.map((filter) => {
                 const count = allocationFilterCounts[filter.id]
                 const selected = allocationFilter === filter.id
@@ -557,33 +560,33 @@ export function PettyCashDashboard() {
                     key={filter.id}
                     type="button"
                     onClick={() => setAllocationFilter(filter.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold transition-colors cursor-pointer ${
                       selected
                         ? "bg-[#1d1d1f] text-white"
                         : "bg-white border border-black/[0.08] text-[#6e6e73] hover:text-[#1d1d1f]"
                     }`}
                   >
-                    {filter.id === "settled" && <Archive className="h-3 w-3" />}
+                    {filter.id === "settled" && <Archive className="h-2.5 w-2.5" />}
                     {filter.label}
                     <span className={`tabular-nums ${selected ? "text-white/70" : "text-[#aeaeb2]"}`}>{count}</span>
                   </button>
                 )
               })}
             </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#aeaeb2]" />
+            <div className="relative w-full sm:w-56">
+              <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#aeaeb2]" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search name, ref, purpose…"
-                className="h-9 w-full rounded-full border-0 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                placeholder="Search…"
+                className="h-7 w-full rounded-full border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] pl-7 pr-2.5 text-[11px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
               />
             </div>
           </div>
 
           {filteredAllocations.length === 0 ? (
-            <div className="rounded-[18px] border border-black/[0.06] bg-white py-16 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-              <p className="text-[14px] font-medium text-[#1d1d1f]">
+            <div className="rounded-[12px] border border-black/[0.06] bg-white py-10 text-center">
+              <p className="text-[12px] font-medium text-[#1d1d1f]">
                 {searchQuery.trim()
                   ? `No matches for “${searchQuery.trim()}”`
                   : allocationFilter === "all"
@@ -592,40 +595,11 @@ export function PettyCashDashboard() {
                       ? "No archived allocations"
                       : `No ${allocationFilter} allocations`}
               </p>
-              {allocationFilter === "active" && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <button
-                    type="button"
-                    className="h-8 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold cursor-pointer"
-                    onClick={() => setShowRequestForm(true)}
-                  >
-                    Request Cash
-                  </button>
-                  {canManagePettyCash && (
-                    <button
-                      type="button"
-                      className="h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold cursor-pointer"
-                      onClick={() => setShowAllocationForm(true)}
-                    >
-                      Allocate Cash
-                    </button>
-                  )}
-                </div>
-              )}
-              {allocationFilter !== "active" && allocationFilter !== "all" && (
-                <button
-                  type="button"
-                  className="mt-4 h-8 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold cursor-pointer"
-                  onClick={() => setAllocationFilter("active")}
-                >
-                  View active
-                </button>
-              )}
             </div>
           ) : (
-            <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="rounded-[12px] border border-black/[0.06] bg-white overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1040px] text-left">
+                <table className="w-full min-w-[980px] text-left">
                   <thead>
                     <tr className="bg-[#fafafa] border-b border-black/[0.05]">
                       {[
@@ -643,8 +617,8 @@ export function PettyCashDashboard() {
                       ].map((h) => (
                         <th
                           key={h}
-                          className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
-                            h === "Actions" ? "text-center" : "text-left"
+                          className={`px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
+                            h === "Actions" ? "text-right" : "text-left"
                           }`}
                         >
                           {h}
@@ -652,7 +626,7 @@ export function PettyCashDashboard() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/[0.045]">
+                  <tbody className="divide-y divide-black/[0.04]">
                     {filteredAllocations.map((allocation) => {
                       const summary = getAllocationSummary(allocation)
                       const balance = formatAllocationBalanceCell(summary.balanceAfterApproved)
@@ -662,90 +636,63 @@ export function PettyCashDashboard() {
                       return (
                         <tr
                           key={allocation.id}
-                          className="hover:bg-[#f5f8ff] transition-colors cursor-pointer align-top"
+                          className="hover:bg-[#f5f8ff] transition-colors cursor-pointer"
                           onClick={() => setSelectedAllocation(allocation)}
                         >
-                          <td className="px-4 py-3.5 text-[12px]">
-                            <p className="font-semibold text-[#007aff] tabular-nums whitespace-nowrap">
-                              {allocation.referenceNumber || "—"}
-                            </p>
+                          <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#007aff] tabular-nums whitespace-nowrap">
+                            {allocation.referenceNumber || "—"}
                           </td>
-                          <td className="px-4 py-3.5 text-[12px]">
-                            <p className="font-semibold text-[#1d1d1f]">{allocation.employeeName}</p>
-                            <p className="text-[10px] text-[#86868b] mt-0.5">{allocation.employeeRole}</p>
+                          <td className="px-2.5 py-1.5 text-[11px] whitespace-nowrap">
+                            <span className="font-semibold text-[#1d1d1f]">{allocation.employeeName}</span>
                             {summary.isPersonalLedger && (
-                              <span className="inline-block mt-1 text-[9px] uppercase tracking-wide text-[#007aff] font-semibold">
-                                Personal ledger
+                              <span className="ml-1 text-[9px] text-[#007aff] font-semibold">ledger</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-[#1d1d1f] whitespace-nowrap">
+                            {summary.allocated.toLocaleString()}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-[11px] text-[#6e6e73] max-w-[140px]">
+                            <p className="truncate" title={allocation.purpose}>{allocation.purpose}</p>
+                          </td>
+                          <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#ff3b30] tabular-nums whitespace-nowrap">
+                            {summary.approvedSpent > 0
+                              ? formatPettyCashExpense(summary.approvedSpent)
+                              : "—"}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#9a6700] tabular-nums whitespace-nowrap">
+                            {summary.pendingSpent > 0
+                              ? `${formatPettyCashExpense(summary.pendingSpent)} (${summary.pendingCount})`
+                              : "—"}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-[11px] whitespace-nowrap">
+                            <span className={`font-semibold tabular-nums ${balance.className}`}>{balance.text}</span>
+                            {summary.pendingSpent > 0 && (
+                              <span className={`ml-1 text-[9px] tabular-nums ${projected.className}`}>
+                                →{projected.text}
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3.5 text-[12px] font-semibold tabular-nums text-[#1d1d1f]">
-                            PKR {summary.allocated.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-3.5 text-[12px] text-[#1d1d1f] max-w-[160px]">
-                            <p className="line-clamp-2" title={allocation.purpose}>{allocation.purpose}</p>
-                          </td>
-                          <td className="px-4 py-3.5 text-[12px]">
-                            <p className="font-semibold text-[#ff3b30] tabular-nums">
-                              {summary.approvedSpent > 0
-                                ? formatPettyCashExpense(summary.approvedSpent)
-                                : "—"}
-                            </p>
-                            <p className="text-[10px] text-[#aeaeb2] mt-0.5">
-                              {summary.approvedCount} approved
-                            </p>
-                          </td>
-                          <td className="px-4 py-3.5 text-[12px]">
-                            {summary.pendingSpent > 0 ? (
-                              <>
-                                <p className="font-semibold text-[#9a6700] tabular-nums">
-                                  {formatPettyCashExpense(summary.pendingSpent)}
-                                </p>
-                                <p className="text-[10px] text-[#9a6700]/80 mt-0.5">
-                                  {summary.pendingCount} waiting
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-[#aeaeb2]">—</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-[12px]">
-                            <p className={`font-semibold tabular-nums ${balance.className}`}>{balance.text}</p>
-                            {summary.pendingSpent > 0 && (
-                              <p className={`text-[10px] mt-1 tabular-nums ${projected.className}`}>
-                                → {projected.text} if pending
-                              </p>
-                            )}
-                          </td>
                           {canManagePettyCash && (
-                            <td className="px-4 py-3.5 text-[12px]">
-                              {owedToEmployee ? (
-                                <p className="font-semibold text-[#ff3b30] tabular-nums">
-                                  {formatPettyCashExpense(owedToEmployee)}
-                                </p>
-                              ) : projectedOwed ? (
-                                <p className="text-[10px] text-[#9a6700] tabular-nums">
-                                  → {formatPettyCashExpense(projectedOwed)} if pending
-                                </p>
-                              ) : summary.approvedOverage > 0 ? (
-                                <p className="font-semibold text-[#ff3b30] tabular-nums">
-                                  {formatPettyCashExpense(summary.approvedOverage)}
-                                </p>
-                              ) : (
-                                <p className="text-[#aeaeb2]">—</p>
-                              )}
+                            <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#ff3b30] tabular-nums whitespace-nowrap">
+                              {owedToEmployee
+                                ? formatPettyCashExpense(owedToEmployee)
+                                : projectedOwed
+                                  ? `→${formatPettyCashExpense(projectedOwed)}`
+                                  : summary.approvedOverage > 0
+                                    ? formatPettyCashExpense(summary.approvedOverage)
+                                    : "—"}
                             </td>
                           )}
-                          <td className="px-4 py-3.5 text-[12px]">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(allocation.status)}`}>
+                          <td className="px-2.5 py-1.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${getStatusColor(allocation.status)}`}>
                               {allocationStatusLabel(allocation.status)}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-[12px] text-[#86868b] whitespace-nowrap">
+                          <td className="px-2.5 py-1.5 text-[10px] text-[#86868b] whitespace-nowrap">
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3.5 text-[11px] text-center" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <td className="px-2.5 py-1.5 text-[10px] text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
                               {isPettyCashHistoryAllocation(allocation) && (
                                 <button
                                   type="button"
@@ -763,7 +710,7 @@ export function PettyCashDashboard() {
                                   onClick={() => setTopUpAllocation(allocation)}
                                   className="text-[#34c759] hover:underline font-semibold cursor-pointer"
                                 >
-                                  Add Cash
+                                  Add
                                 </button>
                               )}
                               {canManagePettyCash && allocation.status === "active" && owedToEmployee && (
@@ -774,7 +721,7 @@ export function PettyCashDashboard() {
                                   }
                                   className="text-[#ff3b30] hover:underline font-semibold cursor-pointer"
                                 >
-                                  Pay & settle
+                                  Pay
                                 </button>
                               )}
                               {canManagePettyCash &&
@@ -792,10 +739,10 @@ export function PettyCashDashboard() {
                                 <button
                                   type="button"
                                   onClick={() => setDeleteConfirm(allocation)}
-                                  className="text-[#ff3b30] hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
+                                  className="text-[#ff3b30] hover:underline font-semibold cursor-pointer"
+                                  title="Delete"
                                 >
-                                  <Trash2 className="h-3 w-3" />
-                                  Delete
+                                  <Trash2 className="h-3 w-3 inline" />
                                 </button>
                               )}
                             </div>
@@ -812,28 +759,21 @@ export function PettyCashDashboard() {
       )}
 
       {activeTab === "receipts" && (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {displayReceipts.length === 0 ? (
-            <div className="rounded-[18px] border border-black/[0.06] bg-white py-16 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-              <p className="text-[14px] font-medium text-[#1d1d1f]">No receipts yet</p>
-              <button
-                type="button"
-                className="mt-4 h-8 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold cursor-pointer"
-                onClick={() => setShowReceiptForm(true)}
-              >
-                Add Receipt
-              </button>
+            <div className="rounded-[12px] border border-black/[0.06] bg-white py-10 text-center">
+              <p className="text-[12px] font-medium text-[#1d1d1f]">No receipts yet</p>
             </div>
           ) : (
-            <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="rounded-[12px] border border-black/[0.06] bg-white overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[860px] text-left">
+                <table className="w-full min-w-[820px] text-left">
                   <thead>
                     <tr className="bg-[#fafafa] border-b border-black/[0.05]">
                       {["Employee", "Category", "Description", "Amount", "Status", "Submitted", "Proof", "Actions"].map((h) => (
                         <th
                           key={h}
-                          className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
+                          className={`px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-[#86868b] ${
                             h === "Proof" || h === "Actions" ? "text-center" : "text-left"
                           }`}
                         >
@@ -842,31 +782,31 @@ export function PettyCashDashboard() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/[0.045]">
+                  <tbody className="divide-y divide-black/[0.04]">
                     {displayReceipts.map((receipt) => (
                       <tr key={receipt.id} className="hover:bg-[#f5f8ff] transition-colors">
-                        <td className="px-4 py-3.5 text-[12px] font-semibold text-[#1d1d1f]">{receipt.employeeName}</td>
-                        <td className="px-4 py-3.5 text-[12px] text-[#86868b]">{receipt.category || "—"}</td>
-                        <td className="px-4 py-3.5 text-[12px] text-[#1d1d1f] max-w-[220px]">
-                          <p className="line-clamp-2">{receipt.description}</p>
+                        <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#1d1d1f] whitespace-nowrap">{receipt.employeeName}</td>
+                        <td className="px-2.5 py-1.5 text-[11px] text-[#86868b]">{receipt.category || "—"}</td>
+                        <td className="px-2.5 py-1.5 text-[11px] text-[#6e6e73] max-w-[200px]">
+                          <p className="truncate" title={receipt.description}>{receipt.description}</p>
                         </td>
-                        <td className="px-4 py-3.5 text-[12px] font-semibold text-[#ff3b30] tabular-nums">
+                        <td className="px-2.5 py-1.5 text-[11px] font-semibold text-[#ff3b30] tabular-nums whitespace-nowrap">
                           {formatPettyCashExpense(receipt.amount)}
                         </td>
-                        <td className="px-4 py-3.5 text-[12px]">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(receipt.status)}`}>
+                        <td className="px-2.5 py-1.5">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${getStatusColor(receipt.status)}`}>
                             {receipt.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-[12px] text-[#86868b] whitespace-nowrap">
+                        <td className="px-2.5 py-1.5 text-[10px] text-[#86868b] whitespace-nowrap">
                           {new Date(receipt.submittedAt).toLocaleDateString()}
                         </td>
-                        <td className="px-4 py-3.5 text-[12px] text-center">
+                        <td className="px-2.5 py-1.5 text-center">
                           {receipt.receiptProof || receipt.hasReceiptProof ? (
                             <button
                               type="button"
                               onClick={() => void openReceiptProof(receipt)}
-                              className="inline-flex items-center justify-center text-[#007aff] hover:text-[#0066d6] cursor-pointer"
+                              className="inline-flex items-center justify-center text-[#007aff] cursor-pointer"
                               title={receipt.receiptProofName || "View receipt proof"}
                             >
                               <FileText className="h-3.5 w-3.5" />
@@ -875,27 +815,27 @@ export function PettyCashDashboard() {
                             <span className="text-[#aeaeb2]">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3.5 text-[12px] text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="px-2.5 py-1.5 text-center">
+                          <div className="inline-flex items-center justify-center gap-1">
                             {canManagePettyCash && receipt.status === "pending" && (
                               <>
                                 <button
                                   type="button"
                                   disabled={reviewingReceiptId === receipt.id}
                                   onClick={() => handleReviewReceipt(receipt, "approved")}
-                                  className="text-[#34c759] hover:text-[#248a3d] cursor-pointer disabled:opacity-50"
+                                  className="text-[#34c759] cursor-pointer disabled:opacity-50"
                                   title="Approve"
                                 >
-                                  <CheckCircle className="h-4 w-4" />
+                                  <CheckCircle className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   type="button"
                                   disabled={reviewingReceiptId === receipt.id}
                                   onClick={() => handleReviewReceipt(receipt, "rejected")}
-                                  className="text-[#ff3b30] hover:text-[#d70015] cursor-pointer disabled:opacity-50"
+                                  className="text-[#ff3b30] cursor-pointer disabled:opacity-50"
                                   title="Reject"
                                 >
-                                  <XCircle className="h-4 w-4" />
+                                  <XCircle className="h-3.5 w-3.5" />
                                 </button>
                               </>
                             )}
