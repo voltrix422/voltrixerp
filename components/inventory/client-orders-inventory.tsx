@@ -49,6 +49,7 @@ import {
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
+import { OrderEditPricesButton, OrderEditPricesDialog } from "@/components/orders/order-edit-prices"
 import { subscribeErpLive } from "@/lib/erp-live-sync"
 import {
   computeNetDeliveredProductQty,
@@ -1080,6 +1081,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
   const [showReplaceDialog, setShowReplaceDialog] = useState(false)
+  const [showEditPrices, setShowEditPrices] = useState(false)
   const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
   const autoDeductAttempted = useRef(false)
 
@@ -1641,6 +1643,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               Replace item
             </Button>
           )}
+          <OrderEditPricesButton onClick={() => setShowEditPrices(true)} />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-none p-4 sm:p-5">
@@ -1893,6 +1896,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               Replace item
             </Button>
           )}
+          <OrderEditPricesButton
+            onClick={() => setShowEditPrices(true)}
+            className="h-10 w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] cursor-pointer"
+          />
         </div>
       </div>
     </div>,
@@ -2111,16 +2118,22 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         createPortal(
         <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-4" onClick={() => !updating && setShowFulfillDialog(false)}>
           <div
-            className="w-full sm:max-w-4xl max-h-[94vh] sm:max-h-[92vh] rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
+            className={`w-full sm:max-w-4xl rounded-t-[20px] sm:rounded-[20px] border border-black/[0.06] bg-white/95 dark:bg-[hsl(var(--card))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col ${
+              fulfillTab === "products" && useQrScanDispatch
+                ? "h-[96dvh] sm:h-auto sm:max-h-[92vh]"
+                : "max-h-[94vh] sm:max-h-[92vh]"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
-              <div>
+            <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3.5 border-b border-black/[0.06] dark:border-[hsl(var(--border))] shrink-0 bg-white/70 dark:bg-[hsl(var(--card))]/80">
+              <div className="min-w-0">
                 <p className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">Create dispatch note</p>
-                <p className="text-[11px] text-[#86868b] mt-0.5">
-                  {useQrScanDispatch
-                    ? "Step 1: dispatcher · Step 2: scan QR codes for order qty"
-                    : "Enter dispatcher details and create the dispatch note"}
+                <p className="text-[11px] text-[#86868b] mt-0.5 truncate">
+                  {fulfillTab === "products" && useQrScanDispatch
+                    ? "Scan QR codes for order qty"
+                    : useQrScanDispatch
+                      ? "Dispatcher details · then scan QR"
+                      : "Enter dispatcher details and create the dispatch note"}
                 </p>
               </div>
               <button
@@ -2141,29 +2154,20 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </div>
             )}
 
-            {linesNeedSerials && !order.inventoryDeductedAt ? (
-              <div className="px-4 sm:px-5 py-3 border-b border-black/[0.06] shrink-0">
-                <p className="text-[10px] font-semibold tracking-tight text-[#86868b] mb-1.5">
-                  Dispatch method
-                </p>
+            {linesNeedSerials && !order.inventoryDeductedAt && fulfillTab === "dispatcher" ? (
+              <div className="px-4 sm:px-5 py-2 border-b border-black/[0.06] shrink-0">
                 {allowNoScanDispatch ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="inline-flex w-full rounded-full bg-black/[0.06] p-0.5 dark:bg-white/10">
                     <button
                       type="button"
                       onClick={() => setSkipScanning(false)}
-                      className={`rounded-[14px] border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                      className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
                         !skipScanning
-                          ? "border-[#0071e3]/40 bg-[#0071e3]/08 ring-1 ring-[#0071e3]/25"
-                          : "border-black/[0.08] hover:bg-black/[0.03]"
+                          ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                          : "text-[#86868b]"
                       }`}
                     >
-                      <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                        <ScanLine className="h-4 w-4 text-[#0071e3] shrink-0" />
-                        With QR scanning
-                      </p>
-                      <p className="text-[11px] text-[#86868b] mt-1">
-                        Scan serials for warranty · then create dispatch note
-                      </p>
+                      With QR
                     </button>
                     <button
                       type="button"
@@ -2171,31 +2175,20 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                         setSkipScanning(true)
                         setFulfillTab("dispatcher")
                       }}
-                      className={`rounded-[14px] border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                      className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
                         skipScanning
-                          ? "border-[#ff9f0a]/50 bg-[#ff9f0a]/10 ring-1 ring-[#ff9f0a]/30"
-                          : "border-black/[0.08] hover:bg-black/[0.03]"
+                          ? "bg-white text-[#1d1d1f] shadow-sm dark:bg-[hsl(var(--card))] dark:text-[hsl(var(--foreground))]"
+                          : "text-[#86868b]"
                       }`}
                     >
-                      <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                        <Truck className="h-4 w-4 text-[#9a6700] shrink-0" />
-                        Without scanning
-                      </p>
-                      <p className="text-[11px] text-[#86868b] mt-1">
-                        Skip QR scans · inventory qty still deducted · no serials for warranty
-                      </p>
+                      No scan
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <p className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[hsl(var(--foreground))]">
-                      <ScanLine className="h-4 w-4 text-[#0071e3] shrink-0" />
-                      With QR scanning
-                    </p>
-                    <p className="text-[11px] text-[#86868b] mt-1">
-                      Scan serials for warranty · then create dispatch note
-                    </p>
-                  </>
+                  <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#86868b]">
+                    <ScanLine className="h-3.5 w-3.5 text-[#0071e3] shrink-0" />
+                    QR scanning for warranty
+                  </p>
                 )}
               </div>
             ) : null}
@@ -2204,7 +2197,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <button
                 type="button"
                 onClick={() => setFulfillTab("dispatcher")}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
                   fulfillTab === "dispatcher"
                     ? "text-[#1d1d1f] dark:text-[hsl(var(--foreground))]"
                     : "text-[#86868b] hover:text-[#1d1d1f]"
@@ -2220,7 +2213,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <button
                   type="button"
                   onClick={() => setFulfillTab("products")}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold tracking-tight transition-colors relative cursor-pointer ${
                     fulfillTab === "products"
                       ? "text-[#1d1d1f] dark:text-[hsl(var(--foreground))]"
                       : "text-[#86868b] hover:text-[#1d1d1f]"
@@ -2240,7 +2233,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               ) : null}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none p-4 sm:p-5 space-y-4">
+            <div
+              className={`flex-1 min-h-0 overflow-y-auto scrollbar-none space-y-4 ${
+                fulfillTab === "products" && useQrScanDispatch
+                  ? "p-3 sm:p-5"
+                  : "p-4 sm:p-5"
+              }`}
+            >
               {fulfillTab === "dispatcher" && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
               <div className="space-y-4">
@@ -2391,60 +2390,73 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               )}
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border-t border-black/[0.06] bg-[#fafafa]/90 dark:bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              {fulfillTab === "products" && useQrScanDispatch ? (
+            <div className="shrink-0 border-t border-black/[0.06] bg-[#fafafa]/95 dark:bg-[hsl(var(--muted))]/20 px-3 sm:px-5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+              <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
-                  onClick={() => setFulfillTab("dispatcher")}
+                  className="h-9 rounded-full text-[11px] sm:text-[12px] border-black/[0.08] order-1 sm:order-none"
+                  onClick={() => setShowFulfillDialog(false)}
                   disabled={updating}
                 >
-                  Back to dispatcher
+                  Cancel
                 </Button>
-              ) : useQrScanDispatch && fulfillTab === "dispatcher" ? (
+                {useQrScanDispatch && !order.inventoryDeductedAt ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-full text-[11px] sm:text-[12px] border-[#ff9f0a]/40 text-[#9a6700] hover:bg-[#ff9f0a]/10 order-2 sm:order-none"
+                    onClick={saveDraftAndClose}
+                    disabled={updating}
+                  >
+                    <span className="sm:hidden">Save draft</span>
+                    <span className="hidden sm:inline">Save draft & close</span>
+                  </Button>
+                ) : (
+                  <span className="hidden sm:block" />
+                )}
+                {fulfillTab === "products" && useQrScanDispatch ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-full text-[11px] sm:text-[12px] border-black/[0.08] order-3 sm:order-none"
+                    onClick={() => setFulfillTab("dispatcher")}
+                    disabled={updating}
+                  >
+                    Back
+                  </Button>
+                ) : useQrScanDispatch && fulfillTab === "dispatcher" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-full text-[11px] sm:text-[12px] border-black/[0.08] order-3 sm:order-none col-span-2 sm:col-auto"
+                    onClick={() => setFulfillTab("products")}
+                    disabled={updating || !fulfillDispatcherName.trim()}
+                  >
+                    <span className="sm:hidden">Next: Scan QR</span>
+                    <span className="hidden sm:inline">Next: Scan QR codes</span>
+                  </Button>
+                ) : (
+                  <span className="hidden sm:block" />
+                )}
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
-                  onClick={() => setFulfillTab("products")}
-                  disabled={updating || !fulfillDispatcherName.trim()}
+                  className="h-9 rounded-full text-[11px] sm:text-[12px] bg-[#1d1d1f] hover:bg-black text-white order-4 sm:order-none sm:ml-auto col-span-2 sm:col-auto"
+                  onClick={handleFulfillOrder}
+                  disabled={updating || !canSubmitFulfillment}
                 >
-                  Next: Scan QR codes
+                  {updating
+                    ? "Creating…"
+                    : useQrScanDispatch
+                      ? (
+                        <>
+                          <span className="sm:hidden">Create & start warranty</span>
+                          <span className="hidden sm:inline">Create dispatch note & start warranty</span>
+                        </>
+                      )
+                      : "Create dispatch note"}
                 </Button>
-              ) : null}
-              <Button
-                size="sm"
-                className="h-10 w-full sm:w-auto sm:ml-auto rounded-full text-[12px] bg-[#1d1d1f] hover:bg-black text-white"
-                onClick={handleFulfillOrder}
-                disabled={updating || !canSubmitFulfillment}
-              >
-                {updating
-                  ? "Creating…"
-                  : useQrScanDispatch
-                    ? "Create dispatch note & start warranty"
-                    : "Create dispatch note"}
-              </Button>
-              {useQrScanDispatch && !order.inventoryDeductedAt && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-10 w-full sm:w-auto rounded-full text-[12px] border-[#ff9f0a]/40 text-[#9a6700] hover:bg-[#ff9f0a]/10"
-                  onClick={saveDraftAndClose}
-                  disabled={updating}
-                >
-                  Save draft & close
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-10 w-full sm:w-auto rounded-full text-[12px] border-black/[0.08]"
-                onClick={() => setShowFulfillDialog(false)}
-                disabled={updating}
-              >
-                Cancel
-              </Button>
+              </div>
             </div>
           </div>
         </div>,
@@ -2487,6 +2499,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           onComplete={(updated) => onUpdate(updated)}
         />
       )}
+
+      <OrderEditPricesDialog
+        order={order}
+        open={showEditPrices}
+        onClose={() => setShowEditPrices(false)}
+        onSaved={(updated) => onUpdate(updated)}
+      />
     </>
   )
 }
