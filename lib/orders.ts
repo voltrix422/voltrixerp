@@ -878,52 +878,18 @@ export function capOrderPaymentsToTotal(
   })
 }
 
-/** Mark surplus post-delivery payments as proof-only (fixes mistaken amounts). */
+/**
+ * Align delivered-order payments with total: trim surplus amounts (do not wipe
+ * a single overpaid row to 0 — that breaks Edit price). Fully excess later rows
+ * become proof-only.
+ */
 export function reconcileDeliveredOrderPayments(
   order: Pick<Order, "total" | "payments" | "status">,
 ): OrderPayment[] {
   if (order.status !== "delivered") {
-    return (order.payments || []).map(p => ({ ...p }))
+    return (order.payments || []).map((p) => ({ ...p }))
   }
-
-  const sorted = [...(order.payments || [])].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  )
-
-  let balancePaid = 0
-  const total = Number(order.total) || 0
-
-  return sorted.map((payment) => {
-    const next = { ...payment }
-    if (next.proofOnly) {
-      next.amount = 0
-      return next
-    }
-
-    const status = getPaymentSubmissionStatus(next, order.status)
-    const counts = status === "pending_approval" || status === "approved"
-    if (!counts) return next
-
-    if (balancePaid >= total - 0.004) {
-      next.proofOnly = true
-      next.amount = 0
-      return next
-    }
-
-    if (next.amount > total + 0.004 && balancePaid > 0.004) {
-      next.proofOnly = true
-      next.amount = 0
-      return next
-    }
-
-    balancePaid += next.amount
-    if (balancePaid > total + 0.004) {
-      balancePaid -= next.amount
-      next.proofOnly = true
-      next.amount = 0
-    }
-    return next
-  })
+  return capOrderPaymentsToTotal(order)
 }
 
 export function getDraftPayments(payments: OrderPayment[] = [], orderStatus?: Order["status"]) {
