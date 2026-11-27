@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { canWriteInstallments } from "@/lib/auth"
+import { InstallmentsEstimate } from "@/components/installments/installments-estimate"
 
 type DocLabel = "agreement" | "checklist" | "other"
 
@@ -112,6 +113,7 @@ export function InstallmentsDashboard() {
   const [docLabel, setDocLabel] = useState<DocLabel>("agreement")
   const [customLabel, setCustomLabel] = useState("")
   const [uploading, setUploading] = useState(false)
+  const [mainTab, setMainTab] = useState<"clients" | "estimate">("clients")
 
   const loadList = useCallback(
     async (q = search) => {
@@ -324,8 +326,33 @@ export function InstallmentsDashboard() {
     <div className="space-y-5">
       {!selected && !showForm && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <h1 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Clients</h1>
-          {canWrite && (
+          <div className="inline-flex p-0.5 rounded-full bg-[#e8e8ed]">
+            {([
+              { id: "clients" as const, label: "Clients" },
+              { id: "estimate" as const, label: "Estimate" },
+            ]).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setMainTab(tab.id)
+                  if (tab.id === "estimate") {
+                    setShowForm(false)
+                    setSelected(null)
+                    setSelectedId(null)
+                  }
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all cursor-pointer ${
+                  mainTab === tab.id
+                    ? "bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+                    : "text-[#6e6e73] hover:text-[#1d1d1f]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {mainTab === "clients" && canWrite && (
             <button
               type="button"
               onClick={openCreate}
@@ -338,11 +365,13 @@ export function InstallmentsDashboard() {
         </div>
       )}
 
-      {error ? (
+      {mainTab === "estimate" && !selected && !showForm ? <InstallmentsEstimate /> : null}
+
+      {error && mainTab === "clients" ? (
         <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[12px] px-3.5 py-2.5">{error}</p>
       ) : null}
 
-      {showForm && (
+      {mainTab === "clients" && showForm && (
         <form
           onSubmit={saveClient}
           className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
@@ -497,7 +526,7 @@ export function InstallmentsDashboard() {
         </form>
       )}
 
-      {selected && !showForm ? (
+      {mainTab === "clients" && selected && !showForm ? (
         <div className="space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <button
@@ -676,7 +705,7 @@ export function InstallmentsDashboard() {
         </div>
       ) : null}
 
-      {!selected && !showForm && (
+      {mainTab === "clients" && !selected && !showForm && (
         <>
           <div className="relative max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />

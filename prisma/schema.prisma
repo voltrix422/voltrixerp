@@ -1930,3 +1930,25 @@ model InstallmentDocument {
   @@index([label])
   @@map("erp_installment_documents")
 }
+
+/** Shared KW system estimates — rate × kW × factor per cost line. */
+model InstallmentEstimate {
+  id            String   @id @default(cuid())
+  title         String   @default("")
+  clientName    String   @default("") @map("client_name")
+  systemKw      Float    @map("system_kw")
+  factor        Float    @default(1.5)
+  lines         Json     @default("[]")
+  totalAmount   Float    @map("total_amount")
+  notes         String   @default("")
+  createdBy     String   @default("") @map("created_by")
+  createdById   String   @default("") @map("created_by_id")
+  updatedBy     String   @default("") @map("updated_by")
+  updatedById   String   @default("") @map("updated_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([systemKw])
+  @@index([createdAt])
+  @@map("erp_installment_estimates")
+}
