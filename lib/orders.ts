@@ -840,6 +840,44 @@ export function getProofOnlyPayments(payments: OrderPayment[] = [], orderStatus?
   return getSubmittedPayments(payments, orderStatus).filter(p => isProofOnlyPayment(p))
 }
 
+/**
+ * Cap balance-counting payments so their sum does not exceed order total.
+ * Used after Edit price (and similar) so Paid cannot stay above the new Total.
+ * Keeps earlier payments; trims later ones. Fully excess rows become proof-only (amount 0).
+ */
+export function capOrderPaymentsToTotal(
+  order: Pick<Order, "total" | "payments" | "status">,
+): OrderPayment[] {
+  const total = Math.max(0, Number(order.total) || 0)
+  const sorted = [...(order.payments || [])].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )
+
+  let remaining = total
+  return sorted.map((payment) => {
+    const next = { ...payment }
+    if (isProofOnlyPayment(next)) {
+      next.amount = 0
+      return next
+    }
+    if (!paymentCountsTowardBalance(next, order.status)) return next
+
+    const amount = Math.max(0, Number(next.amount) || 0)
+    if (remaining <= 0.004) {
+      next.proofOnly = true
+      next.amount = 0
+      return next
+    }
+    if (amount > remaining + 0.004) {
+      next.amount = Math.round(remaining * 100) / 100
+      remaining = 0
+      return next
+    }
+    remaining -= amount
+    return next
+  })
+}
+
 /** Mark surplus post-delivery payments as proof-only (fixes mistaken amounts). */
 export function reconcileDeliveredOrderPayments(
   order: Pick<Order, "total" | "payments" | "status">,

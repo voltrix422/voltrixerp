@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { Loader2, Pencil, X } from "lucide-react"
 import {
+  capOrderPaymentsToTotal,
   recalculateOrderFinancials,
   resolveOrderItemModel,
   saveOrder,
@@ -65,7 +66,11 @@ export function OrderEditPricesDialog({
           throw new Error("Enter a valid price for every item.")
         }
       }
-      const saved = await saveOrder(preview)
+      const withPayments = {
+        ...preview,
+        payments: capOrderPaymentsToTotal(preview),
+      }
+      const saved = await saveOrder(withPayments)
       onSaved(saved)
       onClose()
     } catch (e) {
