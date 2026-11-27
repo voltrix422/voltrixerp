@@ -1,9 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Trash2, Calculator } from "lucide-react"
+import { createPortal } from "react-dom"
+import { Loader2, Plus, Trash2, Calculator, X, Search } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { canWriteInstallments } from "@/lib/auth"
+import {
+  buildCrmPriceMap,
+  getCrmProductPrices,
+  type CrmProductPrice,
+} from "@/lib/crm-product-prices"
+import { getSalePrice } from "@/lib/product-display"
+import { isProductPublished } from "@/lib/product-published"
 import {
   DEFAULT_ADVANCE_PERCENT,
   DEFAULT_FACTOR,
@@ -16,7 +24,26 @@ import {
   calcInstallmentBreakdown,
 } from "@/lib/installment-estimate"
 
-type CostLine = { id: string; name: string; amount: string; kind?: string }
+type CostLine = {
+  id: string
+  name: string
+  amount: string
+  kind?: string
+  productId?: string
+  model?: string
+  qty?: string
+  unitPrice?: string
+}
+
+type CatalogProduct = {
+  id: string
+  name: string
+  model: string
+  category: string
+  price: number
+  dealershipPrice: number
+  quoteMode: boolean
+}
 
 type SavedEstimate = {
   id: string
@@ -24,7 +51,16 @@ type SavedEstimate = {
   clientName: string
   systemKw: number
   factor: number
-  lines: { name: string; amount?: number; rate?: number; kind?: string }[]
+  lines: {
+    name: string
+    amount?: number
+    rate?: number
+    kind?: string
+    productId?: string
+    model?: string
+    qty?: number
+    unitPrice?: number
+  }[]
   worksheet?: {
     panelWatt?: number
     structureUnitPrice?: number
@@ -52,13 +88,25 @@ function money(n: number) {
   return `PKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-function newLine(name = "", amount = "", kind?: string): CostLine {
+function newLine(
+  name = "",
+  amount = "",
+  kind?: string,
+  extra?: Partial<CostLine>,
+): CostLine {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     amount,
     kind,
+    ...extra,
   }
+}
+
+function catalogUnitPrice(p: CatalogProduct) {
+  if (p.dealershipPrice > 0) return p.dealershipPrice
+  if (p.price > 0) return p.price
+  return 0
 }
 
 function defaultLines(): CostLine[] {
@@ -98,6 +146,10 @@ export function InstallmentsEstimate() {
   const [raisedMaxFt] = useState(String(DEFAULT_RAISED_MAX_FT))
   const [notes, setNotes] = useState("")
   const [lines, setLines] = useState<CostLine[]>(defaultLines)
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [showProductPicker, setShowProductPicker] = useState(false)
+  const [productSearch, setProductSearch] = useState("")
 
   const kwNum = Number(systemKw) || 0
   const panelWattNum = Number(panelWatt) || 0
@@ -160,6 +212,80 @@ export function InstallmentsEstimate() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setCatalogLoading(true)
+      try {
+        const [productsRes, crmPrices] = await Promise.all([
+          fetch("/api/products", { cache: "no-store" }).then((r) => r.json()),
+          getCrmProductPrices().catch(() => [] as CrmProductPrice[]),
+        ])
+        if (cancelled) return
+        const priceMap = buildCrmPriceMap(Array.isArray(crmPrices) ? crmPrices : [])
+        const list = Array.isArray(productsRes) ? productsRes : []
+        const mapped: CatalogProduct[] = list
+          .filter((p: Record<string, unknown>) => isProductPublished(p))
+          .map((p: Record<string, unknown>) => {
+            const model = String(p.model ?? "").trim()
+            const crm = model ? priceMap.get(model.toLowerCase()) : undefined
+            const webPrice = getSalePrice({
+              price: p.price as number | string | null,
+              quoteMode: Boolean(p.quoteMode),
+            })
+            return {
+              id: String(p.id ?? ""),
+              name: String(p.name ?? "").trim() || model || "Product",
+              model,
+              category: String(p.category ?? "").trim(),
+              price: webPrice ?? 0,
+              dealershipPrice: Number(crm?.dealershipPrice) || 0,
+              quoteMode: Boolean(p.quoteMode) || (webPrice ?? 0) <= 0,
+            }
+          })
+          .filter((p: CatalogProduct) => p.id)
+          .sort((a: CatalogProduct, b: CatalogProduct) => a.name.localeCompare(b.name))
+        setCatalog(mapped)
+      } catch {
+        if (!cancelled) setCatalog([])
+      } finally {
+        if (!cancelled) setCatalogLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filteredCatalog = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return catalog
+    return catalog.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.model.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q),
+    )
+  }, [catalog, productSearch])
+
+  function addProductLine(product: CatalogProduct) {
+    const unit = catalogUnitPrice(product)
+    const label = product.model
+      ? `${product.name} (${product.model})`
+      : product.name
+    setLines((prev) => [
+      ...prev,
+      newLine(label, String(unit || ""), "product", {
+        productId: product.id,
+        model: product.model,
+        qty: "1",
+        unitPrice: String(unit || ""),
+      }),
+    ])
+    setShowProductPicker(false)
+    setProductSearch("")
+  }
+
   function resetForm() {
     setEditingId(null)
     setTitle("")
@@ -192,18 +318,38 @@ export function InstallmentsEstimate() {
     setNotes(row.notes || "")
     const nextLines =
       Array.isArray(row.lines) && row.lines.length > 0
-        ? row.lines.map((l, i) => ({
-            id: `${row.id}-${i}`,
-            name: l.name,
-            amount: String(
-              Number.isFinite(Number(l.amount))
-                ? Number(l.amount)
-                : Number.isFinite(Number(l.rate))
-                  ? Number(l.rate)
-                  : 0,
-            ),
-            kind: l.kind,
-          }))
+        ? row.lines.map((l, i) => {
+            const raw = l as {
+              name: string
+              amount?: number
+              rate?: number
+              kind?: string
+              productId?: string
+              model?: string
+              qty?: number
+              unitPrice?: number
+            }
+            const amount = Number.isFinite(Number(raw.amount))
+              ? Number(raw.amount)
+              : Number.isFinite(Number(raw.rate))
+                ? Number(raw.rate)
+                : 0
+            return {
+              id: `${row.id}-${i}`,
+              name: raw.name,
+              amount: String(amount),
+              kind: raw.kind,
+              productId: raw.productId,
+              model: raw.model,
+              qty: raw.qty != null ? String(raw.qty) : raw.kind === "product" ? "1" : undefined,
+              unitPrice:
+                raw.unitPrice != null
+                  ? String(raw.unitPrice)
+                  : raw.kind === "product"
+                    ? String(amount)
+                    : undefined,
+            }
+          })
         : defaultLines()
     setLines(nextLines)
   }
@@ -249,6 +395,10 @@ export function InstallmentsEstimate() {
         name: l.name.trim(),
         amount: l.amountNum,
         ...(l.kind ? { kind: l.kind } : {}),
+        ...(l.productId ? { productId: l.productId } : {}),
+        ...(l.model ? { model: l.model } : {}),
+        ...(l.qty != null ? { qty: Number(l.qty) || 1 } : {}),
+        ...(l.unitPrice != null ? { unitPrice: Number(l.unitPrice) || 0 } : {}),
       }))
     if (payloadLines.length === 0) {
       setError("Add at least one cost line.")
@@ -534,14 +684,19 @@ export function InstallmentsEstimate() {
                   <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">
                     Cost item
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b] w-[10rem]">
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b] w-[5rem]">
+                    Qty
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b] w-[9rem]">
                     Amount (PKR)
                   </th>
                   <th className="px-3 py-2 w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.045]">
-                {amountLines.map((line) => (
+                {amountLines.map((line) => {
+                  const isProduct = line.kind === "product"
+                  return (
                   <tr key={line.id}>
                     <td className="px-3 py-2">
                       <input
@@ -554,6 +709,35 @@ export function InstallmentsEstimate() {
                         }
                         placeholder="e.g. Battery / Inverter"
                       />
+                      {line.model ? (
+                        <p className="text-[10px] text-[#aeaeb2] mt-0.5 font-mono">{line.model}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isProduct ? (
+                        <input
+                          className="w-full h-8 rounded-lg border-0 bg-[#f2f2f7] px-2.5 text-[12px] tabular-nums outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                          inputMode="numeric"
+                          value={line.qty ?? "1"}
+                          onChange={(e) => {
+                            const qty = e.target.value
+                            setLines((prev) =>
+                              prev.map((l) => {
+                                if (l.id !== line.id) return l
+                                const unit = Number(l.unitPrice) || 0
+                                const q = Number(qty) || 0
+                                return {
+                                  ...l,
+                                  qty,
+                                  amount: String(Math.round(unit * q)),
+                                }
+                              }),
+                            )
+                          }}
+                        />
+                      ) : (
+                        <span className="text-[12px] text-[#aeaeb2]">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -562,9 +746,19 @@ export function InstallmentsEstimate() {
                         value={line.amount}
                         onChange={(e) =>
                           setLines((prev) =>
-                            prev.map((l) =>
-                              l.id === line.id ? { ...l, amount: e.target.value } : l,
-                            ),
+                            prev.map((l) => {
+                              if (l.id !== line.id) return l
+                              const amount = e.target.value
+                              if (l.kind === "product") {
+                                const q = Number(l.qty) || 1
+                                return {
+                                  ...l,
+                                  amount,
+                                  unitPrice: q > 0 ? String(Math.round((Number(amount) || 0) / q)) : l.unitPrice,
+                                }
+                              }
+                              return { ...l, amount }
+                            }),
                           )
                         }
                         placeholder="0"
@@ -583,28 +777,26 @@ export function InstallmentsEstimate() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
             <div className="px-3 py-2 border-t border-black/[0.05] flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setLines((prev) => [...prev, newLine("", "", "product")])}
+                  onClick={() => setShowProductPicker(true)}
+                  className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full text-[11px] font-semibold text-white bg-[#007aff] hover:bg-[#0066d6] cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" /> Add product
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLines((prev) => [...prev, newLine("", "", "other")])}
                   className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full text-[11px] font-semibold text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer"
                 >
-                  <Plus className="h-3 w-3" /> Add product / cost
+                  <Plus className="h-3 w-3" /> Custom cost
                 </button>
-                {["Battery", "Inverter", "EV Charger", "BESS"].map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setLines((prev) => [...prev, newLine(name, "", "product")])}
-                    className="h-7 px-2.5 rounded-full text-[11px] font-medium text-[#6e6e73] border border-black/[0.06] hover:bg-black/[0.03] cursor-pointer"
-                  >
-                    + {name}
-                  </button>
-                ))}
               </div>
               <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
                 Cost {money(breakdown.cost)}
@@ -756,6 +948,102 @@ export function InstallmentsEstimate() {
           </div>
         )}
       </div>
+
+      {showProductPicker && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+              onClick={() => setShowProductPicker(false)}
+            >
+              <div
+                className="w-full sm:max-w-lg max-h-[85vh] rounded-t-[18px] sm:rounded-[18px] border border-black/[0.06] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06]">
+                  <div>
+                    <p className="text-[14px] font-semibold text-[#1d1d1f]">Add product</p>
+                    <p className="text-[11px] text-[#86868b]">
+                      Website catalog · dealership price when set
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductPicker(false)}
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="px-4 py-2.5 border-b border-black/[0.05]">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />
+                    <input
+                      className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] pl-8 pr-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                      placeholder="Search name or model…"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {catalogLoading ? (
+                    <p className="text-center text-[12px] text-[#86868b] py-10">Loading products…</p>
+                  ) : filteredCatalog.length === 0 ? (
+                    <p className="text-center text-[12px] text-[#86868b] py-10">No products found</p>
+                  ) : (
+                    <ul className="divide-y divide-black/[0.045]">
+                      {filteredCatalog.map((p) => {
+                        const unit = catalogUnitPrice(p)
+                        return (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              onClick={() => addProductLine(p)}
+                              className="w-full text-left px-4 py-3 hover:bg-[#f5f8ff] cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-semibold text-[#1d1d1f] truncate">
+                                    {p.name}
+                                  </p>
+                                  {p.model ? (
+                                    <p className="text-[11px] font-mono text-[#86868b] mt-0.5">
+                                      {p.model}
+                                    </p>
+                                  ) : null}
+                                  {p.category ? (
+                                    <p className="text-[10px] text-[#aeaeb2] mt-0.5">{p.category}</p>
+                                  ) : null}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  {unit > 0 ? (
+                                    <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
+                                      {money(unit)}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[11px] font-medium text-[#9a6700]">Quote</p>
+                                  )}
+                                  {p.dealershipPrice > 0 && p.price > 0 && p.dealershipPrice !== p.price ? (
+                                    <p className="text-[10px] text-[#aeaeb2] tabular-nums">
+                                      web {money(p.price)}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

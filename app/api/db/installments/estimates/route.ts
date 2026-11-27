@@ -14,7 +14,15 @@ import {
   calcInstallmentBreakdown,
 } from "@/lib/installment-estimate"
 
-type EstimateLine = { name: string; amount: number; kind?: string }
+type EstimateLine = {
+  name: string
+  amount: number
+  kind?: string
+  productId?: string
+  model?: string
+  qty?: number
+  unitPrice?: number
+}
 
 async function loadActor(userId: unknown) {
   const id = String(userId ?? "").trim()
@@ -29,20 +37,29 @@ function parseLines(raw: unknown): EstimateLine[] {
   if (!Array.isArray(raw)) return []
   return raw
     .map((row) => {
-      const name = String((row as { name?: unknown })?.name ?? "").trim()
-      const amountRaw = Number((row as { amount?: unknown })?.amount)
+      const r = row as Record<string, unknown>
+      const name = String(r?.name ?? "").trim()
+      const amountRaw = Number(r?.amount)
       // Legacy rate×kw×factor rows may only have `amount` already computed, or `rate`.
-      const legacyRate = Number((row as { rate?: unknown })?.rate)
+      const legacyRate = Number(r?.rate)
       const amount = Number.isFinite(amountRaw)
         ? amountRaw
         : Number.isFinite(legacyRate)
           ? legacyRate
           : 0
-      const kind = String((row as { kind?: unknown })?.kind ?? "").trim()
+      const kind = String(r?.kind ?? "").trim()
+      const productId = String(r?.productId ?? "").trim()
+      const model = String(r?.model ?? "").trim()
+      const qtyRaw = Number(r?.qty)
+      const unitRaw = Number(r?.unitPrice)
       return {
         name,
         amount: Number.isFinite(amount) ? amount : 0,
         ...(kind ? { kind } : {}),
+        ...(productId ? { productId } : {}),
+        ...(model ? { model } : {}),
+        ...(Number.isFinite(qtyRaw) && qtyRaw > 0 ? { qty: qtyRaw } : {}),
+        ...(Number.isFinite(unitRaw) && unitRaw >= 0 ? { unitPrice: unitRaw } : {}),
       }
     })
     .filter((row) => row.name)
