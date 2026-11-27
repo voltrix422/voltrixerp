@@ -16,6 +16,7 @@ import {
   DEFAULT_ADVANCE_PERCENT,
   DEFAULT_FACTOR,
   DEFAULT_MONTHS,
+  DEFAULT_PANEL_RS_PER_WATT,
   DEFAULT_PANEL_WATT,
   DEFAULT_RAISED_MAX_FT,
   DEFAULT_RAISED_RS_PER_WATT,
@@ -63,6 +64,7 @@ type SavedEstimate = {
   }[]
   worksheet?: {
     panelWatt?: number
+    panelRsPerWatt?: number
     structureUnitPrice?: number
     structureRsPerWatt?: number
     raisedRsPerWatt?: number
@@ -109,9 +111,9 @@ function catalogUnitPrice(p: CatalogProduct) {
   return 0
 }
 
-function defaultLines(): CostLine[] {
+function defaultLines(panelAmount = 0): CostLine[] {
   return [
-    newLine("Panels", "", "panels"),
+    newLine("Panels", panelAmount > 0 ? String(Math.round(panelAmount)) : "", "panels"),
     newLine("BOS", "", "bos"),
     newLine("Installation", "", "installation"),
     newLine("Transportation", "15000", "transport"),
@@ -133,6 +135,7 @@ export function InstallmentsEstimate() {
   const [clientName, setClientName] = useState("")
   const [systemKw, setSystemKw] = useState("10")
   const [panelWatt, setPanelWatt] = useState(String(DEFAULT_PANEL_WATT))
+  const [panelRsPerWatt, setPanelRsPerWatt] = useState(String(DEFAULT_PANEL_RS_PER_WATT))
   const [factor, setFactor] = useState(String(DEFAULT_FACTOR))
   const [advancePercent, setAdvancePercent] = useState(String(DEFAULT_ADVANCE_PERCENT))
   const [months, setMonths] = useState(String(DEFAULT_MONTHS))
@@ -145,7 +148,9 @@ export function InstallmentsEstimate() {
   const [raisedRsPerWatt, setRaisedRsPerWatt] = useState(String(DEFAULT_RAISED_RS_PER_WATT))
   const [raisedMaxFt] = useState(String(DEFAULT_RAISED_MAX_FT))
   const [notes, setNotes] = useState("")
-  const [lines, setLines] = useState<CostLine[]>(defaultLines)
+  const [lines, setLines] = useState<CostLine[]>(() =>
+    defaultLines(10 * 1000 * DEFAULT_PANEL_RS_PER_WATT),
+  )
   const [catalog, setCatalog] = useState<CatalogProduct[]>([])
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [showProductPicker, setShowProductPicker] = useState(false)
@@ -153,6 +158,7 @@ export function InstallmentsEstimate() {
 
   const kwNum = Number(systemKw) || 0
   const panelWattNum = Number(panelWatt) || 0
+  const panelRsPerWattNum = Number(panelRsPerWatt)
   const factorNum = Number(factor) || 0
   const advanceNum = Number(advancePercent) || 0
   const monthsNum = Number(months) || 0
@@ -171,6 +177,9 @@ export function InstallmentsEstimate() {
       calcInstallmentBreakdown({
         systemKw: kwNum,
         panelWatt: panelWattNum,
+        panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
+          ? panelRsPerWattNum
+          : DEFAULT_PANEL_RS_PER_WATT,
         structureUnitPrice: Number(structureUnitPrice) || 0,
         structureRsPerWatt: Number(structureRsPerWatt) || 0,
         raisedRsPerWatt: Number(raisedRsPerWatt) || 0,
@@ -182,6 +191,7 @@ export function InstallmentsEstimate() {
     [
       kwNum,
       panelWattNum,
+      panelRsPerWattNum,
       structureUnitPrice,
       structureRsPerWatt,
       raisedRsPerWatt,
@@ -191,6 +201,17 @@ export function InstallmentsEstimate() {
       amountLines,
     ],
   )
+
+  // Keep Panels line = system watts × Rs/watt when sizing changes.
+  useEffect(() => {
+    const next = Math.round(breakdown.panelAmount)
+    setLines((prev) => {
+      const idx = prev.findIndex((l) => l.kind === "panels")
+      if (idx < 0) return prev
+      if (String(Math.round(Number(prev[idx].amount) || 0)) === String(next)) return prev
+      return prev.map((l, i) => (i === idx ? { ...l, amount: String(next) } : l))
+    })
+  }, [breakdown.panelAmount])
 
   const load = useCallback(async () => {
     if (!user?.id) return
@@ -292,6 +313,7 @@ export function InstallmentsEstimate() {
     setClientName("")
     setSystemKw("10")
     setPanelWatt(String(DEFAULT_PANEL_WATT))
+    setPanelRsPerWatt(String(DEFAULT_PANEL_RS_PER_WATT))
     setFactor(String(DEFAULT_FACTOR))
     setAdvancePercent(String(DEFAULT_ADVANCE_PERCENT))
     setMonths(String(DEFAULT_MONTHS))
@@ -299,7 +321,7 @@ export function InstallmentsEstimate() {
     setStructureRsPerWatt(String(DEFAULT_STRUCTURE_RS_PER_WATT))
     setRaisedRsPerWatt(String(DEFAULT_RAISED_RS_PER_WATT))
     setNotes("")
-    setLines(defaultLines())
+    setLines(defaultLines(10 * 1000 * DEFAULT_PANEL_RS_PER_WATT))
   }
 
   function loadIntoForm(row: SavedEstimate) {
@@ -310,6 +332,7 @@ export function InstallmentsEstimate() {
     setFactor(String(row.factor ?? DEFAULT_FACTOR))
     const ws = row.worksheet || {}
     setPanelWatt(String(ws.panelWatt ?? DEFAULT_PANEL_WATT))
+    setPanelRsPerWatt(String(ws.panelRsPerWatt ?? DEFAULT_PANEL_RS_PER_WATT))
     setAdvancePercent(String(ws.advancePercent ?? DEFAULT_ADVANCE_PERCENT))
     setMonths(String(ws.months ?? DEFAULT_MONTHS))
     setStructureUnitPrice(String(ws.structureUnitPrice ?? DEFAULT_STRUCTURE_UNIT_PRICE))
@@ -417,6 +440,9 @@ export function InstallmentsEstimate() {
           clientName: clientName.trim(),
           systemKw: kwNum,
           panelWatt: panelWattNum,
+          panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
+            ? panelRsPerWattNum
+            : DEFAULT_PANEL_RS_PER_WATT,
           factor: factorNum,
           advancePercent: advanceNum,
           months: monthsNum,
@@ -514,13 +540,23 @@ export function InstallmentsEstimate() {
               />
             </div>
             <div>
-              <label className={labelClass}>Panel watt</label>
+              <label className={labelClass}>Panel module (W)</label>
               <input
                 className={fieldClass}
                 inputMode="decimal"
                 value={panelWatt}
                 onChange={(e) => setPanelWatt(e.target.value)}
                 placeholder="645"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Panel rate (Rs/W)</label>
+              <input
+                className={fieldClass}
+                inputMode="decimal"
+                value={panelRsPerWatt}
+                onChange={(e) => setPanelRsPerWatt(e.target.value)}
+                placeholder="4"
               />
             </div>
             <div>
@@ -560,6 +596,13 @@ export function InstallmentsEstimate() {
                   {breakdown.panelCount}
                   <span className="text-[10px] font-normal text-[#aeaeb2] ml-1">
                     ({breakdown.systemWatts}÷{panelWattNum || 0})
+                  </span>
+                </p>
+                <p className="text-[10px] text-[#6e6e73] mt-0.5 tabular-nums">
+                  Cost {money(breakdown.panelAmount)}
+                  <span className="text-[#aeaeb2]">
+                    {" "}
+                    ({breakdown.systemWatts}×{Number.isFinite(panelRsPerWattNum) ? panelRsPerWattNum : 4})
                   </span>
                 </p>
               </div>

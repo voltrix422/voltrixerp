@@ -6,6 +6,7 @@ import {
   DEFAULT_ADVANCE_PERCENT,
   DEFAULT_FACTOR,
   DEFAULT_MONTHS,
+  DEFAULT_PANEL_RS_PER_WATT,
   DEFAULT_PANEL_WATT,
   DEFAULT_RAISED_MAX_FT,
   DEFAULT_RAISED_RS_PER_WATT,
@@ -112,6 +113,11 @@ export async function POST(req: NextRequest) {
         : DEFAULT_MONTHS
 
     const panelWatt = Number(body.panelWatt) || DEFAULT_PANEL_WATT
+    const panelRsRaw = Number(body.panelRsPerWatt)
+    const panelRsPerWatt =
+      Number.isFinite(panelRsRaw) && panelRsRaw >= 0
+        ? panelRsRaw
+        : DEFAULT_PANEL_RS_PER_WATT
     const structureUnitPrice =
       Number(body.structureUnitPrice) || DEFAULT_STRUCTURE_UNIT_PRICE
     const structureRsPerWatt =
@@ -127,6 +133,7 @@ export async function POST(req: NextRequest) {
     const breakdown = calcInstallmentBreakdown({
       systemKw,
       panelWatt,
+      panelRsPerWatt,
       structureUnitPrice,
       structureRsPerWatt,
       raisedRsPerWatt,
@@ -138,6 +145,7 @@ export async function POST(req: NextRequest) {
 
     const worksheet = {
       panelWatt,
+      panelRsPerWatt,
       structureUnitPrice,
       structureRsPerWatt,
       raisedRsPerWatt,
@@ -147,6 +155,7 @@ export async function POST(req: NextRequest) {
       breakdown: {
         systemWatts: breakdown.systemWatts,
         panelCount: breakdown.panelCount,
+        panelAmount: breakdown.panelAmount,
         structureCount: breakdown.structureCount,
         cost: breakdown.cost,
         advance: breakdown.advance,
