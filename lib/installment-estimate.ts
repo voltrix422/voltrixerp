@@ -6,6 +6,10 @@ export const DEFAULT_MONTHS = 18
 export const DEFAULT_PANEL_WATT = 645
 /** Panel cost rate: PKR per system watt (e.g. 10 kW → 10,000 × 4). */
 export const DEFAULT_PANEL_RS_PER_WATT = 4
+/** BOS: PKR per system watt (e.g. 10 kW → 10,000 × 8). */
+export const DEFAULT_BOS_RS_PER_WATT = 8
+/** Installation: PKR per system watt (e.g. 10 kW → 10,000 × 3). */
+export const DEFAULT_INSTALLATION_RS_PER_WATT = 3
 export const DEFAULT_STRUCTURE_UNIT_PRICE = 4500
 export const DEFAULT_STRUCTURE_RS_PER_WATT = 3.6
 export const DEFAULT_RAISED_RS_PER_WATT = 13
@@ -21,6 +25,8 @@ export type EstimateCostLine = {
 export type EstimateWorksheetMeta = {
   panelWatt?: number
   panelRsPerWatt?: number
+  bosRsPerWatt?: number
+  installationRsPerWatt?: number
   structureUnitPrice?: number
   structureRsPerWatt?: number
   raisedRsPerWatt?: number
@@ -35,6 +41,8 @@ export type EstimateBreakdown = {
   panelCount: number
   structureCount: number
   panelAmount: number
+  bosAmount: number
+  installationAmount: number
   structureFromUnit: number
   structureFromRsPerWatt: number
   raisedStructureAmount: number
@@ -82,6 +90,8 @@ export function calcInstallmentBreakdown(input: {
   systemKw: number
   panelWatt?: number
   panelRsPerWatt?: number
+  bosRsPerWatt?: number
+  installationRsPerWatt?: number
   structureUnitPrice?: number
   structureRsPerWatt?: number
   raisedRsPerWatt?: number
@@ -96,6 +106,14 @@ export function calcInstallmentBreakdown(input: {
     Number(input.panelRsPerWatt) >= 0
       ? Number(input.panelRsPerWatt)
       : DEFAULT_PANEL_RS_PER_WATT
+  const bosRsPerWatt =
+    Number(input.bosRsPerWatt) >= 0
+      ? Number(input.bosRsPerWatt)
+      : DEFAULT_BOS_RS_PER_WATT
+  const installationRsPerWatt =
+    Number(input.installationRsPerWatt) >= 0
+      ? Number(input.installationRsPerWatt)
+      : DEFAULT_INSTALLATION_RS_PER_WATT
   const structureUnitPrice =
     Number(input.structureUnitPrice) || DEFAULT_STRUCTURE_UNIT_PRICE
   const structureRsPerWatt =
@@ -116,6 +134,8 @@ export function calcInstallmentBreakdown(input: {
   const panelCount = calcPanelCount(systemKw, panelWatt)
   const structureCount = calcStructureCount(panelCount)
   const panelAmount = roundMoney(systemWatts * panelRsPerWatt)
+  const bosAmount = roundMoney(systemWatts * bosRsPerWatt)
+  const installationAmount = roundMoney(systemWatts * installationRsPerWatt)
   const structureFromUnit = roundMoney(structureCount * structureUnitPrice)
   const structureFromRsPerWatt = roundMoney(systemWatts * structureRsPerWatt)
   const raisedStructureAmount = roundMoney(systemWatts * raisedRsPerWatt)
@@ -132,6 +152,8 @@ export function calcInstallmentBreakdown(input: {
     panelCount,
     structureCount,
     panelAmount,
+    bosAmount,
+    installationAmount,
     structureFromUnit,
     structureFromRsPerWatt,
     raisedStructureAmount,

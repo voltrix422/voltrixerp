@@ -4,7 +4,9 @@ import type { Prisma } from "@prisma/client"
 import { canAccessInstallmentsPortal, canWriteInstallments } from "@/lib/auth"
 import {
   DEFAULT_ADVANCE_PERCENT,
+  DEFAULT_BOS_RS_PER_WATT,
   DEFAULT_FACTOR,
+  DEFAULT_INSTALLATION_RS_PER_WATT,
   DEFAULT_MONTHS,
   DEFAULT_PANEL_RS_PER_WATT,
   DEFAULT_PANEL_WATT,
@@ -118,6 +120,14 @@ export async function POST(req: NextRequest) {
       Number.isFinite(panelRsRaw) && panelRsRaw >= 0
         ? panelRsRaw
         : DEFAULT_PANEL_RS_PER_WATT
+    const bosRsRaw = Number(body.bosRsPerWatt)
+    const bosRsPerWatt =
+      Number.isFinite(bosRsRaw) && bosRsRaw >= 0 ? bosRsRaw : DEFAULT_BOS_RS_PER_WATT
+    const installRsRaw = Number(body.installationRsPerWatt)
+    const installationRsPerWatt =
+      Number.isFinite(installRsRaw) && installRsRaw >= 0
+        ? installRsRaw
+        : DEFAULT_INSTALLATION_RS_PER_WATT
     const structureUnitPrice =
       Number(body.structureUnitPrice) || DEFAULT_STRUCTURE_UNIT_PRICE
     const structureRsPerWatt =
@@ -134,6 +144,8 @@ export async function POST(req: NextRequest) {
       systemKw,
       panelWatt,
       panelRsPerWatt,
+      bosRsPerWatt,
+      installationRsPerWatt,
       structureUnitPrice,
       structureRsPerWatt,
       raisedRsPerWatt,
@@ -146,6 +158,8 @@ export async function POST(req: NextRequest) {
     const worksheet = {
       panelWatt,
       panelRsPerWatt,
+      bosRsPerWatt,
+      installationRsPerWatt,
       structureUnitPrice,
       structureRsPerWatt,
       raisedRsPerWatt,
@@ -156,6 +170,8 @@ export async function POST(req: NextRequest) {
         systemWatts: breakdown.systemWatts,
         panelCount: breakdown.panelCount,
         panelAmount: breakdown.panelAmount,
+        bosAmount: breakdown.bosAmount,
+        installationAmount: breakdown.installationAmount,
         structureCount: breakdown.structureCount,
         cost: breakdown.cost,
         advance: breakdown.advance,
