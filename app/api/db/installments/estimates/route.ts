@@ -2,8 +2,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@prisma/client"
 import { canAccessInstallmentsPortal, canWriteInstallments } from "@/lib/auth"
+import {
+  DEFAULT_ADVANCE_PERCENT,
+  DEFAULT_FACTOR,
+  DEFAULT_MONTHS,
+  DEFAULT_PANEL_WATT,
+  DEFAULT_RAISED_MAX_FT,
+  DEFAULT_RAISED_RS_PER_WATT,
+  DEFAULT_STRUCTURE_RS_PER_WATT,
+  DEFAULT_STRUCTURE_UNIT_PRICE,
+  calcInstallmentBreakdown,
+} from "@/lib/installment-estimate"
 
-type EstimateLine = { name: string; rate: number; amount: number }
+type EstimateLine = { name: string; amount: number; kind?: string }
 
 async function loadActor(userId: unknown) {
   const id = String(userId ?? "").trim()
@@ -19,19 +30,22 @@ function parseLines(raw: unknown): EstimateLine[] {
   return raw
     .map((row) => {
       const name = String((row as { name?: unknown })?.name ?? "").trim()
-      const rate = Number((row as { rate?: unknown })?.rate)
-      const amount = Number((row as { amount?: unknown })?.amount)
+      const amountRaw = Number((row as { amount?: unknown })?.amount)
+      // Legacy rate×kw×factor rows may only have `amount` already computed, or `rate`.
+      const legacyRate = Number((row as { rate?: unknown })?.rate)
+      const amount = Number.isFinite(amountRaw)
+        ? amountRaw
+        : Number.isFinite(legacyRate)
+          ? legacyRate
+          : 0
+      const kind = String((row as { kind?: unknown })?.kind ?? "").trim()
       return {
         name,
-        rate: Number.isFinite(rate) ? rate : 0,
         amount: Number.isFinite(amount) ? amount : 0,
+        ...(kind ? { kind } : {}),
       }
     })
     .filter((row) => row.name)
-}
-
-function lineAmount(rate: number, kw: number, factor: number) {
-  return Math.round(rate * kw * factor * 100) / 100
 }
 
 export async function GET(req: NextRequest) {
@@ -68,18 +82,62 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(systemKw) || systemKw <= 0) {
       return NextResponse.json({ error: "System kW required" }, { status: 400 })
     }
+
     const factorRaw = Number(body.factor)
-    const factor = Number.isFinite(factorRaw) && factorRaw > 0 ? factorRaw : 1.5
-    const linesIn = parseLines(body.lines)
-    if (linesIn.length === 0) {
+    const factor = Number.isFinite(factorRaw) && factorRaw > 0 ? factorRaw : DEFAULT_FACTOR
+    const advanceRaw = Number(body.advancePercent)
+    const advancePercent =
+      Number.isFinite(advanceRaw) && advanceRaw > 0 ? advanceRaw : DEFAULT_ADVANCE_PERCENT
+    const monthsRaw = Number(body.months)
+    const months =
+      Number.isFinite(monthsRaw) && monthsRaw > 0
+        ? Math.floor(monthsRaw)
+        : DEFAULT_MONTHS
+
+    const panelWatt = Number(body.panelWatt) || DEFAULT_PANEL_WATT
+    const structureUnitPrice =
+      Number(body.structureUnitPrice) || DEFAULT_STRUCTURE_UNIT_PRICE
+    const structureRsPerWatt =
+      Number(body.structureRsPerWatt) || DEFAULT_STRUCTURE_RS_PER_WATT
+    const raisedRsPerWatt = Number(body.raisedRsPerWatt) || DEFAULT_RAISED_RS_PER_WATT
+    const raisedMaxFt = Number(body.raisedMaxFt) || DEFAULT_RAISED_MAX_FT
+
+    const lines = parseLines(body.lines)
+    if (lines.length === 0) {
       return NextResponse.json({ error: "Add at least one cost line" }, { status: 400 })
     }
-    const lines = linesIn.map((line) => ({
-      name: line.name,
-      rate: line.rate,
-      amount: lineAmount(line.rate, systemKw, factor),
-    }))
-    const totalAmount = Math.round(lines.reduce((sum, line) => sum + line.amount, 0) * 100) / 100
+
+    const breakdown = calcInstallmentBreakdown({
+      systemKw,
+      panelWatt,
+      structureUnitPrice,
+      structureRsPerWatt,
+      raisedRsPerWatt,
+      advancePercent,
+      factor,
+      months,
+      lines,
+    })
+
+    const worksheet = {
+      panelWatt,
+      structureUnitPrice,
+      structureRsPerWatt,
+      raisedRsPerWatt,
+      raisedMaxFt,
+      advancePercent,
+      months,
+      breakdown: {
+        systemWatts: breakdown.systemWatts,
+        panelCount: breakdown.panelCount,
+        structureCount: breakdown.structureCount,
+        cost: breakdown.cost,
+        advance: breakdown.advance,
+        remainingY: breakdown.remainingY,
+        actualCost: breakdown.actualCost,
+        monthlyInstallment: breakdown.monthlyInstallment,
+      },
+    }
 
     const data = {
       title: String(body.title || "").trim() || `${systemKw} kW estimate`,
@@ -87,7 +145,8 @@ export async function POST(req: NextRequest) {
       systemKw,
       factor,
       lines: lines as unknown as Prisma.InputJsonValue,
-      totalAmount,
+      worksheet: worksheet as unknown as Prisma.InputJsonValue,
+      totalAmount: breakdown.actualCost,
       notes: String(body.notes || "").trim(),
       updatedBy: actor.name || "",
       updatedById: actor.id,

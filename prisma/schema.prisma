@@ -1931,7 +1931,7 @@ model InstallmentDocument {
   @@map("erp_installment_documents")
 }
 
-/** Shared KW system estimates — rate × kW × factor per cost line. */
+/** Shared solar installment estimates — cost sheet → advance → Y×factor ÷ months. */
 model InstallmentEstimate {
   id            String   @id @default(cuid())
   title         String   @default("")
@@ -1939,6 +1939,8 @@ model InstallmentEstimate {
   systemKw      Float    @map("system_kw")
   factor        Float    @default(1.5)
   lines         Json     @default("[]")
+  /** Sizing helpers + installment breakdown snapshot. */
+  worksheet     Json     @default("{}")
   totalAmount   Float    @map("total_amount")
   notes         String   @default("")
   createdBy     String   @default("") @map("created_by")
