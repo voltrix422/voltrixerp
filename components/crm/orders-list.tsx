@@ -38,6 +38,7 @@ import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
 import { OrderFreeItem } from "@/components/crm/order-free-item"
+import { OrderEditPricesButton, OrderEditPricesDialog } from "@/components/orders/order-edit-prices"
 import { CashbackCapture } from "@/components/crm/order-cashback"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
@@ -1514,6 +1515,7 @@ function OrderDetail({
   const [showFinalize, setShowFinalize] = useState(false)
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [showInvoiceEdit, setShowInvoiceEdit] = useState(false)
+  const [showEditPrices, setShowEditPrices] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [showReturn, setShowReturn] = useState(false)
   const [showReturnPayment, setShowReturnPayment] = useState(false)
@@ -1870,6 +1872,15 @@ function OrderDetail({
         }}
       />
     )}
+    <OrderEditPricesDialog
+      order={detailOrder}
+      open={showEditPrices}
+      onClose={() => setShowEditPrices(false)}
+      onSaved={(o) => {
+        setDetailOrder(o)
+        onUpdate(o)
+      }}
+    />
     {typeof document !== "undefined" && createPortal(
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xl p-0 sm:p-3" onClick={onClose}>
       <div className="w-full sm:w-[min(1320px,calc(100vw-1.25rem))] sm:max-h-[min(94vh,920px)] rounded-t-[22px] sm:rounded-[22px] bg-[#f5f5f7] dark:bg-[hsl(var(--background))] shadow-[0_24px_80px_rgba(0,0,0,0.28)] overflow-hidden flex flex-col max-h-[96vh]" onClick={e => e.stopPropagation()}>
@@ -2409,6 +2420,10 @@ function OrderDetail({
               <Edit className="h-3.5 w-3.5" /> Edit invoice
             </button>
           )}
+          <OrderEditPricesButton
+            onClick={() => setShowEditPrices(true)}
+            className="h-8 px-3 rounded-full text-[12px] font-semibold bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center gap-1"
+          />
           {showInvoiceActions && (
             <>
               <button type="button" className="h-8 w-8 rounded-full bg-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.1] cursor-pointer inline-flex items-center justify-center disabled:opacity-40" onClick={viewInvoice} disabled={!!invoiceLoading} title="View Invoice">

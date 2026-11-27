@@ -49,7 +49,6 @@ import {
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
-import { OrderEditPricesButton, OrderEditPricesDialog } from "@/components/orders/order-edit-prices"
 import { subscribeErpLive } from "@/lib/erp-live-sync"
 import {
   computeNetDeliveredProductQty,
@@ -1081,7 +1080,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
   const [showReplaceDialog, setShowReplaceDialog] = useState(false)
-  const [showEditPrices, setShowEditPrices] = useState(false)
   const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
   const autoDeductAttempted = useRef(false)
 
@@ -1643,7 +1641,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               Replace item
             </Button>
           )}
-          <OrderEditPricesButton onClick={() => setShowEditPrices(true)} />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-none p-4 sm:p-5">
@@ -1896,10 +1893,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               Replace item
             </Button>
           )}
-          <OrderEditPricesButton
-            onClick={() => setShowEditPrices(true)}
-            className="h-10 w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] cursor-pointer"
-          />
         </div>
       </div>
     </div>,
@@ -2499,13 +2492,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           onComplete={(updated) => onUpdate(updated)}
         />
       )}
-
-      <OrderEditPricesDialog
-        order={order}
-        open={showEditPrices}
-        onClose={() => setShowEditPrices(false)}
-        onSaved={(updated) => onUpdate(updated)}
-      />
     </>
   )
 }
