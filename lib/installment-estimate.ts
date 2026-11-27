@@ -51,6 +51,9 @@ export type EstimateBreakdown = {
   advance: number
   remainingY: number
   factor: number
+  /** Y × factor (installment principal before adding advance). */
+  financedAmount: number
+  /** Advance + (Y × factor). */
   actualCost: number
   months: number
   monthlyInstallment: number
@@ -143,7 +146,10 @@ export function calcInstallmentBreakdown(input: {
   const cost = sumCostLines(input.lines)
   const advance = roundMoney((cost * advancePercent) / 100)
   const remainingY = roundMoney(Math.max(0, cost - advance))
-  const actualCost = roundMoney(remainingY * factor)
+  /** Financed portion after markup (does not include advance). */
+  const financedAmount = roundMoney(remainingY * factor)
+  /** Actual cost = Advance + (Y × factor). */
+  const actualCost = roundMoney(advance + financedAmount)
   const monthlyInstallment =
     months > 0 ? roundMoney(actualCost / months) : 0
 
@@ -162,6 +168,7 @@ export function calcInstallmentBreakdown(input: {
     advance,
     remainingY,
     factor,
+    financedAmount,
     actualCost,
     months,
     monthlyInstallment,

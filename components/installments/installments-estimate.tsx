@@ -534,7 +534,8 @@ export function InstallmentsEstimate() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Estimate</h1>
           <p className="text-[12px] text-[#86868b] mt-0.5">
-            Cost − {advanceNum || 26}% advance → Y × {factorNum || 1.5} → ÷ {monthsNum || 18} months
+            Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} + Advance = Actual → ÷{" "}
+            {monthsNum || 18}
           </p>
         </div>
         {editingId && (
@@ -874,14 +875,20 @@ export function InstallmentsEstimate() {
               <span className="font-semibold tabular-nums">{money(breakdown.remainingY)}</span>
             </div>
             <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">Actual (Y × {breakdown.factor})</span>
+              <span className="text-[#6e6e73]">Y × {breakdown.factor}</span>
+              <span className="font-semibold tabular-nums">{money(breakdown.financedAmount)}</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 text-[13px]">
+              <span className="text-[#6e6e73]">
+                Actual (Advance + Y × {breakdown.factor})
+              </span>
               <span className="font-semibold tabular-nums text-[#1d1d1f]">
                 {money(breakdown.actualCost)}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3 pt-2 border-t border-[#007aff]/15">
               <span className="text-[14px] font-semibold text-[#1d1d1f]">
-                Monthly × {breakdown.months}
+                Monthly (Actual ÷ {breakdown.months})
               </span>
               <span className="text-[18px] font-semibold tracking-tight tabular-nums text-[#007aff]">
                 {money(breakdown.monthlyInstallment)}

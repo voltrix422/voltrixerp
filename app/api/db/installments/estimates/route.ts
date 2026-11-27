@@ -176,6 +176,7 @@ export async function POST(req: NextRequest) {
         cost: breakdown.cost,
         advance: breakdown.advance,
         remainingY: breakdown.remainingY,
+        financedAmount: breakdown.financedAmount,
         actualCost: breakdown.actualCost,
         monthlyInstallment: breakdown.monthlyInstallment,
       },
