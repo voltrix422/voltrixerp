@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { Loader2, Pencil, X } from "lucide-react"
 import {
   recalculateOrderFinancials,
@@ -74,11 +75,11 @@ export function OrderEditPricesDialog({
     }
   }
 
-  if (!open) return null
+  if (!open || typeof document === "undefined") return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -179,7 +180,8 @@ export function OrderEditPricesDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
