@@ -83,6 +83,7 @@ export function PettyCashDashboard() {
   const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
   const [pendingPdfBusy, setPendingPdfBusy] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [personFilter, setPersonFilter] = useState("")
   const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [mergeTarget, setMergeTarget] = useState<PettyCashAllocation | null>(null)
@@ -278,15 +279,29 @@ export function PettyCashDashboard() {
       if (aPersonal !== bPersonal) return aPersonal - bPersonal
       return new Date(b.allocatedAt).getTime() - new Date(a.allocatedAt).getTime()
     })
+  const personOptions = Array.from(
+    new Set(
+      displayAllocations
+        .map((a) => a.employeeName.trim())
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+
+  const personScopedAllocations = personFilter
+    ? displayAllocations.filter(
+        (a) => a.employeeName.trim().toLowerCase() === personFilter.trim().toLowerCase(),
+      )
+    : displayAllocations
+
   const allocationFilterCounts: Record<AllocationStatusFilter, number> = {
-    active: displayAllocations.filter((a) => a.status === "active").length,
-    pending: displayAllocations.filter((a) => a.status === "pending").length,
-    settled: displayAllocations.filter((a) => a.status === "settled").length,
-    rejected: displayAllocations.filter((a) => a.status === "rejected").length,
-    cancelled: displayAllocations.filter((a) => a.status === "cancelled").length,
-    all: displayAllocations.length,
+    active: personScopedAllocations.filter((a) => a.status === "active").length,
+    pending: personScopedAllocations.filter((a) => a.status === "pending").length,
+    settled: personScopedAllocations.filter((a) => a.status === "settled").length,
+    rejected: personScopedAllocations.filter((a) => a.status === "rejected").length,
+    cancelled: personScopedAllocations.filter((a) => a.status === "cancelled").length,
+    all: personScopedAllocations.length,
   }
-  const filteredAllocations = displayAllocations.filter((allocation) => {
+  const filteredAllocations = personScopedAllocations.filter((allocation) => {
     if (allocationFilter !== "all" && allocation.status !== allocationFilter) return false
     const q = searchQuery.trim().toLowerCase()
     if (!q) return true
@@ -297,7 +312,12 @@ export function PettyCashDashboard() {
       allocation.employeeRole.toLowerCase().includes(q)
     )
   })
-  const displayReceipts = canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)
+  const displayReceipts = (canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)).filter(
+    (receipt) => {
+      if (!personFilter) return true
+      return receipt.employeeName.trim().toLowerCase() === personFilter.trim().toLowerCase()
+    },
+  )
   const personalLedger = findPersonalLedger(allocations, currentUserId, currentUser)
   const personalBalance = personalLedger
     ? getLedgerBalance(personalLedger, receipts)
@@ -576,27 +596,44 @@ export function PettyCashDashboard() {
                 )
               })}
             </div>
-            <div className="relative w-full sm:w-56">
-              <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#aeaeb2]" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search…"
-                className="h-7 w-full rounded-full border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] pl-7 pr-2.5 text-[11px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
-              />
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+              <select
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                className="h-7 w-full sm:w-44 rounded-full border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] px-2.5 text-[11px] font-medium text-[#1d1d1f] outline-none focus:ring-2 focus:ring-[#007aff]/25 cursor-pointer"
+                title="Filter by person"
+              >
+                <option value="">All people</option>
+                {personOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#aeaeb2]" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search…"
+                  className="h-7 w-full rounded-full border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] pl-7 pr-2.5 text-[11px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                />
+              </div>
             </div>
           </div>
 
           {filteredAllocations.length === 0 ? (
             <div className="rounded-[12px] border border-black/[0.06] bg-white py-10 text-center">
               <p className="text-[12px] font-medium text-[#1d1d1f]">
-                {searchQuery.trim()
-                  ? `No matches for “${searchQuery.trim()}”`
-                  : allocationFilter === "all"
-                    ? "No allocations yet"
-                    : allocationFilter === "settled"
-                      ? "No archived allocations"
-                      : `No ${allocationFilter} allocations`}
+                {personFilter
+                  ? `No ${allocationFilter === "all" ? "" : `${allocationFilter} `}allocations for ${personFilter}`
+                  : searchQuery.trim()
+                    ? `No matches for “${searchQuery.trim()}”`
+                    : allocationFilter === "all"
+                      ? "No allocations yet"
+                      : allocationFilter === "settled"
+                        ? "No archived allocations"
+                        : `No ${allocationFilter} allocations`}
               </p>
             </div>
           ) : (
@@ -781,9 +818,26 @@ export function PettyCashDashboard() {
 
       {activeTab === "receipts" && (
         <div className="space-y-2">
+          <div className="flex justify-end">
+            <select
+              value={personFilter}
+              onChange={(e) => setPersonFilter(e.target.value)}
+              className="h-7 w-full sm:w-44 rounded-full border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] px-2.5 text-[11px] font-medium text-[#1d1d1f] outline-none focus:ring-2 focus:ring-[#007aff]/25 cursor-pointer"
+              title="Filter by person"
+            >
+              <option value="">All people</option>
+              {personOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
           {displayReceipts.length === 0 ? (
             <div className="rounded-[12px] border border-black/[0.06] bg-white py-10 text-center">
-              <p className="text-[12px] font-medium text-[#1d1d1f]">No receipts yet</p>
+              <p className="text-[12px] font-medium text-[#1d1d1f]">
+                {personFilter ? `No receipts for ${personFilter}` : "No receipts yet"}
+              </p>
             </div>
           ) : (
             <div className="rounded-[12px] border border-black/[0.06] bg-white overflow-hidden">
