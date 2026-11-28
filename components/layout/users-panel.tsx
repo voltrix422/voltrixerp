@@ -266,39 +266,48 @@ function UserRow({
   }
   function cancel() { setDraft(u); setEditing(false) }
 
+  const loginPath = isInstallmentsUser(u.role)
+    ? "/installments/login"
+    : isChinaMoneyUser(u.role)
+      ? "/money-to-china/login"
+      : "/login"
+
   return (
-    <div className="border rounded-lg p-3 space-y-2 text-xs">
+    <div className="rounded-[16px] border border-black/[0.06] bg-white p-4 space-y-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0 space-y-1.5">
           {editing ? (
             <>
               <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                className="w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] px-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25" />
               <input value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))}
-                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                className="w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] px-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25" />
             </>
           ) : (
             <>
               <div className="flex items-center gap-1">
-                <p className="font-medium truncate">{u.name}</p>
+                <p className="font-semibold tracking-tight text-[13px] text-[#1d1d1f] truncate">{u.name}</p>
               </div>
               <div className="flex items-center gap-1">
-                <p className="text-[hsl(var(--muted-foreground))] truncate">{u.email}</p>
-                <button type="button" onClick={() => navigator.clipboard.writeText(u.email)} className="shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer" title="Copy email">
+                <p className="text-[#86868b] truncate">{u.email}</p>
+                <button type="button" onClick={() => navigator.clipboard.writeText(u.email)} className="shrink-0 text-[#aeaeb2] hover:text-[#1d1d1f] cursor-pointer" title="Copy email">
                   <Copy className="h-3 w-3" />
                 </button>
               </div>
+              <p className="text-[10px] text-[#aeaeb2]">
+                Login · <span className="font-medium text-[#6e6e73]">{loginPath}</span>
+              </p>
             </>
           )}
           <div className="relative flex items-center">
             <input readOnly={!editing} type={showPw ? "text" : "password"} value={draft.password}
               onChange={e => setDraft(d => ({ ...d, password: e.target.value }))}
-              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 pr-14 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+              className="w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] px-3 pr-14 text-[12px] font-mono outline-none focus:ring-2 focus:ring-[#007aff]/25" />
             <div className="absolute right-1.5 flex items-center gap-1">
-              <button type="button" onClick={() => navigator.clipboard.writeText(draft.password)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer" title="Copy password">
+              <button type="button" onClick={() => navigator.clipboard.writeText(draft.password)} className="text-[#aeaeb2] hover:text-[#1d1d1f] cursor-pointer" title="Copy password">
                 <Copy className="h-3 w-3" />
               </button>
-              <button type="button" onClick={() => setShowPw(v => !v)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer">
+              <button type="button" onClick={() => setShowPw(v => !v)} className="text-[#aeaeb2] hover:text-[#1d1d1f] cursor-pointer">
                 {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
               </button>
             </div>
@@ -515,15 +524,18 @@ function AddUserForm({
   }
 
   return (
-    <form onSubmit={submit} className="border rounded-lg p-3 space-y-2 bg-[hsl(var(--muted))]/30 text-xs">
-      <p className="font-semibold text-xs">
+    <form
+      onSubmit={submit}
+      className="rounded-[16px] border border-[#007aff]/20 bg-[#f5f8ff] p-4 space-y-2.5 text-xs shadow-[0_8px_30px_rgba(0,122,255,0.06)]"
+    >
+      <p className="font-semibold text-[13px] tracking-tight text-[#1d1d1f]">
         {isInvestorUser(role)
           ? "New investor"
           : isChinaMoneyUser(role)
             ? "New Money to China user"
             : isInstallmentsUser(role)
               ? "New Installments portal user"
-              : "New User"}
+              : "New staff user"}
       </p>
       {isInvestorUser(role) && (
         <p className="text-[10px] text-[#1a9f9a]">
@@ -668,12 +680,40 @@ function AddUserForm({
   )
 }
 
+type PortalFilter = "all" | "erp" | "investor" | "installments" | "china" | "sales"
+
+function userPortalGroup(u: User): Exclude<PortalFilter, "all"> {
+  if (isInstallmentsUser(u.role)) return "installments"
+  if (isChinaMoneyUser(u.role)) return "china"
+  if (isInvestorUser(u.role)) return "investor"
+  if (u.role === "sales_agent") return "sales"
+  return "erp"
+}
+
+function portalLoginHint(filter: PortalFilter) {
+  switch (filter) {
+    case "installments":
+      return { path: "/installments/login", label: "Installments portal" }
+    case "china":
+      return { path: "/money-to-china/login", label: "Money to China" }
+    case "investor":
+      return { path: "/login", label: "Investor (opens investor portal)" }
+    case "sales":
+      return { path: "/login", label: "Sales agent ERP login" }
+    case "erp":
+      return { path: "/login", label: "Staff ERP login" }
+    default:
+      return null
+  }
+}
+
 export function UsersManager() {
   const [users, setUsers] = useState<User[]>([])
   const [purchaseScopes, setPurchaseScopes] = useState<PurchaseScope[]>([])
-  const [adding, setAdding] = useState<"user" | "investor" | "installments" | false>(false)
+  const [adding, setAdding] = useState<"user" | "investor" | "installments" | "china" | false>(false)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [portalFilter, setPortalFilter] = useState<PortalFilter>("all")
 
   useEffect(() => {
     setLoading(true)
@@ -698,75 +738,165 @@ export function UsersManager() {
     await saveUser(newUser)
     setUsers(prev => [...prev, newUser])
     setAdding(false)
+    const group = userPortalGroup(newUser)
+    setPortalFilter(group)
   }
 
+  const counts = {
+    all: users.length,
+    erp: users.filter((u) => userPortalGroup(u) === "erp").length,
+    investor: users.filter((u) => userPortalGroup(u) === "investor").length,
+    installments: users.filter((u) => userPortalGroup(u) === "installments").length,
+    china: users.filter((u) => userPortalGroup(u) === "china").length,
+    sales: users.filter((u) => userPortalGroup(u) === "sales").length,
+  }
+
+  const portalTabs: { id: PortalFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: counts.all },
+    { id: "erp", label: "Staff ERP", count: counts.erp },
+    { id: "investor", label: "Investors", count: counts.investor },
+    { id: "installments", label: "Installments", count: counts.installments },
+    { id: "china", label: "Money to China", count: counts.china },
+    { id: "sales", label: "Sales agents", count: counts.sales },
+  ]
+
   const q = search.trim().toLowerCase()
-  const filteredUsers = !q
-    ? users
-    : users.filter((u) => {
-        const roleLabel = (ROLE_LABELS[u.role] ?? u.role).toLowerCase()
-        return (
-          u.name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q) ||
-          roleLabel.includes(q) ||
-          String(u.role).toLowerCase().includes(q)
-        )
-      })
+  const filteredUsers = users.filter((u) => {
+    if (portalFilter !== "all" && userPortalGroup(u) !== portalFilter) return false
+    if (!q) return true
+    const roleLabel = (ROLE_LABELS[u.role] ?? u.role).toLowerCase()
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      roleLabel.includes(q) ||
+      String(u.role).toLowerCase().includes(q)
+    )
+  })
+
+  const hint = portalLoginHint(portalFilter)
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="p-6 max-w-3xl">
-        <div className="flex items-center justify-between gap-3 mb-4">
+    <div className="flex-1 overflow-auto bg-[#f5f5f7]">
+      <div className="p-5 sm:p-6 max-w-3xl mx-auto space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 justify-between">
           <div>
-            <h2 className="text-base font-semibold">User Accounts</h2>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Staff ERP, investors (/login), Money to China, and Installments portal (/installments/login)
+            <h2 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">User Accounts</h2>
+            <p className="text-[12px] text-[#86868b] mt-0.5">
+              Filter by portal to see which logins belong where
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs cursor-pointer"
-              onClick={() => setAdding(v => v === "investor" ? false : "investor")}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setPortalFilter("investor")
+                setAdding((v) => (v === "investor" ? false : "investor"))
+              }}
+              className="h-8 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer inline-flex items-center gap-1"
             >
-              <Plus className="h-3.5 w-3.5" /> Add investor
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs cursor-pointer"
-              onClick={() => setAdding(v => v === "installments" ? false : "installments")}
+              <Plus className="h-3.5 w-3.5" /> Investor
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPortalFilter("installments")
+                setAdding((v) => (v === "installments" ? false : "installments"))
+              }}
+              className="h-8 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer inline-flex items-center gap-1"
             >
-              <Plus className="h-3.5 w-3.5" /> Add installments
-            </Button>
-            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => v === "user" ? false : "user")}>
-              <Plus className="h-3.5 w-3.5" /> Add user
-            </Button>
+              <Plus className="h-3.5 w-3.5" /> Installments
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPortalFilter("china")
+                setAdding((v) => (v === "china" ? false : "china"))
+              }}
+              className="h-8 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] cursor-pointer inline-flex items-center gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> China
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPortalFilter("erp")
+                setAdding((v) => (v === "user" ? false : "user"))
+              }}
+              className="h-8 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] cursor-pointer inline-flex items-center gap-1 shadow-[0_1px_2px_rgba(0,122,255,0.25)]"
+            >
+              <Plus className="h-3.5 w-3.5" /> Staff
+            </button>
           </div>
         </div>
-        <div className="relative mb-3">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+
+        <div className="flex flex-wrap gap-1.5">
+          {portalTabs.map((tab) => {
+            const active = portalFilter === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setPortalFilter(tab.id)}
+                className={`h-8 px-3 rounded-full text-[12px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                  active
+                    ? "bg-[#1d1d1f] text-white"
+                    : "bg-white border border-black/[0.08] text-[#6e6e73] hover:bg-black/[0.03]"
+                }`}
+              >
+                {tab.label}
+                <span
+                  className={`tabular-nums text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    active ? "bg-white/20 text-white" : "bg-black/[0.06] text-[#86868b]"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {hint ? (
+          <div className="rounded-[14px] border border-black/[0.06] bg-white px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wide">
+                {hint.label}
+              </p>
+              <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f] mt-0.5">
+                {hint.path}
+              </p>
+            </div>
+            <p className="text-[11px] text-[#aeaeb2]">
+              Showing {filteredUsers.length} login{filteredUsers.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, or role…"
-            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            placeholder="Search name, email, or role…"
+            className="w-full h-10 rounded-[12px] border-0 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] pl-9 pr-9 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:ring-2 focus:ring-[#007aff]/25"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#aeaeb2] hover:text-[#1d1d1f] cursor-pointer"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-        <div className="space-y-3">
-          {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
+
+        <div className="space-y-2.5">
+          {loading && (
+            <p className="text-center text-[12px] text-[#86868b] py-12">Loading…</p>
+          )}
           {adding && (
             <AddUserForm
               key={adding}
@@ -775,7 +905,9 @@ export function UsersManager() {
                   ? "investor"
                   : adding === "installments"
                     ? "installments"
-                    : "user"
+                    : adding === "china"
+                      ? "china_money_admin"
+                      : "user"
               }
               onAdd={handleAdd}
               onCancel={() => setAdding(false)}
@@ -783,13 +915,33 @@ export function UsersManager() {
             />
           )}
           {!loading && filteredUsers.length === 0 && (
-            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">
-              {q ? `No users match “${search.trim()}”.` : "No users yet."}
-            </p>
+            <div className="rounded-[16px] border border-black/[0.06] bg-white px-4 py-12 text-center">
+              <p className="text-[13px] font-medium text-[#1d1d1f]">
+                {q
+                  ? `No users match “${search.trim()}”`
+                  : portalFilter === "installments"
+                    ? "No Installments portal logins yet"
+                    : portalFilter === "china"
+                      ? "No Money to China logins yet"
+                      : portalFilter === "investor"
+                        ? "No investor logins yet"
+                        : "No users in this filter"}
+              </p>
+              <p className="text-[12px] text-[#86868b] mt-1">
+                Use the buttons above to create a login for this portal.
+              </p>
+            </div>
           )}
-          {!loading && filteredUsers.map(u => (
-            <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} purchaseScopes={purchaseScopes} />
-          ))}
+          {!loading &&
+            filteredUsers.map((u) => (
+              <UserRow
+                key={u.id}
+                u={u}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                purchaseScopes={purchaseScopes}
+              />
+            ))}
         </div>
       </div>
     </div>

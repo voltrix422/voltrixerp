@@ -8,7 +8,7 @@ export default function ManageUsersPage() {
     <>
       <Topbar
         title="Manage Users"
-        description="Create accounts, set passwords, and control page access"
+        description="Filter by portal · staff, investors, installments, Money to China"
       />
       <ModuleGuard module="users">
         <UsersManager />
