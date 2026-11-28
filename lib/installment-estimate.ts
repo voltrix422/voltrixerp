@@ -4,8 +4,8 @@ export const DEFAULT_ADVANCE_PERCENT = 26
 export const DEFAULT_FACTOR = 1.5
 export const DEFAULT_MONTHS = 18
 export const DEFAULT_PANEL_WATT = 645
-/** Panel cost rate: PKR per system watt (e.g. 10 kW → 10,000 × 4). */
-export const DEFAULT_PANEL_RS_PER_WATT = 4
+/** Panel cost rate: PKR per system watt (e.g. 10 kW → 10,000 × 41). */
+export const DEFAULT_PANEL_RS_PER_WATT = 41
 /** BOS: PKR per system watt (e.g. 10 kW → 10,000 × 8). */
 export const DEFAULT_BOS_RS_PER_WATT = 8
 /** Installation: PKR per system watt (e.g. 10 kW → 10,000 × 3). */
@@ -150,8 +150,9 @@ export function calcInstallmentBreakdown(input: {
   const financedAmount = roundMoney(remainingY * factor)
   /** Actual cost = Advance + (Y × factor). */
   const actualCost = roundMoney(advance + financedAmount)
+  /** Monthly = (Y × factor) ÷ months — advance is paid upfront, not in installments. */
   const monthlyInstallment =
-    months > 0 ? roundMoney(actualCost / months) : 0
+    months > 0 ? roundMoney(financedAmount / months) : 0
 
   return {
     systemWatts,

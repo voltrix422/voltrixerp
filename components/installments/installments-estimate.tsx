@@ -534,8 +534,8 @@ export function InstallmentsEstimate() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Estimate</h1>
           <p className="text-[12px] text-[#86868b] mt-0.5">
-            Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} + Advance = Actual → ÷{" "}
-            {monthsNum || 18}
+            Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} ÷ {monthsNum || 18}{" "}
+            (advance separate)
           </p>
         </div>
         {editingId && (
@@ -584,7 +584,7 @@ export function InstallmentsEstimate() {
                 inputMode="decimal"
                 value={panelRsPerWatt}
                 onChange={(e) => setPanelRsPerWatt(e.target.value)}
-                placeholder="4"
+                placeholder="41"
               />
             </div>
             <div>
