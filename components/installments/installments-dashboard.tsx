@@ -113,7 +113,7 @@ export function InstallmentsDashboard() {
   const [docLabel, setDocLabel] = useState<DocLabel>("agreement")
   const [customLabel, setCustomLabel] = useState("")
   const [uploading, setUploading] = useState(false)
-  const [mainTab, setMainTab] = useState<"clients" | "estimate">("clients")
+  const [mainTab, setMainTab] = useState<"clients" | "estimate">("estimate")
 
   const loadList = useCallback(
     async (q = search) => {
@@ -328,8 +328,8 @@ export function InstallmentsDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <div className="inline-flex p-0.5 rounded-full bg-[#e8e8ed]">
             {([
-              { id: "clients" as const, label: "Clients" },
               { id: "estimate" as const, label: "Estimate" },
+              { id: "clients" as const, label: "Clients" },
             ]).map((tab) => (
               <button
                 key={tab.id}

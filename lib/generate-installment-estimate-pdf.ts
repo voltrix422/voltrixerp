@@ -4,10 +4,13 @@ import jsPDF from "jspdf"
 import type { EstimateBreakdown } from "@/lib/installment-estimate"
 
 const INK = { r: 29, g: 29, b: 31 }
-const MUTED = { r: 134, g: 134, b: 139 }
-const LINE = { r: 229, g: 229, b: 234 }
+const MUTED = { r: 110, g: 110, b: 115 }
+const FAINT = { r: 174, g: 174, b: 178 }
+const LINE = { r: 232, g: 232, b: 237 }
 const BLUE = { r: 0, g: 122, b: 255 }
 const BG = { r: 245, g: 245, b: 247 }
+const CARD = { r: 250, g: 250, b: 252 }
+const ACCENT_BG = { r: 245, g: 248, b: 255 }
 
 async function loadLogoBase64(): Promise<string> {
   try {
@@ -25,7 +28,22 @@ async function loadLogoBase64(): Promise<string> {
 }
 
 function money(n: number) {
-  return `PKR ${Math.round(n).toLocaleString()}`
+  return `PKR ${Math.round(n).toLocaleString("en-PK")}`
+}
+
+/** Avoid "Name (MODEL) (MODEL)" when name already includes model. */
+function lineLabel(name: string, model?: string, qty?: number) {
+  const base = String(name || "").trim()
+  const m = String(model || "").trim()
+  let label = base
+  if (m) {
+    const already =
+      base.toLowerCase().includes(`(${m.toLowerCase()})`) ||
+      base.toLowerCase().includes(m.toLowerCase())
+    if (!already) label = `${base} (${m})`
+  }
+  if (qty && qty > 1) label = `${label}  x${qty}`
+  return label
 }
 
 export type InstallmentEstimatePdfInput = {
@@ -35,11 +53,6 @@ export type InstallmentEstimatePdfInput = {
   notes?: string
   lines: Array<{ name: string; amount: number; qty?: number; model?: string }>
   breakdown: EstimateBreakdown
-  panelRsPerWatt?: number
-  bosRsPerWatt?: number
-  installationRsPerWatt?: number
-  structureRsPerWatt?: number
-  raisedRsPerWatt?: number
 }
 
 export async function generateInstallmentEstimatePdf(
@@ -47,152 +60,173 @@ export async function generateInstallmentEstimatePdf(
 ): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const pageW = 210
-  const m = 14
+  const m = 18
   const contentW = pageW - m * 2
   const logo = await loadLogoBase64()
   const bd = input.breakdown
 
-  // Soft header bar
+  // Header bar
   doc.setFillColor(BG.r, BG.g, BG.b)
-  doc.rect(0, 0, pageW, 36, "F")
+  doc.rect(0, 0, pageW, 28, "F")
 
   if (logo) {
     try {
-      doc.addImage(logo, "PNG", m, 8, 16, 16)
+      doc.addImage(logo, "PNG", m, 7, 12, 12)
     } catch {
       // skip
     }
   }
-  const textX = m + (logo ? 20 : 0)
-  doc.setTextColor(INK.r, INK.g, INK.b)
+  const brandX = m + (logo ? 16 : 0)
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(13)
-  doc.text("VOLTRIX", textX, 14)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
-  doc.text("Installment Estimate", textX, 19)
-  doc.text(new Date().toLocaleDateString(), pageW - m, 14, { align: "right" })
-
-  let y = 44
+  doc.setFontSize(11)
   doc.setTextColor(INK.r, INK.g, INK.b)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(16)
-  doc.text(input.title || `${input.systemKw} kW estimate`, m, y)
-  y += 6
+  doc.text("VOLTRIX", brandX, 12.5)
   doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
-  const client = input.clientName?.trim() || "—"
-  doc.text(`Client  ·  ${client}    ·    System  ${input.systemKw} kW  (${bd.systemWatts.toLocaleString()} W)`, m, y)
-  y += 8
-
-  // Rates strip
-  doc.setFillColor(BG.r, BG.g, BG.b)
-  doc.roundedRect(m, y, contentW, 12, 2, 2, "F")
   doc.setFontSize(7.5)
   doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
-  const rates = [
-    `Panel ${input.panelRsPerWatt ?? "—"}/W`,
-    `BOS ${input.bosRsPerWatt ?? "—"}/W`,
-    `Install ${input.installationRsPerWatt ?? "—"}/W`,
-    `Structure ${input.structureRsPerWatt ?? "—"}/W`,
-    `Raised ${input.raisedRsPerWatt ?? "—"}/W`,
-    `Advance ${bd.advancePercent}%`,
-    `Factor ${bd.factor}`,
-    `${bd.months} mo`,
-  ].join("   ·   ")
-  doc.text(rates, m + 3, y + 7.5)
-  y += 18
-
-  // Cost lines
-  doc.setFont("helvetica", "bold")
+  doc.text("Installment Estimate", brandX, 17.5)
   doc.setFontSize(8)
-  doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
+  doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
+  doc.text(new Date().toLocaleDateString("en-GB"), pageW - m, 14, { align: "right" })
+
+  // Title
+  let y = 38
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(20)
+  doc.setTextColor(INK.r, INK.g, INK.b)
+  const title = input.title || `${input.systemKw} kW estimate`
+  doc.text(title, m, y)
+  y += 9
+
+  // Client + System as labeled rows
+  const client = input.clientName?.trim() || "—"
+  const meta: Array<[string, string]> = [
+    ["Client", client],
+    ["System", `${input.systemKw} kW  (${bd.systemWatts.toLocaleString()} W)`],
+  ]
+  for (const [k, v] of meta) {
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
+    doc.text(k.toUpperCase(), m, y)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(INK.r, INK.g, INK.b)
+    doc.text(v, m + 22, y)
+    y += 6
+  }
+  y += 4
+
+  // Cost breakdown
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(7.5)
+  doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
   doc.text("COST BREAKDOWN", m, y)
-  y += 3
+  y += 2
   doc.setDrawColor(LINE.r, LINE.g, LINE.b)
-  doc.setLineWidth(0.3)
+  doc.setLineWidth(0.35)
   doc.line(m, y, pageW - m, y)
-  y += 5
+  y += 6
 
   const lines = (input.lines || []).filter((l) => l.name.trim() && (Number(l.amount) || 0) > 0)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
   for (const line of lines) {
+    const label = lineLabel(line.name, line.model, line.qty)
+    const wrapped = doc.splitTextToSize(label, contentW - 44) as string[]
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9.5)
     doc.setTextColor(INK.r, INK.g, INK.b)
-    const label = line.model ? `${line.name} (${line.model})` : line.name
-    const qty = line.qty && line.qty > 1 ? ` ×${line.qty}` : ""
-    doc.text(`${label}${qty}`, m, y)
+    doc.text(wrapped, m, y)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9.5)
     doc.text(money(Number(line.amount) || 0), pageW - m, y, { align: "right" })
-    y += 5.5
-  }
-  if (lines.length === 0) {
-    doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
-    doc.text("No cost lines", m, y)
-    y += 5.5
+    y += Math.max(5.5, wrapped.length * 4.2)
   }
 
   y += 2
   doc.setDrawColor(LINE.r, LINE.g, LINE.b)
+  doc.setLineWidth(0.5)
   doc.line(m, y, pageW - m, y)
-  y += 6
+  y += 7
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
+  doc.setFontSize(12)
   doc.setTextColor(INK.r, INK.g, INK.b)
   doc.text("Cost", m, y)
   doc.text(money(bd.cost), pageW - m, y, { align: "right" })
   y += 10
 
-  // Installment card
-  doc.setFillColor(BG.r, BG.g, BG.b)
-  const cardH = 42
-  doc.roundedRect(m, y, contentW, cardH, 3, 3, "F")
+  // Installment plan card
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(7.5)
+  doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
+  doc.text("INSTALLMENT PLAN", m, y)
+  y += 3
+
+  const rows: Array<{ label: string; value: string; emphasize?: boolean; dim?: boolean }> = [
+    { label: `Advance (${bd.advancePercent}%)`, value: `- ${money(bd.advance)}`, dim: true },
+    { label: "Remaining Y", value: money(bd.remainingY) },
+    { label: `Y  x  ${bd.factor}`, value: money(bd.financedAmount) },
+    { label: "Total with advance", value: money(bd.actualCost), emphasize: true },
+  ]
+  const rowH = 8
+  const cardH = 6 + rows.length * rowH
+  doc.setFillColor(CARD.r, CARD.g, CARD.b)
+  doc.roundedRect(m, y, contentW, cardH, 2.5, 2.5, "F")
+
   let cy = y + 7
-  const row = (label: string, value: string, bold = false) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal")
-    doc.setFontSize(bold ? 10 : 8.5)
-    doc.setTextColor(bold ? INK.r : MUTED.r, bold ? INK.g : MUTED.g, bold ? INK.b : MUTED.b)
-    doc.text(label, m + 4, cy)
-    doc.setTextColor(INK.r, INK.g, INK.b)
-    doc.text(value, pageW - m - 4, cy, { align: "right" })
-    cy += 6
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
+    if (r.emphasize) {
+      doc.setFillColor(ACCENT_BG.r, ACCENT_BG.g, ACCENT_BG.b)
+      doc.rect(m + 1.5, cy - 5, contentW - 3, rowH - 0.5, "F")
+    }
+    doc.setFont("helvetica", r.emphasize ? "bold" : "normal")
+    doc.setFontSize(r.emphasize ? 10 : 9)
+    doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
+    doc.text(r.label, m + 5, cy)
+    if (r.dim) {
+      doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
+    } else {
+      doc.setTextColor(INK.r, INK.g, INK.b)
+    }
+    doc.setFont("helvetica", "bold")
+    doc.text(r.value, pageW - m - 5, cy, { align: "right" })
+    if (i < rows.length - 1 && !rows[i + 1].emphasize) {
+      doc.setDrawColor(LINE.r, LINE.g, LINE.b)
+      doc.setLineWidth(0.2)
+      doc.line(m + 5, cy + 3, pageW - m - 5, cy + 3)
+    }
+    cy += rowH
   }
-  row(`Advance (${bd.advancePercent}%)`, `− ${money(bd.advance)}`)
-  row("Remaining Y", money(bd.remainingY))
-  row(`Y × ${bd.factor}`, money(bd.financedAmount))
-  row("Total with advance", money(bd.actualCost))
   y += cardH + 8
 
-  // Monthly highlight
+  // Monthly banner
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b)
-  doc.roundedRect(m, y, contentW, 18, 3, 3, "F")
+  doc.roundedRect(m, y, contentW, 22, 3, 3, "F")
   doc.setTextColor(255, 255, 255)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
-  doc.text(`Monthly installment  ·  Y × ${bd.factor} ÷ ${bd.months}`, m + 4, y + 7)
+  doc.text(`Monthly installment    Y x ${bd.factor}  /  ${bd.months} months`, m + 6, y + 8)
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(14)
-  doc.text(money(bd.monthlyInstallment), pageW - m - 4, y + 12, { align: "right" })
-  y += 26
+  doc.setFontSize(16)
+  doc.text(money(bd.monthlyInstallment), pageW - m - 6, y + 15, { align: "right" })
+  y += 30
 
   if (input.notes?.trim()) {
-    doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
     doc.setFont("helvetica", "bold")
-    doc.setFontSize(8)
+    doc.setFontSize(7.5)
+    doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
     doc.text("NOTES", m, y)
-    y += 4
+    y += 4.5
     doc.setFont("helvetica", "normal")
-    doc.setFontSize(8.5)
+    doc.setFontSize(9)
     doc.setTextColor(INK.r, INK.g, INK.b)
     const noteLines = doc.splitTextToSize(input.notes.trim(), contentW) as string[]
     doc.text(noteLines, m, y)
-    y += noteLines.length * 4 + 6
   }
 
   doc.setFont("helvetica", "normal")
   doc.setFontSize(7)
-  doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
+  doc.setTextColor(FAINT.r, FAINT.g, FAINT.b)
   doc.text("Voltrix Batteries  ·  Installment estimate  ·  Confidential", m, 287)
   doc.text("voltrixbatteries.com", pageW - m, 287, { align: "right" })
 

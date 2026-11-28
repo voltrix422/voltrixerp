@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { Loader2, Plus, Trash2, Calculator, X, Search, FileDown, FolderOpen } from "lucide-react"
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  Calculator,
+  X,
+  Search,
+  FileDown,
+  FolderOpen,
+  Pencil,
+  ArrowLeft,
+} from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { canWriteInstallments } from "@/lib/auth"
 import {
@@ -142,8 +153,9 @@ const labelClass = "block text-[10px] font-medium text-[#86868b] mb-0.5"
 export function InstallmentsEstimate() {
   const { user } = useAuth()
   const canWrite = canWriteInstallments(user?.role)
-  const [view, setView] = useState<"calculator" | "saved">("calculator")
+  const [view, setView] = useState<"calculator" | "saved" | "detail">("calculator")
   const [saved, setSaved] = useState<SavedEstimate[]>([])
+  const [detail, setDetail] = useState<SavedEstimate | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
@@ -357,6 +369,11 @@ export function InstallmentsEstimate() {
     setLines(defaultSizedLines(10))
   }
 
+  function openDetail(row: SavedEstimate) {
+    setDetail(row)
+    setView("detail")
+  }
+
   function loadIntoForm(row: SavedEstimate) {
     setEditingId(row.id)
     setTitle(row.title || "")
@@ -398,6 +415,7 @@ export function InstallmentsEstimate() {
           })
         : defaultSizedLines(Number(row.systemKw) || 10)
     setLines(nextLines)
+    setDetail(null)
     setView("calculator")
   }
 
@@ -416,15 +434,6 @@ export function InstallmentsEstimate() {
           model: l.model,
         })),
       breakdown,
-      panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
-        ? panelRsPerWattNum
-        : DEFAULT_PANEL_RS_PER_WATT,
-      bosRsPerWatt: Number.isFinite(bosRsPerWattNum) ? bosRsPerWattNum : DEFAULT_BOS_RS_PER_WATT,
-      installationRsPerWatt: Number.isFinite(installationRsPerWattNum)
-        ? installationRsPerWattNum
-        : DEFAULT_INSTALLATION_RS_PER_WATT,
-      structureRsPerWatt: Number(structureRsPerWatt) || DEFAULT_STRUCTURE_RS_PER_WATT,
-      raisedRsPerWatt: Number(raisedRsPerWatt) || DEFAULT_RAISED_RS_PER_WATT,
     }
   }
 
@@ -454,12 +463,11 @@ export function InstallmentsEstimate() {
         model: l.model,
       })),
       breakdown: bd,
-      panelRsPerWatt: ws.panelRsPerWatt,
-      bosRsPerWatt: ws.bosRsPerWatt,
-      installationRsPerWatt: ws.installationRsPerWatt,
-      structureRsPerWatt: ws.structureRsPerWatt,
-      raisedRsPerWatt: ws.raisedRsPerWatt,
     }
+  }
+
+  function detailBreakdown(row: SavedEstimate) {
+    return pdfPayloadFromSaved(row).breakdown
   }
 
   async function exportPdf(source: "form" | SavedEstimate) {
@@ -555,6 +563,10 @@ export function InstallmentsEstimate() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
       if (editingId === id) resetForm()
+      if (detail?.id === id) {
+        setDetail(null)
+        setView("saved")
+      }
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed")
@@ -562,6 +574,9 @@ export function InstallmentsEstimate() {
       setSaving(false)
     }
   }
+
+  const detailBd = detail ? detailBreakdown(detail) : null
+  const detailTitle = detail ? detail.title || `${detail.systemKw} kW estimate` : ""
 
   return (
     <div className="space-y-3">
@@ -572,27 +587,70 @@ export function InstallmentsEstimate() {
             Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} ÷ {monthsNum || 18}
           </p>
         </div>
-        <div className="inline-flex rounded-full bg-[#e8e8ed] p-0.5">
-          {(
-            [
-              { id: "calculator" as const, label: "Calculator", icon: Calculator },
-              { id: "saved" as const, label: `Saved (${saved.length})`, icon: FolderOpen },
-            ] as const
-          ).map((tab) => (
+        <div className="inline-flex rounded-full bg-[#e8e8ed] p-0.5 max-w-full overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setDetail(null)
+              setView("calculator")
+            }}
+            className={`h-8 px-3.5 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+              view === "calculator"
+                ? "bg-white text-[#1d1d1f] shadow-sm"
+                : "text-[#6e6e73] hover:text-[#1d1d1f]"
+            }`}
+          >
+            <Calculator className="h-3.5 w-3.5" />
+            Calculator
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDetail(null)
+              setView("saved")
+            }}
+            className={`h-8 px-3.5 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+              view === "saved"
+                ? "bg-white text-[#1d1d1f] shadow-sm"
+                : "text-[#6e6e73] hover:text-[#1d1d1f]"
+            }`}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Saved ({saved.length})
+          </button>
+          {detail ? (
             <button
-              key={tab.id}
               type="button"
-              onClick={() => setView(tab.id)}
-              className={`h-8 px-3.5 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all ${
-                view === tab.id
+              onClick={() => setView("detail")}
+              className={`h-8 pl-3.5 pr-2 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all shrink-0 max-w-[11rem] ${
+                view === "detail"
                   ? "bg-white text-[#1d1d1f] shadow-sm"
                   : "text-[#6e6e73] hover:text-[#1d1d1f]"
               }`}
             >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
+              <span className="truncate">{detailTitle}</span>
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDetail(null)
+                  setView("saved")
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation()
+                    setDetail(null)
+                    setView("saved")
+                  }
+                }}
+                className="h-5 w-5 inline-flex items-center justify-center rounded-full hover:bg-black/[0.06]"
+                title="Close"
+              >
+                <X className="h-3 w-3" />
+              </span>
             </button>
-          ))}
+          ) : null}
         </div>
       </div>
 
@@ -600,7 +658,195 @@ export function InstallmentsEstimate() {
         <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[12px] px-3 py-2">{error}</p>
       ) : null}
 
-      {view === "saved" ? (
+      {view === "detail" && detail && detailBd ? (
+        <div className="rounded-[20px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.05)]">
+          <div className="px-5 sm:px-7 pt-5 pb-4 border-b border-black/[0.05] bg-[#fafafa] flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setDetail(null)
+                  setView("saved")
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#007aff] cursor-pointer mb-1"
+              >
+                <ArrowLeft className="h-3 w-3" />
+                Saved
+              </button>
+              <h2 className="text-[22px] sm:text-[26px] font-semibold tracking-tight text-[#1d1d1f]">
+                {detailTitle}
+              </h2>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#6e6e73]">
+                <span>
+                  <span className="text-[#aeaeb2]">Client</span>{" "}
+                  <span className="font-semibold text-[#1d1d1f]">
+                    {detail.clientName?.trim() || "—"}
+                  </span>
+                </span>
+                <span>
+                  <span className="text-[#aeaeb2]">System</span>{" "}
+                  <span className="font-semibold text-[#1d1d1f]">
+                    {detail.systemKw} kW ({detailBd.systemWatts.toLocaleString()} W)
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => void exportPdf(detail)}
+                disabled={pdfBusy === detail.id}
+                className="h-9 px-3.5 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                {pdfBusy === detail.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5" />
+                )}
+                Export PDF
+              </button>
+              {canWrite ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => loadIntoForm(detail)}
+                    className="h-9 px-3.5 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteEstimate(detail.id)}
+                    className="h-9 w-9 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-0">
+            <div className="p-5 sm:p-7 border-b lg:border-b-0 lg:border-r border-black/[0.05]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#aeaeb2] mb-3">
+                Cost breakdown
+              </p>
+              <div className="space-y-0">
+                {(detail.lines || [])
+                  .filter((l) => l.name?.trim() && (Number(l.amount) || Number(l.rate) || 0) > 0)
+                  .map((l, i) => {
+                    const amt = Number(l.amount) || Number(l.rate) || 0
+                    const model = String(l.model || "").trim()
+                    const name = String(l.name || "").trim()
+                    const already =
+                      model &&
+                      (name.toLowerCase().includes(`(${model.toLowerCase()})`) ||
+                        name.toLowerCase().includes(model.toLowerCase()))
+                    const label = model && !already ? `${name} (${model})` : name
+                    const qty = Number(l.qty) || 0
+                    return (
+                      <div
+                        key={`${detail.id}-line-${i}`}
+                        className="flex justify-between gap-4 py-2.5 border-b border-black/[0.04] last:border-0"
+                      >
+                        <p className="text-[13px] text-[#1d1d1f] min-w-0">
+                          {label}
+                          {qty > 1 ? <span className="text-[#86868b]"> ×{qty}</span> : null}
+                        </p>
+                        <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f] shrink-0">
+                          {money(amt)}
+                        </p>
+                      </div>
+                    )
+                  })}
+              </div>
+              <div className="mt-4 pt-3 border-t border-black/[0.08] flex justify-between items-baseline">
+                <span className="text-[14px] font-semibold text-[#1d1d1f]">Cost</span>
+                <span className="text-[18px] font-semibold tabular-nums text-[#1d1d1f]">
+                  {money(detailBd.cost)}
+                </span>
+              </div>
+              {detail.notes?.trim() ? (
+                <div className="mt-5 pt-4 border-t border-black/[0.05]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#aeaeb2] mb-1.5">
+                    Notes
+                  </p>
+                  <p className="text-[13px] text-[#6e6e73] whitespace-pre-wrap">{detail.notes}</p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="p-5 sm:p-6 bg-[#f8f9fc] space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#aeaeb2]">
+                Installment plan
+              </p>
+              <div className="rounded-[14px] bg-white border border-black/[0.05] overflow-hidden">
+                {(
+                  [
+                    {
+                      label: `Advance (${detailBd.advancePercent}%)`,
+                      value: `− ${money(detailBd.advance)}`,
+                      muted: true,
+                    },
+                    { label: "Remaining Y", value: money(detailBd.remainingY) },
+                    {
+                      label: `Y × ${detailBd.factor}`,
+                      value: money(detailBd.financedAmount),
+                    },
+                    {
+                      label: "Total with advance",
+                      value: money(detailBd.actualCost),
+                      bold: true,
+                    },
+                  ] as const
+                ).map((row, i, arr) => (
+                  <div
+                    key={row.label}
+                    className={`flex justify-between gap-3 px-3.5 py-2.5 ${
+                      i < arr.length - 1 ? "border-b border-black/[0.04]" : ""
+                    } ${"bold" in row && row.bold ? "bg-[#f5f8ff]" : ""}`}
+                  >
+                    <span
+                      className={`text-[12px] ${
+                        "bold" in row && row.bold
+                          ? "font-semibold text-[#1d1d1f]"
+                          : "text-[#6e6e73]"
+                      }`}
+                    >
+                      {row.label}
+                    </span>
+                    <span
+                      className={`text-[12px] tabular-nums ${
+                        "bold" in row && row.bold
+                          ? "font-semibold text-[#1d1d1f]"
+                          : "muted" in row && row.muted
+                            ? "font-medium text-[#86868b]"
+                            : "font-semibold text-[#1d1d1f]"
+                      }`}
+                    >
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-[14px] bg-[#007aff] text-white p-4">
+                <p className="text-[10px] font-medium text-white/75">
+                  Monthly · Y × {detailBd.factor} ÷ {detailBd.months}
+                </p>
+                <p className="text-[26px] font-semibold tracking-tight tabular-nums mt-0.5">
+                  {money(detailBd.monthlyInstallment)}
+                </p>
+              </div>
+              <p className="text-[10px] text-[#aeaeb2] text-center pt-1">
+                Updated {new Date(detail.updatedAt).toLocaleDateString()}
+                {detail.updatedBy ? ` · ${detail.updatedBy}` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : view === "saved" ? (
         <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           {loading ? (
             <p className="text-center text-[12px] text-[#86868b] py-12">Loading…</p>
@@ -627,7 +873,11 @@ export function InstallmentsEstimate() {
                     key={row.id}
                     className="px-4 py-3 flex flex-wrap items-center gap-3 justify-between hover:bg-[#f5f8ff]"
                   >
-                    <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => openDetail(row)}
+                      className="min-w-0 text-left cursor-pointer flex-1"
+                    >
                       <p className="text-[13px] font-semibold text-[#1d1d1f] truncate">
                         {row.title || "—"}
                       </p>
@@ -635,7 +885,7 @@ export function InstallmentsEstimate() {
                         {row.clientName || "No client"} · {row.systemKw} kW ·{" "}
                         {new Date(row.updatedAt).toLocaleDateString()}
                       </p>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-4">
                       <div className="text-right hidden sm:block">
                         <p className="text-[10px] text-[#aeaeb2]">Cost</p>
@@ -665,7 +915,7 @@ export function InstallmentsEstimate() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => loadIntoForm(row)}
+                          onClick={() => openDetail(row)}
                           className="h-8 px-3 rounded-full text-[11px] font-semibold text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer"
                         >
                           Open
@@ -809,8 +1059,15 @@ export function InstallmentsEstimate() {
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-[#aeaeb2] tabular-nums">
+                <p
+                  className="group relative inline-flex text-[10px] text-[#aeaeb2] tabular-nums cursor-help border-b border-dotted border-[#aeaeb2]/60"
+                  title={`System size: ${breakdown.systemWatts.toLocaleString()} W (${kwNum || 10} kW × 1000). Raised structure included up to ${raisedMaxFt} ft at Raised Rs/W.`}
+                >
                   {breakdown.systemWatts.toLocaleString()} W · raised ≤ {raisedMaxFt} ft
+                  <span className="pointer-events-none absolute left-0 bottom-full mb-1.5 z-20 w-64 rounded-[10px] bg-[#1d1d1f] px-3 py-2 text-[11px] leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    System size: {breakdown.systemWatts.toLocaleString()} W ({kwNum || 10} kW ×
+                    1000). Raised structure included up to {raisedMaxFt} ft at Raised Rs/W.
+                  </span>
                 </p>
               </div>
 
