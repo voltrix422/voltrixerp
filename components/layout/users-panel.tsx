@@ -478,11 +478,15 @@ function AddUserForm({
   onCancel,
   purchaseScopes,
   initialRole = "user",
+  error = "",
+  saving = false,
 }: {
-  onAdd: (u: User) => void
+  onAdd: (u: User) => void | Promise<void>
   onCancel: () => void
   purchaseScopes: PurchaseScope[]
   initialRole?: UserRole
+  error?: string
+  saving?: boolean
 }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -503,12 +507,12 @@ function AddUserForm({
     setModules(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
-    onAdd({
+    await onAdd({
       id: Date.now().toString(),
       name,
-      email,
+      email: email.trim().toLowerCase(),
       password,
       role,
       modules: modulesForRole(role, modules),
@@ -549,18 +553,22 @@ function AddUserForm({
       )}
       {isInstallmentsUser(role) && (
         <p className="text-[10px] text-[#007aff]">
-          They sign in at /installments/login. Shared clients + documents — can view and edit. No ERP access.
+          Sign-in: /installments/login. Same email as an ERP user converts that account to Installments
+          (portal only — no ERP modules).
         </p>
       )}
+      {error ? (
+        <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[10px] px-3 py-2">{error}</p>
+      ) : null}
       <input required placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
-        className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+        className="w-full h-8 rounded-[10px] border-0 bg-white px-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25" />
       <input required type="email" placeholder={isInvestorUser(role) ? "Investor login email" : "Email"} value={email} onChange={e => setEmail(e.target.value)}
-        className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+        className="w-full h-8 rounded-[10px] border-0 bg-white px-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25" />
       <div className="relative">
         <input required type={showPw ? "text" : "password"} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-          className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 pr-7 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
-        <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]">
-          {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          className="w-full h-8 rounded-[10px] border-0 bg-white px-3 pr-8 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25" />
+        <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#aeaeb2]">
+          {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
         </button>
       </div>
       <div className="space-y-1">
@@ -667,14 +675,18 @@ function AddUserForm({
       </div>
       )}
       <div className="flex gap-2 pt-1">
-        <Button type="submit" size="sm" className="h-7 text-xs flex-1 cursor-pointer">
-          {isInvestorUser(role)
-            ? "Create investor login"
-            : isInstallmentsUser(role)
-              ? "Create installments login"
-              : "Create"}
+        <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 cursor-pointer rounded-full">
+          {saving
+            ? "Saving…"
+            : isInvestorUser(role)
+              ? "Create investor login"
+              : isInstallmentsUser(role)
+                ? "Create installments login"
+                : isChinaMoneyUser(role)
+                  ? "Create China login"
+                  : "Create"}
         </Button>
-        <Button type="button" variant="outline" size="sm" className="h-7 text-xs cursor-pointer" onClick={onCancel}>Cancel</Button>
+        <Button type="button" variant="outline" size="sm" disabled={saving} className="h-8 text-xs cursor-pointer rounded-full" onClick={onCancel}>Cancel</Button>
       </div>
     </form>
   )
@@ -714,6 +726,9 @@ export function UsersManager() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [portalFilter, setPortalFilter] = useState<PortalFilter>("all")
+  const [formError, setFormError] = useState("")
+  const [formSaving, setFormSaving] = useState(false)
+  const [banner, setBanner] = useState("")
 
   useEffect(() => {
     setLoading(true)
@@ -725,8 +740,8 @@ export function UsersManager() {
   }, [])
 
   async function handleSave(updated: User) {
-    await saveUser(updated)
-    setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
+    const saved = await saveUser(updated)
+    setUsers((prev) => prev.map((u) => (u.id === saved.id ? saved : u)))
   }
 
   async function handleDelete(id: string) {
@@ -735,11 +750,34 @@ export function UsersManager() {
   }
 
   async function handleAdd(newUser: User) {
-    await saveUser(newUser)
-    setUsers(prev => [...prev, newUser])
-    setAdding(false)
-    const group = userPortalGroup(newUser)
-    setPortalFilter(group)
+    setFormSaving(true)
+    setFormError("")
+    setBanner("")
+    try {
+      const saved = await saveUser(newUser)
+      setUsers((prev) => {
+        const without = prev.filter((u) => u.id !== saved.id && u.email.toLowerCase() !== saved.email.toLowerCase())
+        return [...without, saved]
+      })
+      setAdding(false)
+      const group = userPortalGroup(saved)
+      setPortalFilter(group)
+      if (saved.converted) {
+        setBanner(
+          `Converted ${saved.email} to ${ROLE_LABELS[saved.role]}. Login: ${
+            isInstallmentsUser(saved.role)
+              ? "/installments/login"
+              : isChinaMoneyUser(saved.role)
+                ? "/money-to-china/login"
+                : "/login"
+          }`,
+        )
+      }
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Failed to save user")
+    } finally {
+      setFormSaving(false)
+    }
   }
 
   const counts = {
@@ -856,6 +894,12 @@ export function UsersManager() {
           })}
         </div>
 
+        {banner ? (
+          <div className="rounded-[14px] border border-[#30d158]/30 bg-[#30d158]/10 px-3.5 py-2.5 text-[12px] text-[#248a3d]">
+            {banner}
+          </div>
+        ) : null}
+
         {hint ? (
           <div className="rounded-[14px] border border-black/[0.06] bg-white px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -910,8 +954,13 @@ export function UsersManager() {
                       : "user"
               }
               onAdd={handleAdd}
-              onCancel={() => setAdding(false)}
+              onCancel={() => {
+                setAdding(false)
+                setFormError("")
+              }}
               purchaseScopes={purchaseScopes}
+              error={formError}
+              saving={formSaving}
             />
           )}
           {!loading && filteredUsers.length === 0 && (

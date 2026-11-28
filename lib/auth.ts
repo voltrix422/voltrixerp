@@ -346,12 +346,23 @@ export async function getUsers(): Promise<User[]> {
   return data.map(mapRow)
 }
 
-export async function saveUser(user: User): Promise<void> {
-  await fetch("/api/db/users", {
+export async function saveUser(user: User): Promise<User & { converted?: boolean }> {
+  const res = await fetch("/api/db/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(user),
   })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(
+      (data as { error?: string }).error || "Failed to save user",
+    )
+  }
+  const mapped = mapRow(data as Record<string, unknown>)
+  return {
+    ...mapped,
+    converted: Boolean((data as { _converted?: boolean })._converted),
+  }
 }
 
 export async function deleteUser(id: string): Promise<void> {
