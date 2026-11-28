@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { Loader2, Plus, Trash2, Calculator, X, Search } from "lucide-react"
+import { Loader2, Plus, Trash2, Calculator, X, Search, FileDown, FolderOpen } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { canWriteInstallments } from "@/lib/auth"
 import {
@@ -24,6 +24,10 @@ import {
   DEFAULT_STRUCTURE_RS_PER_WATT,
   calcInstallmentBreakdown,
 } from "@/lib/installment-estimate"
+import {
+  downloadInstallmentEstimatePdf,
+  generateInstallmentEstimatePdf,
+} from "@/lib/generate-installment-estimate-pdf"
 
 type CostLine = {
   id: string
@@ -66,7 +70,6 @@ type SavedEstimate = {
     panelRsPerWatt?: number
     bosRsPerWatt?: number
     installationRsPerWatt?: number
-    structureUnitPrice?: number
     structureRsPerWatt?: number
     raisedRsPerWatt?: number
     raisedMaxFt?: number
@@ -76,6 +79,7 @@ type SavedEstimate = {
       cost?: number
       advance?: number
       remainingY?: number
+      financedAmount?: number
       actualCost?: number
       monthlyInstallment?: number
     }
@@ -87,7 +91,7 @@ type SavedEstimate = {
 }
 
 function money(n: number) {
-  return `PKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+  return `PKR ${Math.round(n).toLocaleString()}`
 }
 
 function newLine(
@@ -111,43 +115,38 @@ function catalogUnitPrice(p: CatalogProduct) {
   return 0
 }
 
-function defaultLines(opts?: {
-  panelAmount?: number
-  bosAmount?: number
-  installationAmount?: number
-}): CostLine[] {
-  const panelAmount = opts?.panelAmount ?? 0
-  const bosAmount = opts?.bosAmount ?? 0
-  const installationAmount = opts?.installationAmount ?? 0
+function defaultSizedLines(systemKw = 10) {
+  const watts = Math.max(0, Math.round(systemKw * 1000))
   return [
-    newLine("Panels", panelAmount > 0 ? String(Math.round(panelAmount)) : "", "panels"),
-    newLine("BOS", bosAmount > 0 ? String(Math.round(bosAmount)) : "", "bos"),
-    newLine(
-      "Installation",
-      installationAmount > 0 ? String(Math.round(installationAmount)) : "",
-      "installation",
-    ),
+    newLine("Panels", String(watts * DEFAULT_PANEL_RS_PER_WATT), "panels"),
+    newLine("BOS", String(watts * DEFAULT_BOS_RS_PER_WATT), "bos"),
+    newLine("Installation", String(watts * DEFAULT_INSTALLATION_RS_PER_WATT), "installation"),
     newLine("Transportation", "15000", "transport"),
-    newLine("Structure (L2/L3)", "", "structure"),
-    newLine("Raised structure", "", "raised"),
+    newLine(
+      "Structure (L2/L3)",
+      String(Math.round(watts * DEFAULT_STRUCTURE_RS_PER_WATT)),
+      "structure",
+    ),
+    newLine(
+      "Raised structure",
+      String(Math.round(watts * DEFAULT_RAISED_RS_PER_WATT)),
+      "raised",
+    ),
   ]
 }
 
-function defaultSizedLines(systemKw = 10) {
-  const watts = Math.max(0, Math.round(systemKw * 1000))
-  return defaultLines({
-    panelAmount: watts * DEFAULT_PANEL_RS_PER_WATT,
-    bosAmount: watts * DEFAULT_BOS_RS_PER_WATT,
-    installationAmount: watts * DEFAULT_INSTALLATION_RS_PER_WATT,
-  })
-}
+const fieldClass =
+  "w-full h-8 rounded-[10px] border-0 bg-[#f2f2f7] px-2.5 text-[12px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:ring-2 focus:ring-[#007aff]/25"
+const labelClass = "block text-[10px] font-medium text-[#86868b] mb-0.5"
 
 export function InstallmentsEstimate() {
   const { user } = useAuth()
   const canWrite = canWriteInstallments(user?.role)
+  const [view, setView] = useState<"calculator" | "saved">("calculator")
   const [saved, setSaved] = useState<SavedEstimate[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -183,11 +182,7 @@ export function InstallmentsEstimate() {
   const monthsNum = Number(months) || 0
 
   const amountLines = useMemo(
-    () =>
-      lines.map((line) => ({
-        ...line,
-        amountNum: Number(line.amount) || 0,
-      })),
+    () => lines.map((line) => ({ ...line, amountNum: Number(line.amount) || 0 })),
     [lines],
   )
 
@@ -198,9 +193,7 @@ export function InstallmentsEstimate() {
         panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
           ? panelRsPerWattNum
           : DEFAULT_PANEL_RS_PER_WATT,
-        bosRsPerWatt: Number.isFinite(bosRsPerWattNum)
-          ? bosRsPerWattNum
-          : DEFAULT_BOS_RS_PER_WATT,
+        bosRsPerWatt: Number.isFinite(bosRsPerWattNum) ? bosRsPerWattNum : DEFAULT_BOS_RS_PER_WATT,
         installationRsPerWatt: Number.isFinite(installationRsPerWattNum)
           ? installationRsPerWattNum
           : DEFAULT_INSTALLATION_RS_PER_WATT,
@@ -225,12 +218,13 @@ export function InstallmentsEstimate() {
     ],
   )
 
-  // Keep Panels / BOS / Installation = system watts × Rs/watt when sizing changes.
   useEffect(() => {
     const updates: Record<string, number> = {
       panels: Math.round(breakdown.panelAmount),
       bos: Math.round(breakdown.bosAmount),
       installation: Math.round(breakdown.installationAmount),
+      structure: Math.round(breakdown.structureFromRsPerWatt),
+      raised: Math.round(breakdown.raisedStructureAmount),
     }
     setLines((prev) => {
       let changed = false
@@ -244,14 +238,22 @@ export function InstallmentsEstimate() {
       })
       return changed ? next : prev
     })
-  }, [breakdown.panelAmount, breakdown.bosAmount, breakdown.installationAmount])
+  }, [
+    breakdown.panelAmount,
+    breakdown.bosAmount,
+    breakdown.installationAmount,
+    breakdown.structureFromRsPerWatt,
+    breakdown.raisedStructureAmount,
+  ])
 
   const load = useCallback(async () => {
     if (!user?.id) return
     setLoading(true)
     setError("")
     try {
-      const res = await fetch(`/api/db/installments/estimates?actorUserId=${encodeURIComponent(user.id)}`)
+      const res = await fetch(
+        `/api/db/installments/estimates?actorUserId=${encodeURIComponent(user.id)}`,
+      )
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to load")
       setSaved(Array.isArray(data) ? data : [])
@@ -298,7 +300,7 @@ export function InstallmentsEstimate() {
             }
           })
           .filter((p: CatalogProduct) => p.id)
-          .sort((a: CatalogProduct, b: CatalogProduct) => a.name.localeCompare(b.name))
+          .sort((a, b) => a.name.localeCompare(b.name))
         setCatalog(mapped)
       } catch {
         if (!cancelled) setCatalog([])
@@ -324,9 +326,7 @@ export function InstallmentsEstimate() {
 
   function addProductLine(product: CatalogProduct) {
     const unit = catalogUnitPrice(product)
-    const label = product.model
-      ? `${product.name} (${product.model})`
-      : product.name
+    const label = product.model ? `${product.name} (${product.model})` : product.name
     setLines((prev) => [
       ...prev,
       newLine(label, String(unit || ""), "product", {
@@ -375,55 +375,107 @@ export function InstallmentsEstimate() {
     const nextLines =
       Array.isArray(row.lines) && row.lines.length > 0
         ? row.lines.map((l, i) => {
-            const raw = l as {
-              name: string
-              amount?: number
-              rate?: number
-              kind?: string
-              productId?: string
-              model?: string
-              qty?: number
-              unitPrice?: number
-            }
-            const amount = Number.isFinite(Number(raw.amount))
-              ? Number(raw.amount)
-              : Number.isFinite(Number(raw.rate))
-                ? Number(raw.rate)
+            const amount = Number.isFinite(Number(l.amount))
+              ? Number(l.amount)
+              : Number.isFinite(Number(l.rate))
+                ? Number(l.rate)
                 : 0
             return {
               id: `${row.id}-${i}`,
-              name: raw.name,
+              name: l.name,
               amount: String(amount),
-              kind: raw.kind,
-              productId: raw.productId,
-              model: raw.model,
-              qty: raw.qty != null ? String(raw.qty) : raw.kind === "product" ? "1" : undefined,
+              kind: l.kind,
+              productId: l.productId,
+              model: l.model,
+              qty: l.qty != null ? String(l.qty) : l.kind === "product" ? "1" : undefined,
               unitPrice:
-                raw.unitPrice != null
-                  ? String(raw.unitPrice)
-                  : raw.kind === "product"
+                l.unitPrice != null
+                  ? String(l.unitPrice)
+                  : l.kind === "product"
                     ? String(amount)
                     : undefined,
             }
           })
         : defaultSizedLines(Number(row.systemKw) || 10)
     setLines(nextLines)
+    setView("calculator")
   }
 
-  function setLineAmountByKind(kind: string, amount: number) {
-    setLines((prev) => {
-      const idx = prev.findIndex((l) => l.kind === kind)
-      if (idx >= 0) {
-        return prev.map((l, i) => (i === idx ? { ...l, amount: String(Math.round(amount)) } : l))
-      }
-      const name =
-        kind === "structure"
-          ? "Structure (L2/L3)"
-          : kind === "raised"
-            ? "Raised structure"
-            : kind
-      return [...prev, newLine(name, String(Math.round(amount)), kind)]
+  function pdfPayloadFromForm() {
+    return {
+      title: title.trim() || `${kwNum || 10} kW estimate`,
+      clientName: clientName.trim(),
+      systemKw: kwNum,
+      notes: notes.trim(),
+      lines: amountLines
+        .filter((l) => l.name.trim())
+        .map((l) => ({
+          name: l.name.trim(),
+          amount: l.amountNum,
+          qty: Number(l.qty) || undefined,
+          model: l.model,
+        })),
+      breakdown,
+      panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
+        ? panelRsPerWattNum
+        : DEFAULT_PANEL_RS_PER_WATT,
+      bosRsPerWatt: Number.isFinite(bosRsPerWattNum) ? bosRsPerWattNum : DEFAULT_BOS_RS_PER_WATT,
+      installationRsPerWatt: Number.isFinite(installationRsPerWattNum)
+        ? installationRsPerWattNum
+        : DEFAULT_INSTALLATION_RS_PER_WATT,
+      structureRsPerWatt: Number(structureRsPerWatt) || DEFAULT_STRUCTURE_RS_PER_WATT,
+      raisedRsPerWatt: Number(raisedRsPerWatt) || DEFAULT_RAISED_RS_PER_WATT,
+    }
+  }
+
+  function pdfPayloadFromSaved(row: SavedEstimate) {
+    const ws = row.worksheet || {}
+    const bd = calcInstallmentBreakdown({
+      systemKw: row.systemKw,
+      panelRsPerWatt: ws.panelRsPerWatt,
+      bosRsPerWatt: ws.bosRsPerWatt,
+      installationRsPerWatt: ws.installationRsPerWatt,
+      structureRsPerWatt: ws.structureRsPerWatt,
+      raisedRsPerWatt: ws.raisedRsPerWatt,
+      advancePercent: ws.advancePercent,
+      factor: row.factor,
+      months: ws.months,
+      lines: (row.lines || []).map((l) => ({ amount: Number(l.amount) || 0 })),
     })
+    return {
+      title: row.title || `${row.systemKw} kW estimate`,
+      clientName: row.clientName || "",
+      systemKw: row.systemKw,
+      notes: row.notes || "",
+      lines: (row.lines || []).map((l) => ({
+        name: l.name,
+        amount: Number(l.amount) || 0,
+        qty: l.qty,
+        model: l.model,
+      })),
+      breakdown: bd,
+      panelRsPerWatt: ws.panelRsPerWatt,
+      bosRsPerWatt: ws.bosRsPerWatt,
+      installationRsPerWatt: ws.installationRsPerWatt,
+      structureRsPerWatt: ws.structureRsPerWatt,
+      raisedRsPerWatt: ws.raisedRsPerWatt,
+    }
+  }
+
+  async function exportPdf(source: "form" | SavedEstimate) {
+    const key = source === "form" ? "form" : source.id
+    setPdfBusy(key)
+    setError("")
+    try {
+      const payload = source === "form" ? pdfPayloadFromForm() : pdfPayloadFromSaved(source)
+      const blob = await generateInstallmentEstimatePdf(payload)
+      const safe = (payload.title || "estimate").replace(/[^\w.-]+/g, "_").slice(0, 48)
+      downloadInstallmentEstimatePdf(blob, `Voltrix-Estimate-${safe}.pdf`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "PDF export failed")
+    } finally {
+      setPdfBusy(null)
+    }
   }
 
   async function saveEstimate(e: React.FormEvent) {
@@ -431,18 +483,6 @@ export function InstallmentsEstimate() {
     if (!user?.id || !canWrite) return
     if (kwNum <= 0) {
       setError("Enter system size in kW.")
-      return
-    }
-    if (factorNum <= 0) {
-      setError("Factor must be greater than 0.")
-      return
-    }
-    if (advanceNum <= 0 || advanceNum >= 100) {
-      setError("Advance % must be between 0 and 100.")
-      return
-    }
-    if (monthsNum <= 0) {
-      setError("Months must be greater than 0.")
       return
     }
     const payloadLines = amountLines
@@ -475,15 +515,13 @@ export function InstallmentsEstimate() {
           panelRsPerWatt: Number.isFinite(panelRsPerWattNum)
             ? panelRsPerWattNum
             : DEFAULT_PANEL_RS_PER_WATT,
-          bosRsPerWatt: Number.isFinite(bosRsPerWattNum)
-            ? bosRsPerWattNum
-            : DEFAULT_BOS_RS_PER_WATT,
+          bosRsPerWatt: Number.isFinite(bosRsPerWattNum) ? bosRsPerWattNum : DEFAULT_BOS_RS_PER_WATT,
           installationRsPerWatt: Number.isFinite(installationRsPerWattNum)
             ? installationRsPerWattNum
             : DEFAULT_INSTALLATION_RS_PER_WATT,
-          factor: factorNum,
-          advancePercent: advanceNum,
-          months: monthsNum,
+          factor: factorNum || DEFAULT_FACTOR,
+          advancePercent: advanceNum || DEFAULT_ADVANCE_PERCENT,
+          months: monthsNum || DEFAULT_MONTHS,
           structureRsPerWatt: Number(structureRsPerWatt) || DEFAULT_STRUCTURE_RS_PER_WATT,
           raisedRsPerWatt: Number(raisedRsPerWatt) || DEFAULT_RAISED_RS_PER_WATT,
           raisedMaxFt: Number(raisedMaxFt) || DEFAULT_RAISED_MAX_FT,
@@ -495,6 +533,7 @@ export function InstallmentsEstimate() {
       if (!res.ok) throw new Error(data.error || "Save failed")
       resetForm()
       await load()
+      setView("saved")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed")
     } finally {
@@ -524,472 +563,110 @@ export function InstallmentsEstimate() {
     }
   }
 
-  const fieldClass =
-    "w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] px-3 text-[13px] text-[#1d1d1f] outline-none placeholder:text-[#aeaeb2] focus:ring-2 focus:ring-[#007aff]/25"
-  const labelClass = "block text-[11px] font-medium text-[#6e6e73] mb-1"
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-2 justify-between">
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Estimate</h1>
-          <p className="text-[12px] text-[#86868b] mt-0.5">
-            Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} ÷ {monthsNum || 18}{" "}
-            (advance separate)
+          <p className="text-[11px] text-[#86868b]">
+            Cost − {advanceNum || 26}% → Y × {factorNum || 1.5} ÷ {monthsNum || 18}
           </p>
         </div>
-        {editingId && (
-          <button
-            type="button"
-            onClick={resetForm}
-            className="h-8 px-3 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold cursor-pointer"
-          >
-            New estimate
-          </button>
-        )}
+        <div className="inline-flex rounded-full bg-[#e8e8ed] p-0.5">
+          {(
+            [
+              { id: "calculator" as const, label: "Calculator", icon: Calculator },
+              { id: "saved" as const, label: `Saved (${saved.length})`, icon: FolderOpen },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setView(tab.id)}
+              className={`h-8 px-3.5 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all ${
+                view === tab.id
+                  ? "bg-white text-[#1d1d1f] shadow-sm"
+                  : "text-[#6e6e73] hover:text-[#1d1d1f]"
+              }`}
+            >
+              <tab.icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error ? (
-        <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[12px] px-3.5 py-2.5">{error}</p>
+        <p className="text-[12px] text-[#ff3b30] bg-[#ff3b30]/08 rounded-[12px] px-3 py-2">{error}</p>
       ) : null}
 
-      <form
-        onSubmit={saveEstimate}
-        className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
-      >
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-black/[0.05] bg-[#fafafa]">
-          <Calculator className="h-3.5 w-3.5 text-[#007aff]" />
-          <p className="text-[12px] font-medium text-[#86868b]">
-            {editingId ? "Edit estimate" : "New estimate"}
-          </p>
-        </div>
-
-        <div className="p-4 sm:p-5 space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className={labelClass}>System size (kW)</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={systemKw}
-                onChange={(e) => setSystemKw(e.target.value)}
-                placeholder="10"
-                required
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Panel rate (Rs/W)</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={panelRsPerWatt}
-                onChange={(e) => setPanelRsPerWatt(e.target.value)}
-                placeholder="41"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>BOS rate (Rs/W)</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={bosRsPerWatt}
-                onChange={(e) => setBosRsPerWatt(e.target.value)}
-                placeholder="8"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Installation (Rs/W)</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={installationRsPerWatt}
-                onChange={(e) => setInstallationRsPerWatt(e.target.value)}
-                placeholder="3"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Client name</label>
-              <input
-                className={fieldClass}
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Title</label>
-              <input
-                className={fieldClass}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={`${kwNum || 10} kW estimate`}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-black/[0.06] bg-[#fafafa] px-3.5 py-3 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
-              System sizing
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[12px]">
-              <div>
-                <p className="text-[#86868b]">System watts</p>
-                <p className="font-semibold tabular-nums text-[#1d1d1f]">
-                  {breakdown.systemWatts.toLocaleString()} W
-                </p>
-              </div>
-              <div>
-                <p className="text-[#86868b]">Panel / BOS / Install</p>
-                <p className="text-[10px] text-[#6e6e73] mt-0.5 tabular-nums">
-                  {money(breakdown.panelAmount)} · {money(breakdown.bosAmount)} ·{" "}
-                  {money(breakdown.installationAmount)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[#86868b]">Raised max height</p>
-                <p className="font-semibold tabular-nums text-[#1d1d1f]">
-                  ≤ {raisedMaxFt} ft
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <div className="rounded-[10px] bg-white border border-black/[0.05] px-3 py-2">
-                <p className="text-[10px] text-[#86868b]">Structure Rs/watt</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    className="w-20 h-7 rounded-lg border-0 bg-[#f2f2f7] px-2 text-[12px] tabular-nums outline-none"
-                    inputMode="decimal"
-                    value={structureRsPerWatt}
-                    onChange={(e) => setStructureRsPerWatt(e.target.value)}
-                  />
-                  <span className="text-[11px] text-[#6e6e73] tabular-nums">
-                    → {money(breakdown.structureFromRsPerWatt)}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLineAmountByKind("structure", breakdown.structureFromRsPerWatt)}
-                  className="mt-1.5 text-[11px] font-semibold text-[#007aff] cursor-pointer"
-                >
-                  Fill structure line
-                </button>
-              </div>
-              <div className="rounded-[10px] bg-white border border-black/[0.05] px-3 py-2">
-                <p className="text-[10px] text-[#86868b]">Raised Rs/watt</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    className="w-20 h-7 rounded-lg border-0 bg-[#f2f2f7] px-2 text-[12px] tabular-nums outline-none"
-                    inputMode="decimal"
-                    value={raisedRsPerWatt}
-                    onChange={(e) => setRaisedRsPerWatt(e.target.value)}
-                  />
-                  <span className="text-[11px] text-[#6e6e73] tabular-nums">
-                    → {money(breakdown.raisedStructureAmount)}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLineAmountByKind("raised", breakdown.raisedStructureAmount)}
-                  className="mt-1.5 text-[11px] font-semibold text-[#007aff] cursor-pointer"
-                >
-                  Fill raised line
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelClass}>Advance %</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={advancePercent}
-                onChange={(e) => setAdvancePercent(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Factor</label>
-              <input
-                className={fieldClass}
-                inputMode="decimal"
-                value={factor}
-                onChange={(e) => setFactor(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Months</label>
-              <input
-                className={fieldClass}
-                inputMode="numeric"
-                value={months}
-                onChange={(e) => setMonths(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-black/[0.06] overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-[#fafafa] border-b border-black/[0.05]">
-                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b]">
-                    Cost item
-                  </th>
-                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b] w-[5rem]">
-                    Qty
-                  </th>
-                  <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b] w-[9rem]">
-                    Amount (PKR)
-                  </th>
-                  <th className="px-3 py-2 w-10" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.045]">
-                {amountLines.map((line) => {
-                  const isProduct = line.kind === "product"
-                  return (
-                  <tr key={line.id}>
-                    <td className="px-3 py-2">
-                      <input
-                        className="w-full h-8 rounded-lg border-0 bg-[#f2f2f7] px-2.5 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
-                        value={line.name}
-                        onChange={(e) =>
-                          setLines((prev) =>
-                            prev.map((l) => (l.id === line.id ? { ...l, name: e.target.value } : l)),
-                          )
-                        }
-                        placeholder="e.g. Battery / Inverter"
-                      />
-                      {line.model ? (
-                        <p className="text-[10px] text-[#aeaeb2] mt-0.5 font-mono">{line.model}</p>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2">
-                      {isProduct ? (
-                        <input
-                          className="w-full h-8 rounded-lg border-0 bg-[#f2f2f7] px-2.5 text-[12px] tabular-nums outline-none focus:ring-2 focus:ring-[#007aff]/25"
-                          inputMode="numeric"
-                          value={line.qty ?? "1"}
-                          onChange={(e) => {
-                            const qty = e.target.value
-                            setLines((prev) =>
-                              prev.map((l) => {
-                                if (l.id !== line.id) return l
-                                const unit = Number(l.unitPrice) || 0
-                                const q = Number(qty) || 0
-                                return {
-                                  ...l,
-                                  qty,
-                                  amount: String(Math.round(unit * q)),
-                                }
-                              }),
-                            )
-                          }}
-                        />
-                      ) : (
-                        <span className="text-[12px] text-[#aeaeb2]">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        className="w-full h-8 rounded-lg border-0 bg-[#f2f2f7] px-2.5 text-[12px] tabular-nums outline-none focus:ring-2 focus:ring-[#007aff]/25"
-                        inputMode="decimal"
-                        value={line.amount}
-                        onChange={(e) =>
-                          setLines((prev) =>
-                            prev.map((l) => {
-                              if (l.id !== line.id) return l
-                              const amount = e.target.value
-                              if (l.kind === "product") {
-                                const q = Number(l.qty) || 1
-                                return {
-                                  ...l,
-                                  amount,
-                                  unitPrice: q > 0 ? String(Math.round((Number(amount) || 0) / q)) : l.unitPrice,
-                                }
-                              }
-                              return { ...l, amount }
-                            }),
-                          )
-                        }
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      {lines.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setLines((prev) => prev.filter((l) => l.id !== line.id))}
-                          className="h-7 w-7 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
-                          aria-label="Remove line"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            <div className="px-3 py-2 border-t border-black/[0.05] flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowProductPicker(true)}
-                  className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full text-[11px] font-semibold text-white bg-[#007aff] hover:bg-[#0066d6] cursor-pointer"
-                >
-                  <Plus className="h-3 w-3" /> Add product
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLines((prev) => [...prev, newLine("", "", "other")])}
-                  className="h-7 inline-flex items-center gap-1 px-2.5 rounded-full text-[11px] font-semibold text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer"
-                >
-                  <Plus className="h-3 w-3" /> Custom cost
-                </button>
-              </div>
-              <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
-                Cost {money(breakdown.cost)}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-black/[0.06] bg-[#f5f8ff] px-4 py-3 space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#007aff]">
-              Installment breakdown
-            </p>
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">Cost</span>
-              <span className="font-semibold tabular-nums">{money(breakdown.cost)}</span>
-            </div>
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">Advance ({breakdown.advancePercent}%)</span>
-              <span className="font-semibold tabular-nums text-[#9a6700]">
-                − {money(breakdown.advance)}
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">Remaining Y</span>
-              <span className="font-semibold tabular-nums">{money(breakdown.remainingY)}</span>
-            </div>
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">Y × {breakdown.factor} (without advance)</span>
-              <span className="font-semibold tabular-nums">{money(breakdown.financedAmount)}</span>
-            </div>
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="text-[#6e6e73]">
-                Total with advance (Advance + Y × {breakdown.factor})
-              </span>
-              <span className="font-semibold tabular-nums text-[#1d1d1f]">
-                {money(breakdown.actualCost)}
-              </span>
-            </div>
-            <div className="pt-2 border-t border-[#007aff]/15 space-y-0.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[14px] font-semibold text-[#1d1d1f]">
-                  Monthly installment
-                </span>
-                <span className="text-[18px] font-semibold tracking-tight tabular-nums text-[#007aff]">
-                  {money(breakdown.monthlyInstallment)}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#86868b] text-right tabular-nums">
-                {money(breakdown.financedAmount)} ÷ {breakdown.months} months
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Notes</label>
-            <textarea
-              className="w-full min-h-[64px] rounded-[10px] border-0 bg-[#f2f2f7] px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25 resize-y"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes"
-            />
-          </div>
-        </div>
-
-        {canWrite && (
-          <div className="px-4 sm:px-5 py-3 border-t border-black/[0.05] bg-[#fafafa] flex justify-end gap-2">
-            {editingId && (
+      {view === "saved" ? (
+        <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+          {loading ? (
+            <p className="text-center text-[12px] text-[#86868b] py-12">Loading…</p>
+          ) : saved.length === 0 ? (
+            <div className="text-center py-12 px-4 space-y-2">
+              <p className="text-[13px] font-medium text-[#1d1d1f]">No saved estimates</p>
               <button
                 type="button"
-                onClick={resetForm}
-                className="h-8 px-3 rounded-full text-[12px] font-medium cursor-pointer"
+                onClick={() => setView("calculator")}
+                className="text-[12px] font-semibold text-[#007aff] cursor-pointer"
               >
-                Cancel
+                Open calculator
               </button>
-            )}
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-8 px-4 rounded-full bg-[#007aff] text-white text-[12px] font-semibold hover:bg-[#0066d6] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              {editingId ? "Update estimate" : "Save estimate"}
-            </button>
-          </div>
-        )}
-      </form>
-
-      <div className="rounded-[18px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        <div className="px-4 py-3 border-b border-black/[0.05]">
-          <p className="text-[13px] font-semibold text-[#1d1d1f]">Saved estimates</p>
-        </div>
-        {loading ? (
-          <p className="text-center text-[12px] text-[#86868b] py-10">Loading…</p>
-        ) : saved.length === 0 ? (
-          <p className="text-center text-[12px] text-[#86868b] py-10">No estimates yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left">
-              <thead>
-                <tr className="bg-[#fafafa] border-b border-black/[0.05]">
-                  {["Title", "Client", "kW", "Cost", "Monthly", "Updated", ""].map((h) => (
-                    <th
-                      key={h || "a"}
-                      className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#86868b]"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.045]">
-                {saved.map((row) => {
-                  const bd = row.worksheet?.breakdown
-                  const monthly =
-                    bd?.monthlyInstallment ??
-                    (row.factor > 0 && row.totalAmount
-                      ? Math.round((row.totalAmount / DEFAULT_MONTHS) * 100) / 100
-                      : 0)
-                  const cost = bd?.cost
-                  return (
-                    <tr key={row.id} className="hover:bg-[#f5f8ff]">
-                      <td className="px-3 py-2.5 text-[12px] font-semibold text-[#1d1d1f]">
+            </div>
+          ) : (
+            <div className="divide-y divide-black/[0.045]">
+              {saved.map((row) => {
+                const monthly =
+                  row.worksheet?.breakdown?.monthlyInstallment ??
+                  Math.round((Number(row.totalAmount) || 0) / DEFAULT_MONTHS)
+                const cost = row.worksheet?.breakdown?.cost
+                return (
+                  <div
+                    key={row.id}
+                    className="px-4 py-3 flex flex-wrap items-center gap-3 justify-between hover:bg-[#f5f8ff]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-[#1d1d1f] truncate">
                         {row.title || "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-[12px] text-[#6e6e73]">
-                        {row.clientName || "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-[12px] tabular-nums">{row.systemKw}</td>
-                      <td className="px-3 py-2.5 text-[12px] tabular-nums text-[#6e6e73]">
-                        {cost != null ? money(cost) : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-[12px] font-semibold tabular-nums text-[#1d1d1f]">
-                        {money(monthly)}
-                      </td>
-                      <td className="px-3 py-2.5 text-[11px] text-[#86868b] whitespace-nowrap">
+                      </p>
+                      <p className="text-[11px] text-[#86868b] mt-0.5">
+                        {row.clientName || "No client"} · {row.systemKw} kW ·{" "}
                         {new Date(row.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-[10px] text-[#aeaeb2]">Cost</p>
+                        <p className="text-[12px] tabular-nums text-[#6e6e73]">
+                          {cost != null ? money(cost) : "—"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-[#aeaeb2]">Monthly</p>
+                        <p className="text-[13px] font-semibold tabular-nums text-[#007aff]">
+                          {money(monthly)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void exportPdf(row)}
+                          disabled={pdfBusy === row.id}
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-full text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer disabled:opacity-50"
+                          title="Export PDF"
+                        >
+                          {pdfBusy === row.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <FileDown className="h-3.5 w-3.5" />
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => loadIntoForm(row)}
-                          className="text-[11px] font-semibold text-[#007aff] hover:underline cursor-pointer mr-2"
+                          className="h-8 px-3 rounded-full text-[11px] font-semibold text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer"
                         >
                           Open
                         </button>
@@ -997,20 +674,301 @@ export function InstallmentsEstimate() {
                           <button
                             type="button"
                             onClick={() => void deleteEstimate(row.id)}
-                            className="text-[11px] font-semibold text-[#ff3b30] hover:underline cursor-pointer"
+                            className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
                           >
                             Delete
                           </button>
                         )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={saveEstimate} className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3 items-start">
+            <div className="space-y-3 min-w-0">
+              <div className="rounded-[16px] border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[12px] font-semibold text-[#1d1d1f]">
+                    {editingId ? "Edit estimate" : "New estimate"}
+                  </p>
+                  {editingId ? (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="text-[11px] font-semibold text-[#007aff] cursor-pointer"
+                    >
+                      New
+                    </button>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <label className={labelClass}>System kW</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={systemKw}
+                      onChange={(e) => setSystemKw(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Panel Rs/W</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={panelRsPerWatt}
+                      onChange={(e) => setPanelRsPerWatt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>BOS Rs/W</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={bosRsPerWatt}
+                      onChange={(e) => setBosRsPerWatt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Install Rs/W</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={installationRsPerWatt}
+                      onChange={(e) => setInstallationRsPerWatt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Structure Rs/W</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={structureRsPerWatt}
+                      onChange={(e) => setStructureRsPerWatt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Raised Rs/W</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={raisedRsPerWatt}
+                      onChange={(e) => setRaisedRsPerWatt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Advance %</label>
+                    <input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={advancePercent}
+                      onChange={(e) => setAdvancePercent(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Factor / Months</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        className={fieldClass}
+                        inputMode="decimal"
+                        value={factor}
+                        onChange={(e) => setFactor(e.target.value)}
+                        title="Factor"
+                      />
+                      <input
+                        className={fieldClass}
+                        inputMode="numeric"
+                        value={months}
+                        onChange={(e) => setMonths(e.target.value)}
+                        title="Months"
+                      />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>Client</label>
+                    <input
+                      className={fieldClass}
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>Title</label>
+                    <input
+                      className={fieldClass}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder={`${kwNum || 10} kW estimate`}
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#aeaeb2] tabular-nums">
+                  {breakdown.systemWatts.toLocaleString()} W · raised ≤ {raisedMaxFt} ft
+                </p>
+              </div>
+
+              <div className="rounded-[16px] border border-black/[0.06] bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <div className="px-3.5 py-2 border-b border-black/[0.05] flex items-center justify-between">
+                  <p className="text-[12px] font-semibold text-[#1d1d1f]">Cost lines</p>
+                  <p className="text-[12px] font-semibold tabular-nums">{money(breakdown.cost)}</p>
+                </div>
+                <div className="max-h-[280px] overflow-y-auto divide-y divide-black/[0.04]">
+                  {amountLines.map((line) => {
+                    const isProduct = line.kind === "product"
+                    return (
+                      <div key={line.id} className="px-3 py-2 flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <input
+                            className="w-full h-7 rounded-lg border-0 bg-[#f2f2f7] px-2 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
+                            value={line.name}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((l) =>
+                                  l.id === line.id ? { ...l, name: e.target.value } : l,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        {isProduct ? (
+                          <input
+                            className="w-12 h-7 rounded-lg border-0 bg-[#f2f2f7] px-1.5 text-[12px] tabular-nums outline-none"
+                            inputMode="numeric"
+                            value={line.qty ?? "1"}
+                            onChange={(e) => {
+                              const qty = e.target.value
+                              setLines((prev) =>
+                                prev.map((l) => {
+                                  if (l.id !== line.id) return l
+                                  const unit = Number(l.unitPrice) || 0
+                                  return {
+                                    ...l,
+                                    qty,
+                                    amount: String(Math.round(unit * (Number(qty) || 0))),
+                                  }
+                                }),
+                              )
+                            }}
+                          />
+                        ) : null}
+                        <input
+                          className="w-[6.5rem] h-7 rounded-lg border-0 bg-[#f2f2f7] px-2 text-[12px] tabular-nums outline-none"
+                          inputMode="decimal"
+                          value={line.amount}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.id === line.id ? { ...l, amount: e.target.value } : l,
+                              ),
+                            )
+                          }
+                        />
+                        {lines.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => setLines((prev) => prev.filter((l) => l.id !== line.id))}
+                            className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full text-[#ff3b30] hover:bg-[#ff3b30]/08 cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="px-3 py-2 border-t border-black/[0.05] flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowProductPicker(true)}
+                    className="h-7 px-2.5 rounded-full bg-[#007aff] text-white text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Product
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLines((prev) => [...prev, newLine("", "", "other")])}
+                    className="h-7 px-2.5 rounded-full text-[11px] font-semibold text-[#007aff] hover:bg-[#007aff]/08 cursor-pointer"
+                  >
+                    + Custom
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Notes</label>
+                <textarea
+                  className="w-full min-h-[52px] rounded-[10px] border-0 bg-white border border-black/[0.06] px-3 py-2 text-[12px] outline-none focus:ring-2 focus:ring-[#007aff]/25 resize-y"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+
+            <div className="lg:sticky lg:top-3 space-y-2">
+              <div className="rounded-[16px] border border-black/[0.06] bg-[#f5f8ff] p-3.5 space-y-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#007aff]">
+                  Breakdown
+                </p>
+                {(
+                  [
+                    ["Cost", money(breakdown.cost)],
+                    [`Advance ${breakdown.advancePercent}%`, `− ${money(breakdown.advance)}`],
+                    ["Y", money(breakdown.remainingY)],
+                    [`Y × ${breakdown.factor}`, money(breakdown.financedAmount)],
+                    ["With advance", money(breakdown.actualCost)],
+                  ] as const
+                ).map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2 text-[12px]">
+                    <span className="text-[#6e6e73]">{k}</span>
+                    <span className="font-semibold tabular-nums text-[#1d1d1f]">{v}</span>
+                  </div>
+                ))}
+                <div className="pt-2 mt-1 border-t border-[#007aff]/15">
+                  <p className="text-[10px] text-[#86868b]">
+                    Monthly · Y×{breakdown.factor}÷{breakdown.months}
+                  </p>
+                  <p className="text-[22px] font-semibold tracking-tight tabular-nums text-[#007aff]">
+                    {money(breakdown.monthlyInstallment)}
+                  </p>
+                </div>
+              </div>
+              {canWrite ? (
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="h-9 rounded-full bg-[#007aff] text-white text-[13px] font-semibold hover:bg-[#0066d6] disabled:opacity-50 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {editingId ? "Update" : "Save"} estimate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void exportPdf("form")}
+                    disabled={pdfBusy === "form"}
+                    className="h-9 rounded-full border border-black/[0.08] bg-white text-[12px] font-semibold text-[#1d1d1f] hover:bg-black/[0.03] disabled:opacity-50 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {pdfBusy === "form" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileDown className="h-3.5 w-3.5" />
+                    )}
+                    Export PDF
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
-      </div>
+        </form>
+      )}
 
       {showProductPicker && typeof document !== "undefined"
         ? createPortal(
@@ -1023,17 +981,11 @@ export function InstallmentsEstimate() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06]">
-                  <div>
-                    <p className="text-[14px] font-semibold text-[#1d1d1f]">Add product</p>
-                    <p className="text-[11px] text-[#86868b]">
-                      Website catalog · dealership price when set
-                    </p>
-                  </div>
+                  <p className="text-[14px] font-semibold text-[#1d1d1f]">Add product</p>
                   <button
                     type="button"
                     onClick={() => setShowProductPicker(false)}
                     className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-black/[0.06] cursor-pointer"
-                    aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1043,7 +995,7 @@ export function InstallmentsEstimate() {
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#aeaeb2]" />
                     <input
                       className="w-full h-9 rounded-[10px] border-0 bg-[#f2f2f7] pl-8 pr-3 text-[13px] outline-none focus:ring-2 focus:ring-[#007aff]/25"
-                      placeholder="Search name or model…"
+                      placeholder="Search…"
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
                       autoFocus
@@ -1052,9 +1004,9 @@ export function InstallmentsEstimate() {
                 </div>
                 <div className="overflow-y-auto flex-1">
                   {catalogLoading ? (
-                    <p className="text-center text-[12px] text-[#86868b] py-10">Loading products…</p>
+                    <p className="text-center text-[12px] text-[#86868b] py-10">Loading…</p>
                   ) : filteredCatalog.length === 0 ? (
-                    <p className="text-center text-[12px] text-[#86868b] py-10">No products found</p>
+                    <p className="text-center text-[12px] text-[#86868b] py-10">No products</p>
                   ) : (
                     <ul className="divide-y divide-black/[0.045]">
                       {filteredCatalog.map((p) => {
@@ -1064,36 +1016,20 @@ export function InstallmentsEstimate() {
                             <button
                               type="button"
                               onClick={() => addProductLine(p)}
-                              className="w-full text-left px-4 py-3 hover:bg-[#f5f8ff] cursor-pointer transition-colors"
+                              className="w-full text-left px-4 py-3 hover:bg-[#f5f8ff] cursor-pointer"
                             >
-                              <div className="flex items-start justify-between gap-3">
+                              <div className="flex justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[13px] font-semibold text-[#1d1d1f] truncate">
                                     {p.name}
                                   </p>
                                   {p.model ? (
-                                    <p className="text-[11px] font-mono text-[#86868b] mt-0.5">
-                                      {p.model}
-                                    </p>
-                                  ) : null}
-                                  {p.category ? (
-                                    <p className="text-[10px] text-[#aeaeb2] mt-0.5">{p.category}</p>
+                                    <p className="text-[11px] font-mono text-[#86868b]">{p.model}</p>
                                   ) : null}
                                 </div>
-                                <div className="shrink-0 text-right">
-                                  {unit > 0 ? (
-                                    <p className="text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
-                                      {money(unit)}
-                                    </p>
-                                  ) : (
-                                    <p className="text-[11px] font-medium text-[#9a6700]">Quote</p>
-                                  )}
-                                  {p.dealershipPrice > 0 && p.price > 0 && p.dealershipPrice !== p.price ? (
-                                    <p className="text-[10px] text-[#aeaeb2] tabular-nums">
-                                      web {money(p.price)}
-                                    </p>
-                                  ) : null}
-                                </div>
+                                <p className="text-[13px] font-semibold tabular-nums shrink-0">
+                                  {unit > 0 ? money(unit) : "Quote"}
+                                </p>
                               </div>
                             </button>
                           </li>
