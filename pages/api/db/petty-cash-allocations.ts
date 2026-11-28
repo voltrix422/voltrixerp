@@ -3,6 +3,12 @@ import { prisma } from '@/lib/db'
 import { appendPettyCashTopUpNote } from '@/lib/petty-cash-topup'
 import { isPersonalLedgerAllocation } from '@/lib/petty-cash-personal'
 import {
+  allocationRefLabel,
+  appendPettyCashMergeNote,
+  mergePurposeText,
+  samePettyCashEmployee,
+} from '@/lib/petty-cash-merge'
+import {
   backfillPettyCashReferenceNumbers,
   generatePettyCashReferenceNumber,
 } from '@/lib/petty-cash-reference'
@@ -94,6 +100,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'PUT') {
       const {
         id,
+        action,
+        targetId,
+        sourceIds,
+        mergedBy,
         status,
         settledAt,
         amount,
@@ -110,6 +120,116 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         topUpProof,
         topUpProofName,
       } = req.body
+
+      if (action === 'merge') {
+        const keepId = String(targetId || id || '').trim()
+        const rawSources = Array.isArray(sourceIds) ? sourceIds : []
+        const mergeSourceIds = Array.from(
+          new Set(
+            rawSources
+              .map((value: unknown) => String(value || '').trim())
+              .filter((value: string) => value && value !== keepId),
+          ),
+        )
+        const actor = String(mergedBy || reviewedBy || 'Admin').trim() || 'Admin'
+
+        if (!keepId) {
+          return res.status(400).json({ error: 'Missing target allocation' })
+        }
+        if (mergeSourceIds.length === 0) {
+          return res.status(400).json({ error: 'Select at least one allocation to merge' })
+        }
+
+        const target = await prisma.erpPettyCashAllocation.findUnique({ where: { id: keepId } })
+        if (!target) {
+          return res.status(404).json({ error: 'Target allocation not found' })
+        }
+        if (target.status !== 'active') {
+          return res.status(400).json({ error: 'Target allocation must be active' })
+        }
+
+        const sources = await prisma.erpPettyCashAllocation.findMany({
+          where: { id: { in: mergeSourceIds } },
+        })
+        if (sources.length !== mergeSourceIds.length) {
+          return res.status(404).json({ error: 'One or more source allocations were not found' })
+        }
+
+        for (const source of sources) {
+          if (source.status !== 'active') {
+            return res.status(400).json({
+              error: `Can only merge active allocations (${allocationRefLabel(source)} is ${source.status})`,
+            })
+          }
+          if (!samePettyCashEmployee(target, source)) {
+            return res.status(400).json({
+              error: `Allocations must belong to the same person (${allocationRefLabel(source)} is ${source.employeeName})`,
+            })
+          }
+        }
+
+        const addedAmount = sources.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
+        const sourceRefs = sources.map((row) => allocationRefLabel(row))
+        const nowIso = new Date().toISOString()
+        const mergeNote = appendPettyCashMergeNote(target.notes || '', {
+          at: nowIso,
+          by: actor,
+          sourceIds: sources.map((row) => row.id),
+          sourceRefs,
+          addedAmount,
+        })
+        const nextPurpose = mergePurposeText(
+          target.purpose,
+          sources.map((row) => row.purpose),
+        )
+
+        const updated = await prisma.$transaction(async (tx) => {
+          await tx.erpPettyCashReceipt.updateMany({
+            where: { allocationId: { in: mergeSourceIds } },
+            data: { allocationId: keepId },
+          })
+
+          try {
+            await tx.erpFinanceRecord.updateMany({
+              where: { petty_cash_allocation_id: { in: mergeSourceIds } },
+              data: { petty_cash_allocation_id: keepId },
+            })
+          } catch {
+            // Finance link update is best-effort if table/column unavailable.
+          }
+
+          for (const source of sources) {
+            const sourceNote = appendPettyCashMergeNote(source.notes || '', {
+              at: nowIso,
+              by: actor,
+              sourceIds: [source.id],
+              sourceRefs: [allocationRefLabel(target)],
+              addedAmount: Number(source.amount) || 0,
+            })
+            await tx.erpPettyCashAllocation.update({
+              where: { id: source.id },
+              data: {
+                status: 'cancelled',
+                reviewedBy: actor,
+                reviewedAt: new Date(),
+                reviewNotes: `Merged into ${allocationRefLabel(target)}`,
+                notes: `${sourceNote}\nCancelled: merged into ${allocationRefLabel(target)} by ${actor}`,
+              },
+            })
+          }
+
+          return tx.erpPettyCashAllocation.update({
+            where: { id: keepId },
+            data: {
+              amount: (Number(target.amount) || 0) + addedAmount,
+              purpose: nextPurpose,
+              notes: mergeNote,
+            },
+          })
+        })
+
+        return res.status(200).json(updated)
+      }
 
       if (!id) {
         return res.status(400).json({ error: 'Missing allocation ID' })

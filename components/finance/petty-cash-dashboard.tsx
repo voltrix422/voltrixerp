@@ -9,11 +9,13 @@ import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { PettyCashHistoryPanel } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
 import { PettyCashPayOwed } from "./petty-cash-pay-owed"
+import { PettyCashMerge } from "./petty-cash-merge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, CheckCircle, XCircle, Archive, FileText, FileDown, Search, Trash2 } from "lucide-react"
+import { Plus, CheckCircle, XCircle, Archive, FileText, FileDown, Search, Trash2, GitMerge } from "lucide-react"
+import { samePettyCashEmployee } from "@/lib/petty-cash-merge"
 import { downloadMoneyApprovalPdf } from "@/lib/generate-petty-cash-pending-pdf"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
@@ -83,6 +85,7 @@ export function PettyCashDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [mergeTarget, setMergeTarget] = useState<PettyCashAllocation | null>(null)
 
   useEffect(() => {
     loadData()
@@ -735,6 +738,24 @@ export function PettyCashDashboard() {
                                   Settle
                                 </button>
                               )}
+                              {canManagePettyCash &&
+                                allocation.status === "active" &&
+                                allocations.some(
+                                  (row) =>
+                                    row.id !== allocation.id &&
+                                    row.status === "active" &&
+                                    samePettyCashEmployee(allocation, row),
+                                ) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMergeTarget(allocation)}
+                                  className="text-[#5856d6] hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
+                                  title="Merge other allocations into this one"
+                                >
+                                  <GitMerge className="h-3 w-3" />
+                                  Merge
+                                </button>
+                              )}
                               {canManagePettyCash && !isPersonalLedgerAllocation(allocation) && (
                                 <button
                                   type="button"
@@ -948,6 +969,20 @@ export function PettyCashDashboard() {
           userRole={userRole || "user"}
           onClose={() => setSelectedAllocation(null)}
           onUpdate={loadData}
+        />
+      )}
+
+      {mergeTarget && (
+        <PettyCashMerge
+          target={mergeTarget}
+          allocations={allocations}
+          receipts={receipts}
+          mergedBy={currentUser || "Admin"}
+          onClose={() => setMergeTarget(null)}
+          onMerged={() => {
+            setMergeTarget(null)
+            void loadData()
+          }}
         />
       )}
 

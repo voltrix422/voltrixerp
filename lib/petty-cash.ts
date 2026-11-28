@@ -203,6 +203,31 @@ export async function deletePettyCashAllocation(id: string): Promise<void> {
   }
 }
 
+/** Manually merge other active allocations into a target allocation (same person). */
+export async function mergePettyCashAllocations(data: {
+  targetId: string
+  sourceIds: string[]
+  mergedBy: string
+}): Promise<PettyCashAllocation> {
+  const res = await fetch("/api/db/petty-cash-allocations", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "merge",
+      targetId: data.targetId,
+      sourceIds: data.sourceIds,
+      mergedBy: data.mergedBy,
+    }),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.error === "string" ? payload.error : "Failed to merge petty cash allocations",
+    )
+  }
+  return payload
+}
+
 export async function getPettyCashReceipts(allocationId?: string): Promise<PettyCashReceipt[]> {
   const url = allocationId 
     ? `/api/db/petty-cash-receipts?allocationId=${allocationId}`
